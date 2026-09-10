@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens — an Atlassian Design System-inspired light palette.
+   Values track the ADS colour ramp (B500 brand blue, N-series neutrals,
+   G/Y/R semantic families) so the app reads like an Atlassian product.
+   Token NAMES are kept semantic (surface / line / ink) rather than literal
+   colours, so a future theme swap only touches this block.
+--------------------------------------------------------------------------- */
+@theme {
+  /* Brand — ADS blue */
+  --color-accent: #0c66e4; /* B500 — primary actions, links */
+  --color-accent-soft: #0055cc; /* B600 — hover/pressed */
+  --color-accent-bold: #09326c; /* B800 — active, dark headings on blue */
+  --color-accent-subtle: #e9f2fe; /* B50 — selected rows, tinted panels */
+  --color-accent-border: #8fb8f6; /* B200 — borders on tinted panels */
+
+  /* Neutrals — text */
+  --color-ink: #172b4d; /* N800 — primary text */
+  --color-subtle: #44546f; /* N600 — secondary text */
+  --color-muted: #626f86; /* N500 — tertiary text, labels */
+
+  /* Neutrals — surfaces */
+  --color-surface: #ffffff;
+  --color-panel: #ffffff; /* raised card */
+  --color-panel-2: #f7f8f9; /* N100 — sunken / subtle fill */
+  --color-panel-3: #f1f2f4; /* N200 — hovered fill */
+  --color-line: #dfe1e6; /* N40 — borders, dividers */
+  --color-line-bold: #b3b9c4; /* N100 — stronger borders */
+
+  /* Semantic */
+  --color-success: #22a06b; /* G400 */
+  --color-success-text: #216e4e; /* G700 */
+  --color-success-subtle: #dcfff1; /* G50 */
+  --color-warning: #e2b203; /* Y400 */
+  --color-warning-text: #7f5f01; /* Y700 */
+  --color-warning-subtle: #fff7d6; /* Y50 */
+  --color-danger: #c9372c; /* R500 */
+  --color-danger-text: #ae2e24; /* R600 */
+  --color-danger-subtle: #ffeceb; /* R50 */
+  --color-discovery: #6e5dc6; /* P500 — "learn more" / explainers */
+  --color-discovery-text: #5e4db2; /* P700 */
+  --color-discovery-subtle: #f3f0ff; /* P50 */
+
+  /* Elevation — ADS shadow ramp */
+  --shadow-card: 0 1px 1px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
+  --shadow-overlay: 0 8px 12px rgba(9, 30, 66, 0.15), 0 0 1px rgba(9, 30, 66, 0.31);
+
+  /* Type — Atlassian ships Charlie Display/Text; fall back to the system stack */
+  --font-sans: "Charlie Display", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  background-color: var(--color-panel-2);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Keyboard focus ring — ADS uses a 2px brand-blue ring with a small offset. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Each newly revealed step of a guided flow slides gently in. */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.reveal {
+  animation: reveal 0.45s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none;
+  }
+}
+
+/* Range slider — brand thumb on a neutral track. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-line);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  cursor: pointer;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  cursor: pointer;
+  border: 3px solid #fff;
+}
+
+/* On phones, suppress the Recharts hover/tap tooltips — the pop-ups obscure the
+   small charts and get in the way of scrolling/tapping. */
+@media (max-width: 640px) {
+  .recharts-tooltip-wrapper,
+  .recharts-tooltip-cursor {
+    display: none !important;
+  }
+}

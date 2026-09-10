@@ -1,0 +1,51 @@
+{
+  "name": "leasewiz",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
+    "predev": "node scripts/free-port.mjs 3000",
+    "dev": "node scripts/gen-version.mjs && next dev -p 3000",
+    "build": "node scripts/gen-version.mjs && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "test": "vitest run",
+    "test:record": "node scripts/run-tests.mjs",
+    "sanity": "tsx scripts/sanity.ts"
+  },
+  "dependencies": {
+    "@types/pg": "^8.20.0",
+    "d3-geo": "^3.1.1",
+    "geoip-lite": "^1.4.10",
+    "next": "^15.5.20",
+    "pg": "^8.22.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "recharts": "2.15.0",
+    "topojson-client": "^3.1.0",
+    "tsx": "^4.19.2"
+  },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.2",
+    "@tailwindcss/oxide-linux-x64-musl": "4.3.2",
+    "lightningcss-linux-x64-gnu": "1.32.0",
+    "lightningcss-linux-x64-musl": "1.32.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.2",
+    "@types/d3-geo": "^3.1.0",
+    "@types/geoip-lite": "^1.4.4",
+    "@types/node": "22.10.7",
+    "@types/react": "19.0.7",
+    "@types/react-dom": "19.0.3",
+    "@types/topojson-client": "^3.1.5",
+    "playwright": "^1.61.1",
+    "tailwindcss": "^4.3.2",
+    "typescript": "5.7.3",
+    "vitest": "^4.1.9"
+  }
+}

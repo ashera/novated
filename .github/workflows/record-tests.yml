@@ -1,0 +1,27 @@
+name: Record test suite
+
+# Runs the Vitest suite on every push to main and records the results into the
+# database, so the backoffice "Tests" page (/admin/tests) stays fresh.
+# Recording is the goal: a failing test is still recorded (and visible on that
+# page) — the job only goes red if the recording itself breaks.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # allow a manual run from the Actions tab
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run tests and record to the database
+        env:
+          # Railway Postgres PUBLIC connection string (needs TLS — handled by the
+          # script). The private *.railway.internal host is not reachable from CI.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run test:record

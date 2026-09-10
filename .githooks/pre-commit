@@ -1,0 +1,6 @@
+#!/bin/sh
+# Keep lib/version.ts (build number + recent commit list) in sync with git on every
+# commit, so the deploy-time release auto-draft has fresh data even though Railway's
+# build host has no usable git. Best-effort — never block a commit.
+node scripts/gen-version.mjs >/dev/null 2>&1 && git add lib/version.ts
+exit 0

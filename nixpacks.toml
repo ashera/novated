@@ -1,0 +1,12 @@
+# Deterministic installs: `npm ci` installs exactly what package-lock.json
+# pins. The earlier "Cannot find native binding" failures for Tailwind v4's
+# @tailwindcss/oxide / lightningcss Linux binaries were caused by an old npm
+# that Nixpacks selected by default (npm/cli#4828); pinning Node 22 in
+# package.json (engines) gives npm >= 10 where that bug is fixed, and the
+# Linux binaries are declared as first-class optionalDependencies so npm ci
+# always materialises them on the Linux build host.
+#
+# --include=dev keeps the build-time toolchain (Tailwind, TypeScript) even
+# when Railway sets NODE_ENV=production.
+[phases.install]
+cmds = ["npm ci --include=dev"]
