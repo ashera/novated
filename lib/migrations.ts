@@ -54,9 +54,8 @@ create table if not exists password_resets (
 );
 create index if not exists password_resets_token_hash_idx on password_resets (token_hash);
 
--- A saved lease scenario. \`data\` is a LeaseScenario (lib/au/types.ts) — the
--- user's INPUTS only, never computed results, so every scenario re-runs against
--- the current reference data when it is opened.
+-- RETIRED, superseded by the leases table. Left in place for one release rather than
+-- dropped in the same change that moved off it. Nothing reads this.
 create table if not exists plans (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users(id) on delete cascade,
@@ -78,6 +77,41 @@ create unique index if not exists plans_share_uidx on plans(share_token) where s
 -- follows them across devices. Nulled if that scenario is deleted, so the app
 -- can fall back to another (or create a fresh one).
 alter table users add column if not exists active_plan_id uuid references plans(id) on delete set null;
+
+-- A lease: the thing a person is actually deciding about, and the parent of
+-- everything else. The car is defined once here and shared by the calculator
+-- and the decoder, because describing the same vehicle twice was the problem
+-- this table exists to solve. A user may have several on the go.
+create table if not exists leases (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  name text not null,
+  -- VehicleSpec: the shared car (lib/au/lease.ts)
+  vehicle jsonb not null default '{}'::jsonb,
+  -- ScenarioSpec: what the calculator needs that isn't the car
+  scenario jsonb not null default '{}'::jsonb,
+  notes text,
+  -- Capability token for a public read-only link, as for the old plans.
+  share_token text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists leases_user_idx on leases (user_id, updated_at desc);
+create unique index if not exists leases_share_uidx on leases (share_token) where share_token is not null;
+
+-- A decoded provider quote, belonging to the lease it quotes for. Holds only
+-- the figures off that document; the car comes from the parent.
+create table if not exists lease_quotes (
+  id uuid primary key default gen_random_uuid(),
+  lease_id uuid not null references leases(id) on delete cascade,
+  label text not null,
+  data jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists lease_quotes_lease_idx on lease_quotes (lease_id, created_at);
+
+alter table users add column if not exists active_lease_id uuid references leases(id) on delete set null;
 
 -- A decoded provider quote the user has kept. \`data\` is a Quote (lib/au/quote.ts)
 -- — the figures transcribed off the document, never the decode, so a benchmark
@@ -564,6 +598,96 @@ export async function applyReferenceDataCorrections(c: Client): Promise<void> {
   console.log(`  ref-data: applied ${applied} correction(s) to FY${version.financial_year}.`);
 }
 
+/**
+ * Fold pre-lease data into the new parent entity.
+ *
+ * Quotes used to hang off the user directly, each carrying its own copy of the
+ * car. Each user's quotes become one lease, its vehicle taken from the first
+ * quote that described one — which is right, because in practice a person's
+ * quotes are competing offers on the SAME car. Anyone who was really shopping
+ * two cars can split them afterwards; guessing at that automatically would be
+ * worse than putting them together.
+ *
+ * The old `quotes` and `plans` tables are left in place, unread. Dropping them
+ * in the same release that moves the data would leave nothing to fall back on
+ * if this is wrong.
+ */
+export async function migrateToLeases(c: Client): Promise<void> {
+  const exists = await c.query(
+    "select 1 from information_schema.tables where table_schema='public' and table_name='quotes'",
+  );
+  if (!exists.rowCount) return;
+
+  // Only users who have quotes but no lease yet — so this runs once.
+  const pending = await c.query<{ user_id: string }>(
+    `select distinct q.user_id from quotes q
+       left join leases l on l.user_id = q.user_id
+      where l.id is null`,
+  );
+  if (!pending.rowCount) {
+    console.log("  leases: nothing to migrate.");
+    return;
+  }
+
+  let leases = 0;
+  let moved = 0;
+  for (const { user_id } of pending.rows) {
+    const qs = await c.query<{ label: string; data: Record<string, unknown> }>(
+      "select label, data from quotes where user_id = $1 order by created_at",
+      [user_id],
+    );
+    if (!qs.rowCount) continue;
+
+    const first = qs.rows.find((r) => r.data?.vehiclePrice != null) ?? qs.rows[0];
+    const d = first.data ?? {};
+    const vehicle = {
+      vehicleId: d.vehicleId ?? undefined,
+      price: d.vehiclePrice ?? undefined,
+      fuelType: d.fuelType ?? "electric",
+      annualKm: d.annualKm ?? undefined,
+      state: d.state ?? undefined,
+      consumptionPer100km: d.consumptionPer100km ?? undefined,
+      firstHeldDate: d.firstHeldDate ?? undefined,
+    };
+    const scenario = { salary: d.salary ?? 110000 };
+
+    const lease = await c.query<{ id: string }>(
+      `insert into leases (user_id, name, vehicle, scenario)
+       values ($1, $2, $3, $4) returning id`,
+      [user_id, "My lease", JSON.stringify(vehicle), JSON.stringify(scenario)],
+    );
+    const leaseId = lease.rows[0].id;
+    leases++;
+
+    for (const row of qs.rows) {
+      const q = row.data ?? {};
+      // Strip the vehicle: it lives on the parent now.
+      const spec = {
+        id: `q-${Math.random().toString(36).slice(2, 10)}`,
+        label: row.label,
+        frequency: q.frequency ?? "fortnightly",
+        amountFinanced: q.amountFinanced ?? undefined,
+        residualIncGst: q.residualIncGst ?? undefined,
+        termMonths: q.termMonths ?? 60,
+        lines: q.lines ?? {},
+        statedPreTax: q.statedPreTax ?? undefined,
+        statedPostTax: q.statedPostTax ?? undefined,
+        salary: q.salary ?? undefined,
+      };
+      await c.query(
+        "insert into lease_quotes (lease_id, label, data) values ($1,$2,$3)",
+        [leaseId, row.label, JSON.stringify(spec)],
+      );
+      moved++;
+    }
+    await c.query("update users set active_lease_id = $1 where id = $2 and active_lease_id is null", [
+      leaseId,
+      user_id,
+    ]);
+  }
+  console.log(`  leases: created ${leases} from pre-lease data, carrying ${moved} quote(s).`);
+}
+
 export async function migrate(c: Client): Promise<void> {
   await applySchema(c);
   console.log("  schema: applied.");
@@ -571,6 +695,7 @@ export async function migrate(c: Client): Promise<void> {
   await applyReferenceDataCorrections(c);
   await seedSources(c);
   await seedVehicles(c);
+  await migrateToLeases(c);
   await seedReleases(c);
   await autoDraftRelease(c);
 }

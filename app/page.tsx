@@ -3,9 +3,7 @@ import LeaseCalculator from "@/components/LeaseCalculator";
 import VisitorActivity from "@/components/VisitorActivity";
 import { getCurrentUser } from "@/lib/auth";
 import { countryFromIp } from "@/lib/geo";
-import { getActivePlan } from "@/app/actions/plans";
 import { buildReviewData, getActiveConfig } from "@/lib/refdata";
-import { migrateScenario } from "@/lib/au/types";
 import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from "@/lib/site";
 
 const jsonLd = {
@@ -45,10 +43,7 @@ const jsonLd = {
 
 export default async function Page() {
   const user = await getCurrentUser();
-  const [active, config] = await Promise.all([
-    user ? getActivePlan() : Promise.resolve(null),
-    getActiveConfig(),
-  ]);
+  const config = await getActiveConfig();
   const reviewDue = user?.is_admin ? (await buildReviewData()).dueTotal : 0;
 
   // The flag in the menu bar: a signed-in user's stored country, else the
@@ -73,7 +68,6 @@ export default async function Page() {
         country={country}
         config={config}
         reviewDue={reviewDue}
-        initialScenario={active ? migrateScenario(active.data) : null}
       />
     </>
   );

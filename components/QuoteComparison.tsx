@@ -7,7 +7,8 @@ import Disclosures from "./Disclosures";
 import { fmtCurrency } from "@/lib/au/format";
 import { compareQuotes } from "@/lib/au/quote";
 import type { EngineConfig } from "@/lib/au/config";
-import { useSavedQuotes } from "./useSavedQuotes";
+import { useLease } from "./useLease";
+import { leaseToQuote } from "@/lib/au/lease";
 
 /** A row of the comparison table. `best` marks the winning column, where one
  *  can honestly be named. */
@@ -30,10 +31,13 @@ export default function QuoteComparison({
   config: EngineConfig;
   reviewDue?: number;
 }) {
-  const saved = useSavedQuotes(Boolean(user));
+  const store = useLease(Boolean(user));
+  const { lease } = store;
+  // Every quote on this lease is an offer on the SAME car, which is exactly
+  // what makes them comparable — the vehicle comes from the shared parent.
   const comparison = useMemo(
-    () => compareQuotes(saved.quotes.map((q) => q.data), config),
-    [saved.quotes, config],
+    () => compareQuotes(lease.quotes.map((q) => leaseToQuote(lease, q)), config),
+    [lease, config],
   );
 
   const cols = comparison.quotes;
@@ -113,10 +117,11 @@ export default function QuoteComparison({
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div className="max-w-3xl">
             <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-              Your quotes, side by side
+              {lease.name}: quotes side by side
             </h1>
             <p className="mt-1.5 text-sm text-subtle">
-              The same figures on the same footing, including the one number none of them prints.
+              Every offer on the same car, on the same footing — including the one number none of
+              them prints.
             </p>
           </div>
           <Link
@@ -127,14 +132,14 @@ export default function QuoteComparison({
           </Link>
         </div>
 
-        {saved.adopted > 0 && (
+        {store.adopted > 0 && (
           <p className="mb-5 rounded-lg border border-success/40 bg-success-subtle px-4 py-2.5 text-sm text-success-text">
-            Moved {saved.adopted} quote{saved.adopted === 1 ? "" : "s"} from this browser onto your
+            Moved {store.adopted} lease{store.adopted === 1 ? "" : "s"} from this browser onto your
             account. They&apos;ll follow you to any device now.
           </p>
         )}
 
-        {saved.loading ? (
+        {store.loading ? (
           <p className="text-sm text-muted">Loading your quotes…</p>
         ) : cols.length === 0 ? (
           <section className="rounded-xl border border-line bg-panel p-8 text-center shadow-[var(--shadow-card)]">

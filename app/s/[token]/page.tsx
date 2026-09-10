@@ -2,31 +2,42 @@ import { notFound } from "next/navigation";
 import LeaseCalculator from "@/components/LeaseCalculator";
 import { query } from "@/lib/db";
 import { getActiveConfig } from "@/lib/refdata";
-import { migrateScenario } from "@/lib/au/types";
+import { migrateLease } from "@/lib/au/lease";
 
-// A public, read-only share link. No login: the scenario is looked up by its
-// capability token and rendered into a logged-out calculator preloaded with it.
+// A public, read-only share link. No login: the lease is looked up by its
+// capability token and rendered as-is. Notes are deliberately not selected —
+// they are the owner's private working notes, not part of what they shared.
 export const metadata = {
-  title: "Shared lease scenario",
+  title: "Shared lease",
   robots: { index: false, follow: false },
 };
 export const dynamic = "force-dynamic";
 
-export default async function SharedScenarioPage({
+export default async function SharedLeasePage({
   params,
 }: {
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const r = await query<{ name: string; data: unknown }>(
-    "select name, data from plans where share_token = $1",
+  const r = await query<{ id: string; name: string; vehicle: unknown; scenario: unknown }>(
+    "select id, name, vehicle, scenario from leases where share_token = $1",
     [token],
   );
-  const saved = r.rows[0];
-  if (!saved) notFound();
+  const row = r.rows[0];
+  if (!row) notFound();
 
+  const q = await query<{ data: unknown }>(
+    "select data from lease_quotes where lease_id = $1 order by created_at",
+    [row.id],
+  );
   const config = await getActiveConfig();
-  const scenario = { ...migrateScenario(saved.data), name: saved.name };
+  const lease = migrateLease({
+    version: 1,
+    name: row.name,
+    vehicle: row.vehicle,
+    scenario: row.scenario,
+    quotes: q.rows.map((x) => x.data),
+  });
 
-  return <LeaseCalculator user={null} config={config} initialScenario={scenario} />;
+  return <LeaseCalculator user={null} config={config} sharedLease={lease} />;
 }

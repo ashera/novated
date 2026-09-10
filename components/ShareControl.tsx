@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createShareLink, revokeShareLink } from "@/app/actions/plans";
+import { createLeaseShareLink, revokeLeaseShareLink } from "@/app/actions/leases";
 
 /** Per-scenario share control: mints (or reuses) a public read-only link, copies it
  *  to the clipboard, and lets the owner revoke it. Shared by the dashboard's saved-
@@ -44,7 +44,7 @@ export default function ShareControl({
     if (token) return void copy(linkFor(token));
     setBusy(true);
     try {
-      const res = await createShareLink(id);
+      const res = await createLeaseShareLink(id);
       if (res.token) {
         setToken(res.token);
         await copy(linkFor(res.token));
@@ -60,7 +60,7 @@ export default function ShareControl({
     if (busy) return;
     setBusy(true);
     try {
-      await revokeShareLink(id);
+      await revokeLeaseShareLink(id);
       setToken(null);
       onNotice("Share link revoked — the public link no longer works.");
     } finally {

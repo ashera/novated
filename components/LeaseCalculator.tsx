@@ -13,87 +13,72 @@ import VehicleCard from "./VehicleCard";
 import { fmtCurrency } from "@/lib/au/format";
 import { calculateLease, type FuelType, type LeaseInputs } from "@/lib/au/novated";
 import type { EngineConfig } from "@/lib/au/config";
-import { DEFAULT_SCENARIO, migrateScenario, type LeaseScenario } from "@/lib/au/types";
+import { leaseToInputs, type Lease } from "@/lib/au/lease";
+import { useLease } from "./useLease";
+import LeaseSwitcher from "./LeaseSwitcher";
 import { track, trackLeasePricedConversion } from "@/lib/analytics";
 import { takeHandoff, type QuoteHandoff } from "@/lib/quoteHandoff";
 import { trackVisit } from "@/app/actions/track";
 
 const STORAGE_KEY = "leasewiz-scenario";
 
-const FUEL_TYPES: { key: FuelType; label: string; hint: string }[] = [
-  { key: "electric", label: "Electric", hint: "Battery-electric — FBT exempt under the threshold" },
-  { key: "petrol", label: "Petrol", hint: "FBT applies — offset by an employee contribution" },
-  { key: "diesel", label: "Diesel", hint: "FBT applies — offset by an employee contribution" },
-  { key: "hybrid", label: "Hybrid", hint: "Conventional hybrid — FBT applies" },
-  { key: "phev", label: "Plug-in hybrid", hint: "No longer eligible for the FBT exemption" },
-];
-
 export default function LeaseCalculator({
   user,
   country,
   config,
   reviewDue = 0,
-  initialScenario,
-  readOnly = false,
+  sharedLease,
 }: {
   user: TopBarUser | null;
   country?: string | null;
   config: EngineConfig;
   reviewDue?: number;
-  /** A saved or shared scenario to open with. Falls back to local storage. */
-  initialScenario?: LeaseScenario | null;
-  /** Shared links are look-but-don't-touch until the viewer makes it their own. */
-  readOnly?: boolean;
+  /** A lease opened from a public share link: shown as-is, not editable, and
+   *  never mixed into the viewer's own saved leases. */
+  sharedLease?: Lease | null;
 }) {
-  const [scenario, setScenario] = useState<LeaseScenario>(
-    initialScenario ?? DEFAULT_SCENARIO,
-  );
-  const [hydrated, setHydrated] = useState(false);
+  const store = useLease(Boolean(user) && !sharedLease);
+  const lease = sharedLease ?? store.lease;
+  const readOnly = Boolean(sharedLease);
   const [fromQuote, setFromQuote] = useState<QuoteHandoff | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
-  // Guests keep their work in the browser. A scenario passed in from the server
-  // (a saved plan or a share link) always wins, so a shared link never gets
-  // silently replaced by whatever the viewer last modelled.
+  // A quote handed over from the decoder carries the rate we solved and that
+  // quote's own running-cost budgets. The CAR no longer needs carrying — both
+  // tools read it off the same lease.
   useEffect(() => {
-    // A quote just handed over from the decoder wins over everything else: it
-    // is the most recent thing the user did, and they clicked a button to get
-    // here. Consumed once, so a later visit opens on their own work again.
+    if (sharedLease) return setHydrated(true);
     const handed = takeHandoff();
     if (handed) {
       setFromQuote(handed);
-      setScenario({
-        version: 1,
-        name: handed.label,
-        inputs: handed.inputs,
-      });
-      setHydrated(true);
-      return;
-    }
-    if (initialScenario) {
-      setHydrated(true);
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setScenario(migrateScenario(JSON.parse(raw)));
-    } catch {
-      /* storage blocked or corrupt — the defaults are fine */
+      store.update((l) => ({
+        ...l,
+        scenario: {
+          ...l.scenario,
+          interestRatePct: handed.inputs.interestRatePct,
+          residualPct: handed.inputs.residualPct,
+          includeRunningCosts: handed.inputs.includeRunningCosts,
+          runningCostOverrides: handed.inputs.runningCostOverrides,
+          adminFeeAnnual: handed.inputs.adminFeeAnnual,
+          termYears: handed.inputs.termYears,
+        },
+      }));
     }
     setHydrated(true);
-  }, [initialScenario]);
+    // Runs once: the handoff is consumed on read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  useEffect(() => {
-    if (!hydrated || readOnly) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(scenario));
-    } catch {
-      /* ignore */
-    }
-  }, [scenario, hydrated, readOnly]);
+  const inputs = useMemo(() => leaseToInputs(lease), [lease]);
 
-  const inputs = scenario.inputs;
-  const set = <K extends keyof LeaseInputs>(key: K, value: LeaseInputs[K]) =>
-    setScenario((s) => ({ ...s, inputs: { ...s.inputs, [key]: value } }));
+  const setVehicle = (patch: Partial<Lease["vehicle"]>) => {
+    if (readOnly) return;
+    store.update((l) => ({ ...l, vehicle: { ...l.vehicle, ...patch } }));
+  };
+  const set = <K extends keyof Lease["scenario"]>(key: K, value: Lease["scenario"][K]) => {
+    if (readOnly) return;
+    store.update((l) => ({ ...l, scenario: { ...l.scenario, [key]: value } }));
+  };
 
   const result = useMemo(() => calculateLease(inputs, config), [inputs, config]);
 
@@ -178,31 +163,29 @@ export default function LeaseCalculator({
           </p>
         </div>
 
+        {!readOnly && <LeaseSwitcher store={store} signedIn={Boolean(user)} />}
+
         <div className="mb-6">
           <VehicleCard
             vehicleId={inputs.vehicleId}
             onVehicle={(v) =>
-              setScenario((s) => ({
-                ...s,
-                inputs: {
-                  ...s.inputs,
-                  vehicleId: v?.id,
-                  consumptionPer100km: v?.consumption,
-                  fuelType: v?.fuelType ?? s.inputs.fuelType,
-                },
-              }))
+              setVehicle({
+                vehicleId: v?.id,
+                consumptionPer100km: v?.consumption,
+                ...(v ? { fuelType: v.fuelType } : {}),
+              })
             }
             fuelType={inputs.fuelType}
             onFuelType={(f) => {
-              set("fuelType", f);
+              setVehicle({ fuelType: f });
               track("Fuel type changed", { fuel: f });
             }}
             price={inputs.vehiclePrice}
-            onPrice={(v) => set("vehiclePrice", v ?? 0)}
+            onPrice={(v) => setVehicle({ price: v })}
             annualKm={inputs.annualKm}
-            onAnnualKm={(v) => set("annualKm", v ?? 0)}
+            onAnnualKm={(v) => setVehicle({ annualKm: v })}
             state={inputs.state}
-            onState={(st) => set("state", st)}
+            onState={(st) => setVehicle({ state: st })}
           />
         </div>
 

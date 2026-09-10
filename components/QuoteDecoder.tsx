@@ -20,7 +20,14 @@ import type { FuelType } from "@/lib/au/novated";
 import { AU_STATES } from "@/lib/au/config";
 import VehicleCard from "./VehicleCard";
 import { track } from "@/lib/analytics";
-import { useSavedQuotes } from "./useSavedQuotes";
+import { useLease } from "./useLease";
+import LeaseSwitcher from "./LeaseSwitcher";
+import {
+  applyQuoteEdit,
+  leaseToQuote,
+  newQuoteSpec,
+  type Lease,
+} from "@/lib/au/lease";
 
 /**
  * A worked example so the page opens showing what it does, rather than as an
@@ -95,23 +102,40 @@ export default function QuoteDecoder({
   config: EngineConfig;
   reviewDue?: number;
 }) {
-  const [quote, setQuote] = useState<Quote>(EXAMPLE);
-  const [isExample, setIsExample] = useState(true);
+  const store = useLease(Boolean(user));
+  const { lease } = store;
+  const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [justSaved, setJustSaved] = useState(false);
-  const saved = useSavedQuotes(Boolean(user));
   const router = useRouter();
 
-  const set = <K extends keyof Quote>(key: K, value: Quote[K]) => {
+  // Which quote are we decoding? The lease's first, unless one was chosen.
+  const activeSpec =
+    lease.quotes.find((q) => q.id === activeQuoteId) ?? lease.quotes[0] ?? null;
+  const isExample = lease.quotes.length === 0;
+
+  // With no quotes yet, show a worked example so the page demonstrates itself
+  // rather than opening as an empty form. It is never saved — the first edit
+  // creates a real quote on the lease.
+  const quote: Quote = isExample ? EXAMPLE : leaseToQuote(lease, activeSpec!);
+
+  /** Any edit writes back through the lease, splitting the car onto the parent
+   *  and the rest onto the quote — which is how the two tools stay in step. */
+  const setQuote = (fn: (q: Quote) => Quote) => {
+    const next = fn(quote);
+    store.update((l) => {
+      if (isExample) {
+        const spec = newQuoteSpec(next.label?.trim() || "My quote");
+        const seeded: Lease = { ...l, quotes: [...l.quotes, spec] };
+        setActiveQuoteId(spec.id);
+        return applyQuoteEdit(seeded, spec.id, next);
+      }
+      return applyQuoteEdit(l, activeSpec!.id, next);
+    });
+  };
+  const set = <K extends keyof Quote>(key: K, value: Quote[K]) =>
     setQuote((q) => ({ ...q, [key]: value }));
-    setIsExample(false);
-  };
-  const setLine = (key: keyof Quote["lines"], value: number | undefined) => {
+  const setLine = (key: keyof Quote["lines"], value: number | undefined) =>
     setQuote((q) => ({ ...q, lines: { ...q.lines, [key]: value } }));
-    setIsExample(false);
-  };
 
   const decode = useMemo(() => decodeQuote(quote, config), [quote, config]);
 
@@ -125,35 +149,8 @@ export default function QuoteDecoder({
   }, [quote.vehiclePrice, config]);
   const freqWord = FREQ_WORD[quote.frequency];
 
-  const keep = async () => {
-    setSaveError(null);
-    const label = quote.label?.trim() || "Untitled quote";
-    const res = editingId
-      ? await saved.update(editingId, label, quote)
-      : await saved.add(label, quote);
-    if (res.error) return setSaveError(res.error);
-    setJustSaved(true);
-    setIsExample(false);
-    track("Quote kept", { signedIn: Boolean(user), editing: Boolean(editingId) });
-    setTimeout(() => setJustSaved(false), 2_500);
-    if (!editingId) await saved.refresh();
-  };
 
-  const load = (id: string) => {
-    const found = saved.quotes.find((q) => q.id === id);
-    if (!found) return;
-    setQuote(found.data);
-    setEditingId(id);
-    setIsExample(false);
-    setSaveError(null);
-  };
 
-  const startNew = () => {
-    setQuote(EMPTY);
-    setEditingId(null);
-    setIsExample(false);
-    setSaveError(null);
-  };
 
   /** Hand this quote to the calculator, so "is it worth it at all?" costs a
    *  click rather than re-typing everything. */
@@ -215,30 +212,40 @@ export default function QuoteDecoder({
           </p>
         </div>
 
-        {saved.quotes.length > 0 && (
-          <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-panel px-4 py-3 shadow-[var(--shadow-card)]">
+        <LeaseSwitcher store={store} signedIn={Boolean(user)} />
+
+        {store.adopted > 0 && (
+          <p className="mb-5 rounded-lg border border-success/40 bg-success-subtle px-4 py-2.5 text-sm text-success-text">
+            Moved {store.adopted} lease{store.adopted === 1 ? "" : "s"} from this browser onto your
+            account. They&apos;ll follow you to any device now.
+          </p>
+        )}
+
+        {/* Quotes on THIS lease — competing offers on the same car. */}
+        {lease.quotes.length > 0 && (
+          <div className="mb-5 flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Your quotes
+              Quotes on this lease
             </span>
-            {saved.quotes.map((q) => (
+            {lease.quotes.map((q) => (
               <span
                 key={q.id}
                 className={`inline-flex items-center gap-1 rounded-full border py-1 pl-3 pr-1 text-sm transition ${
-                  editingId === q.id
+                  activeSpec?.id === q.id
                     ? "border-accent bg-accent-subtle text-accent"
-                    : "border-line bg-panel-2 text-subtle hover:border-line-bold"
+                    : "border-line bg-panel text-subtle hover:border-line-bold"
                 }`}
               >
-                <button type="button" onClick={() => load(q.id)} className="font-medium">
+                <button type="button" onClick={() => setActiveQuoteId(q.id)} className="font-medium">
                   {q.label}
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    void saved.remove(q.id);
-                    if (editingId === q.id) startNew();
-                  }}
                   aria-label={`Remove ${q.label}`}
+                  onClick={() => {
+                    store.update((l) => ({ ...l, quotes: l.quotes.filter((x) => x.id !== q.id) }));
+                    if (activeSpec?.id === q.id) setActiveQuoteId(null);
+                  }}
                   className="flex h-5 w-5 items-center justify-center rounded-full text-muted transition hover:bg-danger-subtle hover:text-danger-text"
                 >
                   ×
@@ -247,27 +254,24 @@ export default function QuoteDecoder({
             ))}
             <button
               type="button"
-              onClick={startNew}
+              onClick={() => {
+                const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`);
+                store.update((l) => ({ ...l, quotes: [...l.quotes, spec] }));
+                setActiveQuoteId(spec.id);
+              }}
               className="rounded-full border border-dashed border-line-bold px-3 py-1 text-sm font-medium text-muted transition hover:border-accent hover:text-accent"
             >
-              + New
+              + Add a quote
             </button>
-            {saved.quotes.length > 1 && (
+            {lease.quotes.length > 1 && (
               <Link
                 href="/compare"
                 className="ml-auto rounded bg-accent px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-accent-soft"
               >
-                Compare {saved.quotes.length} quotes
+                Compare {lease.quotes.length}
               </Link>
             )}
           </div>
-        )}
-
-        {saved.adopted > 0 && (
-          <p className="mb-5 rounded-lg border border-success/40 bg-success-subtle px-4 py-2.5 text-sm text-success-text">
-            Moved {saved.adopted} quote{saved.adopted === 1 ? "" : "s"} from this browser onto your
-            account. They&apos;ll follow you to any device now.
-          </p>
         )}
 
         <div className="mb-6">
@@ -302,10 +306,14 @@ export default function QuoteDecoder({
                 <h2 className="text-base font-semibold text-ink">Your quote</h2>
                 <button
                   type="button"
-                  onClick={startNew}
+                  onClick={() => {
+                    const spec = newQuoteSpec("My quote");
+                    store.update((l) => ({ ...l, quotes: [...l.quotes, spec] }));
+                    setActiveQuoteId(spec.id);
+                  }}
                   className="text-xs font-medium text-accent hover:underline"
                 >
-                  Clear
+                  Start a new quote
                 </button>
               </div>
 
@@ -703,29 +711,21 @@ export default function QuoteDecoder({
               </section>
             )}
 
+            {/* Nothing to "save" any more — the lease saves itself as you type. */}
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={keep}
-                disabled={isExample}
-                title={isExample ? "Enter your own quote first" : undefined}
-                className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {justSaved ? "Kept" : editingId ? "Save changes" : "Keep this quote"}
-              </button>
-              {saved.quotes.length > 1 && (
+              {lease.quotes.length > 1 && (
                 <Link
                   href="/compare"
-                  className="rounded border border-line bg-panel px-4 py-2 text-sm font-medium text-ink transition hover:bg-panel-2"
+                  className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
                 >
-                  Compare {saved.quotes.length} quotes
+                  Compare {lease.quotes.length} quotes
                 </Link>
               )}
               <Link
                 href="/"
                 className="rounded border border-line bg-panel px-4 py-2 text-sm font-medium text-ink transition hover:bg-panel-2"
               >
-                Model a lease from scratch
+                Model this lease from scratch
               </Link>
               <Link
                 href="/how-it-works"
@@ -735,18 +735,13 @@ export default function QuoteDecoder({
               </Link>
             </div>
 
-            {saveError && (
-              <p className="rounded-lg border border-danger/40 bg-danger-subtle px-4 py-2.5 text-sm text-danger-text">
-                {saveError}
-              </p>
-            )}
-            {!user && saved.quotes.length > 0 && (
+            {!user && !isExample && (
               <p className="text-sm text-muted">
-                Your quotes are kept in this browser.{" "}
+                This lease is kept in this browser.{" "}
                 <Link href="/signup" className="font-medium text-accent hover:underline">
                   Create an account
                 </Link>{" "}
-                and they&apos;ll follow you to any device.
+                and it&apos;ll follow you to any device.
               </p>
             )}
 
