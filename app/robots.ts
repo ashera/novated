@@ -24,8 +24,42 @@ const AI_BOTS = [
   "Meta-ExternalAgent",
 ];
 
-// Crawlers may index the marketing/entry/knowledge pages but not the private app tools.
+/**
+ * True when we're serving from a temporary host rather than the real site.
+ *
+ * A preview deploy must never be indexed. It would compete with the real domain
+ * for the same content, and every page on it carries a canonical pointing at
+ * whatever NEXT_PUBLIC_SITE_URL says — so a crawler either indexes a throwaway
+ * address or follows a canonical to a domain that may not exist yet.
+ *
+ * Deliberately keyed off the configured site URL rather than a separate flag:
+ * not yet having a real domain IS the signal that this isn't the live site, so
+ * indexing switches itself on the moment one is pointed at the app. There is no
+ * toggle to forget.
+ */
+export function isPreviewHost(url: string): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname.toLowerCase();
+  } catch {
+    return true; // an unparseable site URL is not a site we should be indexing
+  }
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.endsWith(".railway.app") ||
+    hostname.endsWith(".up.railway.app") ||
+    hostname.endsWith(".vercel.app") ||
+    hostname.endsWith(".onrender.com")
+  );
+}
+
+// Crawlers may index the marketing/entry/knowledge pages but not the private app
+// tools — unless we're on a preview host, in which case nothing is indexable.
 export default function robots(): MetadataRoute.Robots {
+  if (isPreviewHost(SITE_URL)) {
+    return { rules: [{ userAgent: "*", disallow: "/" }] };
+  }
   return {
     rules: [
       { userAgent: "*", allow: "/", disallow: DISALLOW },
