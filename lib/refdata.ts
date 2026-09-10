@@ -3,6 +3,7 @@ import { query } from "./db";
 import { DEFAULT_CONFIG, reviveConfig, type EngineConfig } from "./au/config";
 import { configToRows } from "./au/params";
 import { computeStaleness } from "./au/staleness";
+import { SOURCE_SEEDS } from "./au/sources";
 
 export interface ParamMeta {
   source: string;
@@ -103,10 +104,30 @@ const SOURCE_COLS = `id, key, name, organisation, url, description, update_frequ
             to_char(last_updated_from, 'YYYY-MM-DD') as last_updated_from, notes, updated_at`;
 
 export async function listSources(): Promise<Source[]> {
-  const r = await query<Source>(
-    `select ${SOURCE_COLS} from sources order by organisation, name`,
-  );
-  return r.rows;
+  try {
+    const r = await query<Source>(
+      `select ${SOURCE_COLS} from sources order by organisation, name`,
+    );
+    return r.rows;
+  } catch {
+    // Same contract as getActiveConfig: if the database is unreachable, fall
+    // back to what the code knows rather than failing the page. The seeds are
+    // the same rows the table was created from; only admin-managed fields
+    // (notably lastUpdatedFrom) are unavailable, and they render as "never".
+    return SOURCE_SEEDS.map((s) => ({
+      id: s.key,
+      key: s.key,
+      name: s.name,
+      organisation: s.organisation,
+      url: s.url,
+      description: s.description,
+      update_frequency: s.updateFrequency,
+      review_interval_days: s.reviewIntervalDays,
+      last_updated_from: null,
+      notes: null,
+      updated_at: "",
+    }));
+  }
 }
 
 export async function getSource(key: string): Promise<Source | null> {

@@ -6,6 +6,11 @@ import { listSources } from "@/lib/refdata";
 import { breadcrumbLd } from "@/lib/seo";
 import { SITE_NAME, SITE_DESCRIPTION } from "@/lib/site";
 
+// Reads the live sources table, which admins edit (and which must never be
+// frozen into a build artefact). Also keeps the build independent of the
+// database — a deploy should not need Postgres to render a content page.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "About & methodology",
   description:
