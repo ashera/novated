@@ -17,7 +17,8 @@ import {
 import { stashHandoff } from "@/lib/quoteHandoff";
 import type { EngineConfig } from "@/lib/au/config";
 import type { FuelType } from "@/lib/au/novated";
-import { AU_STATES, type AuState } from "@/lib/au/config";
+import { AU_STATES } from "@/lib/au/config";
+import VehiclePicker from "./VehiclePicker";
 import { track } from "@/lib/analytics";
 import { useSavedQuotes } from "./useSavedQuotes";
 
@@ -324,6 +325,19 @@ export default function QuoteDecoder({
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h2 className="text-base font-semibold text-ink">The car</h2>
               <div className="mt-4 space-y-4">
+                <VehiclePicker
+                  vehicleId={quote.vehicleId}
+                  compact
+                  onChange={(v) =>
+                    setQuote((q) => ({
+                      ...q,
+                      vehicleId: v?.id,
+                      consumptionPer100km: v?.consumption,
+                      fuelType: v?.fuelType ?? q.fuelType,
+                    }))
+                  }
+                />
+
                 <div>
                   <span className="text-sm font-medium text-ink">Fuel type</span>
                   <div className="mt-2 flex flex-wrap gap-1.5">

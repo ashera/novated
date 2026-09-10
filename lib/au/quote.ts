@@ -67,6 +67,10 @@ export interface Quote {
   // The car
   vehiclePrice?: number; // drive-away, inc GST
   fuelType: FuelType;
+  /** Catalogue vehicle, when the user picked one. Never sets the price. */
+  vehicleId?: string;
+  /** This model's consumption, when known from the catalogue. */
+  consumptionPer100km?: number;
 
   // The finance
   amountFinanced?: number;
@@ -360,6 +364,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         fuelType: quote.fuelType,
         annualKm: quote.annualKm,
         state: quote.state,
+        consumptionPer100km: quote.consumptionPer100km,
       } as LeaseInputs,
       config,
     );
@@ -714,6 +719,8 @@ export function quoteToLeaseInputs(
     termYears: years,
     annualKm: quote.annualKm ?? base.annualKm,
     state: quote.state,
+    vehicleId: quote.vehicleId,
+    consumptionPer100km: quote.consumptionPer100km,
     // The whole point: model their deal at their rate, not at our default.
     interestRatePct:
       decode.impliedRatePct != null ? round(decode.impliedRatePct, 2) : base.interestRatePct,

@@ -5,6 +5,7 @@ import type { Client } from "pg";
 import { DEFAULT_CONFIG, type EngineConfig } from "./au/config";
 import { PARAM_DESCRIPTORS, getByPath, setByPath } from "./au/params";
 import { SOURCE_SEEDS } from "./au/sources";
+import { VEHICLES } from "./au/vehicles";
 import { RELEASE_HISTORY } from "./releaseHistory";
 import { APP_VERSION, BUILD, GIT_SHA, BUILD_DATE, COMMITS } from "./version";
 
@@ -94,6 +95,29 @@ create table if not exists quotes (
   updated_at timestamptz not null default now()
 );
 create index if not exists quotes_user_idx on quotes(user_id, updated_at desc);
+
+-- The vehicles offered in the picker, and their artwork.
+--
+-- The list and its specs are seeded from code (lib/au/vehicles.ts) so the
+-- engine and its tests have a source of truth that does not depend on a
+-- database. What lives ONLY here is the image: bytes, not a URL, because a
+-- few dozen small images are far simpler to keep beside the data than in
+-- separate object storage, and they version with it.
+create table if not exists vehicles (
+  id text primary key,
+  make text not null,
+  model text not null,
+  fuel_type text not null,
+  consumption numeric not null,
+  body_type text not null,
+  image bytea,
+  image_mime text,
+  image_updated_at timestamptz,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists vehicles_make_idx on vehicles (active, make, model);
 
 -- Free-form user feedback from the floating widget. user_id is kept if they were
 -- signed in (set null if the account is later deleted); email is an optional
@@ -362,6 +386,36 @@ export async function seedSources(c: Client): Promise<void> {
   console.log(`  sources: upserted ${SOURCE_SEEDS.length} (review intervals backfilled, other attributes preserved).`);
 }
 
+/**
+ * Upsert the vehicle catalogue from code.
+ *
+ * Specs are refreshed on every deploy, so a corrected consumption figure ships
+ * with the code. The image column is deliberately untouched: it is uploaded
+ * through the backoffice and a redeploy must never wipe it.
+ */
+export async function seedVehicles(c: Client): Promise<void> {
+  for (const v of VEHICLES) {
+    await c.query(
+      `insert into vehicles (id, make, model, fuel_type, consumption, body_type)
+       values ($1,$2,$3,$4,$5,$6)
+       on conflict (id) do update
+         set make = excluded.make,
+             model = excluded.model,
+             fuel_type = excluded.fuel_type,
+             consumption = excluded.consumption,
+             body_type = excluded.body_type,
+             updated_at = now()`,
+      [v.id, v.make, v.model, v.fuelType, v.consumption, v.bodyType],
+    );
+  }
+  const withArt = await c.query<{ n: number }>(
+    "select count(*)::int as n from vehicles where image is not null",
+  );
+  console.log(
+    `  vehicles: upserted ${VEHICLES.length}; ${withArt.rows[0]?.n ?? 0} have artwork.`,
+  );
+}
+
 /** Backfill the hand-written release history. Idempotent on the version index. */
 export async function seedReleases(c: Client): Promise<void> {
   let added = 0;
@@ -516,6 +570,7 @@ export async function migrate(c: Client): Promise<void> {
   await seedRefData(c);
   await applyReferenceDataCorrections(c);
   await seedSources(c);
+  await seedVehicles(c);
   await seedReleases(c);
   await autoDraftRelease(c);
 }

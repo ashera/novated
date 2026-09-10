@@ -59,6 +59,12 @@ export interface LeaseInputs {
   /** Where the car is registered. Registration and CTP vary materially by
    *  state; without one we use a national midpoint. */
   state?: AuState;
+  /** Catalogue vehicle, when the user picked one. Carries the image and, more
+   *  usefully, this model's own consumption. */
+  vehicleId?: string;
+  /** This car's combined-cycle consumption, overriding the class default:
+   *  litres per 100km, or kWh per 100km when electric. */
+  consumptionPer100km?: number;
 }
 
 export interface AnnualRunningCosts {
@@ -292,13 +298,17 @@ export function buildRunningCosts(
   const km = Math.max(0, inputs.annualKm);
   const electric = inputs.fuelType === "electric";
 
+  // A specific model's own figure beats the class average when we have it.
+  const kwhPer100 = electric ? (inputs.consumptionPer100km ?? r.fuel.kwhPer100km) : r.fuel.kwhPer100km;
+  const litresPer100 = electric ? r.fuel.litresPer100km : (inputs.consumptionPer100km ?? r.fuel.litresPer100km);
+
   const energy = electric
-    ? (km / 100) * r.fuel.kwhPer100km * r.fuel.pricePerKwh
-    : (km / 100) * r.fuel.litresPer100km * r.fuel.pricePerLitre;
+    ? (km / 100) * kwhPer100 * r.fuel.pricePerKwh
+    : (km / 100) * litresPer100 * r.fuel.pricePerLitre;
   // PHEVs run on both — split the difference rather than pretend either extreme.
   const fuel =
     inputs.fuelType === "phev"
-      ? ((km / 100) * r.fuel.litresPer100km * r.fuel.pricePerLitre) * 0.45 +
+      ? ((km / 100) * litresPer100 * r.fuel.pricePerLitre) * 0.45 +
         ((km / 100) * r.fuel.kwhPer100km * r.fuel.pricePerKwh) * 0.55
       : inputs.fuelType === "hybrid"
         ? energy * 0.72

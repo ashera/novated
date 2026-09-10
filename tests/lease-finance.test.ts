@@ -193,3 +193,44 @@ describe("State-based registration", () => {
     expect(r.registration).toBe(1_234);
   });
 });
+
+describe("Per-model consumption", () => {
+  it("uses the class average when no vehicle is chosen", () => {
+    const r = buildRunningCosts(withInputs({ fuelType: "electric", annualKm: 15_000 }), config);
+    const expected =
+      (15_000 / 100) * config.running.fuel.kwhPer100km * config.running.fuel.pricePerKwh;
+    expect(r.fuel).toBeCloseTo(expected / 1.1, 4);
+  });
+
+  it("uses the model's own figure when one is given", () => {
+    // A Model 3 at 13.2 kWh/100km against the 16.5 class average is a real gap.
+    const r = buildRunningCosts(
+      withInputs({ fuelType: "electric", annualKm: 15_000, consumptionPer100km: 13.2 }),
+      config,
+    );
+    const expected = (15_000 / 100) * 13.2 * config.running.fuel.pricePerKwh;
+    expect(r.fuel).toBeCloseTo(expected / 1.1, 4);
+  });
+
+  it("reads the figure as litres for a petrol car and kWh for an electric one", () => {
+    // The same number means different things — 8 L/100km and 8 kWh/100km are
+    // priced from different rates, and confusing them would be silent.
+    const petrol = buildRunningCosts(
+      withInputs({ fuelType: "petrol", annualKm: 15_000, consumptionPer100km: 8 }),
+      config,
+    );
+    const ev = buildRunningCosts(
+      withInputs({ fuelType: "electric", annualKm: 15_000, consumptionPer100km: 8 }),
+      config,
+    );
+    expect(petrol.fuel).toBeCloseTo((15_000 / 100) * 8 * config.running.fuel.pricePerLitre / 1.1, 4);
+    expect(ev.fuel).toBeCloseTo((15_000 / 100) * 8 * config.running.fuel.pricePerKwh / 1.1, 4);
+    expect(petrol.fuel).toBeGreaterThan(ev.fuel);
+  });
+
+  it("separates a thirsty EV from a frugal one", () => {
+    const frugal = buildRunningCosts(withInputs({ fuelType: "electric", consumptionPer100km: 13.2 }), config);
+    const thirsty = buildRunningCosts(withInputs({ fuelType: "electric", consumptionPer100km: 22 }), config);
+    expect(thirsty.fuel).toBeGreaterThan(frugal.fuel * 1.5);
+  });
+});

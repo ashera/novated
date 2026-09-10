@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // Vehicle artwork is uploaded through a server action; the 1MB default is
+    // below a reasonable studio image.
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   // geoip-lite reads its MaxMind data files from its own package dir at runtime;
   // let it load from node_modules instead of being bundled (webpack rewrites
   // __dirname and drops the .dat files, so bundling breaks the lookup).

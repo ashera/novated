@@ -8,7 +8,8 @@ type Tab =
   | "users"
   | "releases"
   | "feedback"
-  | "infoblasts";
+  | "infoblasts"
+  | "vehicles";
 
 export default function AdminTabs({
   active,
@@ -54,6 +55,7 @@ export default function AdminTabs({
         {tab("/admin/tests", "tests", "Tests", 0)}
         {tab("/admin/users", "users", "Users", 0)}
         {tab("/admin/releases", "releases", "Releases", 0)}
+        {tab("/admin/vehicles", "vehicles", "Vehicles", 0)}
       </div>
 
       {/* Talking to users */}
