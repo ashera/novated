@@ -9,7 +9,7 @@ import TopBar, { type TopBarUser } from "./TopBar";
 import PayPacketSplit from "./PayPacketSplit";
 import CostComparisonChart from "./CostComparisonChart";
 import InfoBlastBanner from "./InfoBlastBanner";
-import VehiclePicker from "./VehiclePicker";
+import VehicleCard from "./VehicleCard";
 import { fmtCurrency } from "@/lib/au/format";
 import { calculateLease, type FuelType, type LeaseInputs } from "@/lib/au/novated";
 import type { EngineConfig } from "@/lib/au/config";
@@ -179,10 +179,9 @@ export default function LeaseCalculator({
         </div>
 
         <div className="mb-6">
-          <VehiclePicker
-            layout="hero"
+          <VehicleCard
             vehicleId={inputs.vehicleId}
-            onChange={(v) =>
+            onVehicle={(v) =>
               setScenario((s) => ({
                 ...s,
                 inputs: {
@@ -193,6 +192,17 @@ export default function LeaseCalculator({
                 },
               }))
             }
+            fuelType={inputs.fuelType}
+            onFuelType={(f) => {
+              set("fuelType", f);
+              track("Fuel type changed", { fuel: f });
+            }}
+            price={inputs.vehiclePrice}
+            onPrice={(v) => set("vehiclePrice", v ?? 0)}
+            annualKm={inputs.annualKm}
+            onAnnualKm={(v) => set("annualKm", v ?? 0)}
+            state={inputs.state}
+            onState={(st) => set("state", st)}
           />
         </div>
 
@@ -200,7 +210,7 @@ export default function LeaseCalculator({
           {/* ── Inputs ─────────────────────────────────────────────── */}
           <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <h2 className="text-base font-semibold text-ink">Your situation</h2>
+              <h2 className="text-base font-semibold text-ink">You and the term</h2>
               <div className="mt-4 space-y-5">
                 <Field
                   label="Gross salary"
@@ -213,52 +223,6 @@ export default function LeaseCalculator({
                   prefix="$"
                   hint="Before tax and before any packaging."
                 />
-                <Field
-                  label="Vehicle price"
-                  value={inputs.vehiclePrice}
-                  onChange={(v) => set("vehiclePrice", v)}
-                  min={15_000}
-                  max={200_000}
-                  step={500}
-                  integer
-                  prefix="$"
-                  hint="Drive-away price, GST included."
-                />
-                <Field
-                  label="Kilometres a year"
-                  value={inputs.annualKm}
-                  onChange={(v) => set("annualKm", v)}
-                  min={5_000}
-                  max={50_000}
-                  step={1_000}
-                  integer
-                  suffix="km"
-                />
-
-                <div>
-                  <span className="text-sm font-medium text-ink">Fuel type</span>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {FUEL_TYPES.map((f) => (
-                      <button
-                        key={f.key}
-                        type="button"
-                        title={f.hint}
-                        disabled={readOnly}
-                        onClick={() => {
-                          set("fuelType", f.key);
-                          track("Fuel type changed", { fuel: f.key });
-                        }}
-                        className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
-                          inputs.fuelType === f.key
-                            ? "border-accent bg-accent-subtle text-accent"
-                            : "border-line bg-panel-2 text-subtle hover:border-line-bold hover:text-ink"
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
                 <div>
                   <span className="text-sm font-medium text-ink">Lease term</span>

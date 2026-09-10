@@ -18,7 +18,7 @@ import { stashHandoff } from "@/lib/quoteHandoff";
 import type { EngineConfig } from "@/lib/au/config";
 import type { FuelType } from "@/lib/au/novated";
 import { AU_STATES } from "@/lib/au/config";
-import VehiclePicker from "./VehiclePicker";
+import VehicleCard from "./VehicleCard";
 import { track } from "@/lib/analytics";
 import { useSavedQuotes } from "./useSavedQuotes";
 
@@ -271,10 +271,9 @@ export default function QuoteDecoder({
         )}
 
         <div className="mb-6">
-          <VehiclePicker
-            layout="hero"
+          <VehicleCard
             vehicleId={quote.vehicleId}
-            onChange={(v) =>
+            onVehicle={(v) =>
               setQuote((q) => ({
                 ...q,
                 vehicleId: v?.id,
@@ -282,6 +281,16 @@ export default function QuoteDecoder({
                 fuelType: v?.fuelType ?? q.fuelType,
               }))
             }
+            fuelType={quote.fuelType}
+            onFuelType={(f) => set("fuelType", f)}
+            price={quote.vehiclePrice}
+            onPrice={(v) => set("vehiclePrice", v)}
+            annualKm={quote.annualKm}
+            onAnnualKm={(v) => set("annualKm", v)}
+            state={quote.state}
+            onState={(st) => set("state", st)}
+            firstHeldDate={quote.firstHeldDate}
+            onFirstHeldDate={(d) => set("firstHeldDate", d)}
           />
         </div>
 
@@ -338,101 +347,19 @@ export default function QuoteDecoder({
             </section>
 
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <h2 className="text-base font-semibold text-ink">The car</h2>
-              <div className="mt-4 space-y-4">
-                <div>
-                  <span className="text-sm font-medium text-ink">Fuel type</span>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {FUEL_TYPES.map((f) => (
-                      <button
-                        key={f.key}
-                        type="button"
-                        onClick={() => set("fuelType", f.key)}
-                        className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
-                          quote.fuelType === f.key
-                            ? "border-accent bg-accent-subtle text-accent"
-                            : "border-line bg-panel-2 text-subtle hover:border-line-bold hover:text-ink"
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <QuoteField
-                  label="Kilometres a year"
-                  prefix={null}
-                  suffix="km"
-                  value={quote.annualKm}
-                  onChange={(v) => set("annualKm", v)}
-                  placeholder="15,000"
-                  hint="Used to check the running-cost budgets against what the car needs."
-                />
-
-                <div>
-                  <span className="text-sm font-medium text-ink">Registered in</span>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {AU_STATES.map((st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={() => set("state", quote.state === st ? undefined : st)}
-                        className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
-                          quote.state === st
-                            ? "border-accent bg-accent-subtle text-accent"
-                            : "border-line bg-panel-2 text-subtle hover:border-line-bold hover:text-ink"
-                        }`}
-                      >
-                        {st}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mt-1.5 text-[11px] text-muted">
-                    Registration and CTP vary a lot between states. Leave it blank for a
-                    national average.
-                  </p>
-                </div>
-
-                <label className="block">
-                  <span className="text-sm font-medium text-ink">Expected delivery</span>
-                  <input
-                    type="date"
-                    value={quote.firstHeldDate ?? ""}
-                    onChange={(e) => set("firstHeldDate", e.target.value || undefined)}
-                    className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                  />
-                  <span className="mt-1 block text-[11px] leading-snug text-muted">
-                    Optional. The FBT year ends 31 March, so a car delivered late in it is a
-                    fringe benefit for only part of the year &mdash; and your first-year
-                    deductions differ from the quote.
-                  </span>
-                </label>
-              </div>
-            </section>
-
-            <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h2 className="text-base font-semibold text-ink">The finance</h2>
               <p className="mt-1 text-xs text-muted">
                 These, plus the payment below, are what let us solve the interest rate.
               </p>
               <div className="mt-4 space-y-4">
-                <QuoteField
-                  label="Price of the car"
-                  alsoCalled={["Vehicle Price", "Drive Away Price"]}
-                  value={quote.vehiclePrice}
-                  onChange={(v) => set("vehiclePrice", v)}
-                  placeholder="85,000"
-                  hint="What the car costs, GST included, as advertised."
-                />
-
                 {/* The relationship between the two, spelled out with their own
                     numbers — this pair is the most common point of confusion. */}
                 <div className="rounded-md border border-line bg-panel-2 px-3 py-2 text-[11px] leading-relaxed text-muted">
                   {derivedFinanced != null ? (
                     <>
                       The financier buys the car and claims the GST back, so the lease is written
-                      over <strong className="text-ink">less</strong> than the price. On{" "}
-                      {fmtCurrency(quote.vehiclePrice!)} that&apos;s about{" "}
+                      over <strong className="text-ink">less</strong> than the{" "}
+                      {fmtCurrency(quote.vehiclePrice!)} price above. Expect about{" "}
                       <strong className="text-ink">{fmtCurrency(derivedFinanced)}</strong>{" "}
                       ({fmtCurrency(quote.vehiclePrice! - derivedFinanced)} of GST comes off).
                     </>
@@ -440,7 +367,7 @@ export default function QuoteDecoder({
                     <>
                       The financier claims the GST back on the car, so the amount financed is
                       always <strong className="text-ink">less</strong> than the price. Enter the
-                      price above and we&apos;ll show you what to expect.
+                      car&apos;s price in the card above and we&apos;ll show you what to expect.
                     </>
                   )}
                 </div>
@@ -453,7 +380,7 @@ export default function QuoteDecoder({
                   placeholder={derivedFinanced != null ? Math.round(derivedFinanced).toLocaleString("en-AU") : "78,666"}
                   hint={
                     derivedFinanced != null
-                      ? "Leave blank and we'll use the figure above. Not the same as a “base value” — that's for FBT."
+                      ? "Leave blank and we'll use the figure shown. Not the same as a “base value” — that's for FBT."
                       : "Only if your quote states it. Not the same as a “base value” — that's for FBT."
                   }
                 />
