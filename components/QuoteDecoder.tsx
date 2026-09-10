@@ -270,6 +270,21 @@ export default function QuoteDecoder({
           </p>
         )}
 
+        <div className="mb-6">
+          <VehiclePicker
+            layout="hero"
+            vehicleId={quote.vehicleId}
+            onChange={(v) =>
+              setQuote((q) => ({
+                ...q,
+                vehicleId: v?.id,
+                consumptionPer100km: v?.consumption,
+                fuelType: v?.fuelType ?? q.fuelType,
+              }))
+            }
+          />
+        </div>
+
         <div className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
           {/* ── The quote ──────────────────────────────────────────── */}
           <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
@@ -325,19 +340,6 @@ export default function QuoteDecoder({
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h2 className="text-base font-semibold text-ink">The car</h2>
               <div className="mt-4 space-y-4">
-                <VehiclePicker
-                  vehicleId={quote.vehicleId}
-                  compact
-                  onChange={(v) =>
-                    setQuote((q) => ({
-                      ...q,
-                      vehicleId: v?.id,
-                      consumptionPer100km: v?.consumption,
-                      fuelType: v?.fuelType ?? q.fuelType,
-                    }))
-                  }
-                />
-
                 <div>
                   <span className="text-sm font-medium text-ink">Fuel type</span>
                   <div className="mt-2 flex flex-wrap gap-1.5">

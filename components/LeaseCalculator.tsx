@@ -9,6 +9,7 @@ import TopBar, { type TopBarUser } from "./TopBar";
 import PayPacketSplit from "./PayPacketSplit";
 import CostComparisonChart from "./CostComparisonChart";
 import InfoBlastBanner from "./InfoBlastBanner";
+import VehiclePicker from "./VehiclePicker";
 import { fmtCurrency } from "@/lib/au/format";
 import { calculateLease, type FuelType, type LeaseInputs } from "@/lib/au/novated";
 import type { EngineConfig } from "@/lib/au/config";
@@ -175,6 +176,24 @@ export default function LeaseCalculator({
             post-tax split, what FBT does to it, and how the total compares with buying the
             same car another way — all on {config.financialYear} rules.
           </p>
+        </div>
+
+        <div className="mb-6">
+          <VehiclePicker
+            layout="hero"
+            vehicleId={inputs.vehicleId}
+            onChange={(v) =>
+              setScenario((s) => ({
+                ...s,
+                inputs: {
+                  ...s.inputs,
+                  vehicleId: v?.id,
+                  consumptionPer100km: v?.consumption,
+                  fuelType: v?.fuelType ?? s.inputs.fuelType,
+                },
+              }))
+            }
+          />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
