@@ -436,3 +436,151 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     questions: findings.map((x) => x.question).filter((q): q is string => Boolean(q)),
   };
 }
+
+// ── Comparing quotes ────────────────────────────────────────────────────────
+//
+// Laying quotes side by side is where the value concentrates — but it is also
+// where it is easiest to mislead. Providers rarely quote the same car at the
+// same price, and a total cost compared across two different vehicles says
+// almost nothing. So the comparison distinguishes measures that survive a
+// difference in the car (the interest rate, fees, the running-cost budget) from
+// those that do not (total package cost), and refuses to name a cheapest
+// overall when the vehicles aren't comparable.
+
+export interface ComparedQuote {
+  quote: Quote;
+  decode: QuoteDecode;
+  /** Every deduction across the whole term, at the quote's own figures. */
+  totalPackageOverTerm: number;
+  /** Annual running-cost budget: everything except finance, fees and the
+   *  luxury car adjustment. Comparable even when the cars differ a little. */
+  annualRunningBudget: number;
+}
+
+export interface QuoteComparison {
+  quotes: ComparedQuote[];
+  /** Index of the best quote on each measure, or null when it can't be judged. */
+  bestRate: number | null;
+  /** Lowest interest paid — NOT the same as the lowest rate, since the quotes
+   *  may finance different amounts. */
+  bestInterest: number | null;
+  bestRunningBudget: number | null;
+  /** Only set when the vehicles are comparable — otherwise a cost total lies. */
+  bestTotalCost: number | null;
+  /** Spread between the highest and lowest implied rate, in percentage points.
+   *  Presented by the UI as its headline — deliberately NOT repeated in `notes`. */
+  rateSpreadPp: number | null;
+  /** What the spread is worth on the largest financed amount in the set. */
+  rateSpreadValue: number | null;
+  vehiclesComparable: boolean;
+  /** Reasons a naive reading of the table would mislead. Comparability only —
+   *  never a restatement of a figure the table already shows. */
+  notes: string[];
+}
+
+/** Vehicle prices within this much of each other are treated as the same car
+ *  for comparison purposes — a few hundred dollars of on-roads shouldn't
+ *  disqualify an otherwise like-for-like comparison. */
+const PRICE_TOLERANCE_PCT = 5;
+
+const RUNNING_KEYS = ["energy", "maintenance", "tyres", "registration", "insurance", "roadside"];
+
+export function compareQuotes(quotes: Quote[], config: EngineConfig): QuoteComparison {
+  const compared: ComparedQuote[] = quotes.map((q) => {
+    const decode = decodeQuote(q, config);
+    const years = q.termMonths / 12;
+    return {
+      quote: q,
+      decode,
+      totalPackageOverTerm: decode.annualPackageTotal * years,
+      annualRunningBudget: RUNNING_KEYS.reduce(
+        (sum, k) => sum + (decode.annualLines[k] ?? 0),
+        0,
+      ),
+    };
+  });
+
+  const notes: string[] = [];
+
+  // Are these quotes for the same car?
+  const prices = compared
+    .map((c) => c.quote.vehiclePrice)
+    .filter((p): p is number => typeof p === "number" && p > 0);
+  let vehiclesComparable = true;
+  if (prices.length >= 2) {
+    const lo = Math.min(...prices);
+    const hi = Math.max(...prices);
+    vehiclesComparable = (hi - lo) / lo <= PRICE_TOLERANCE_PCT / 100;
+    if (!vehiclesComparable) {
+      notes.push(
+        `These quotes are for vehicles priced ${money(lo)} to ${money(hi)}, so a total-cost comparison would be misleading. The interest rate, the fees and the running-cost budgets are still directly comparable — and the rate is the number a provider controls.`,
+      );
+    }
+  } else if (prices.length < compared.length) {
+    vehiclesComparable = false;
+    notes.push(
+      "Not every quote has a vehicle price, so totals can't be compared like for like. The interest rates still can.",
+    );
+  }
+
+  // Terms have to match for a whole-of-term total to mean anything.
+  const terms = new Set(compared.map((c) => c.quote.termMonths));
+  if (terms.size > 1) {
+    vehiclesComparable = false;
+    notes.push(
+      `The quotes run over different terms (${[...terms].map((t) => `${t / 12} years`).join(", ")}). A longer term lowers the payment and raises the total — compare the rate, not the total.`,
+    );
+  }
+
+  const bestBy = <T>(
+    pick: (c: ComparedQuote) => number | null | undefined,
+    lowerIsBetter = true,
+  ): number | null => {
+    let bestIdx: number | null = null;
+    let bestVal = Infinity;
+    compared.forEach((c, i) => {
+      const v = pick(c);
+      if (v == null || !Number.isFinite(v)) return;
+      const score = lowerIsBetter ? v : -v;
+      if (score < bestVal) {
+        bestVal = score;
+        bestIdx = i;
+      }
+    });
+    return bestIdx;
+  };
+
+  const rates = compared
+    .map((c) => c.decode.impliedRatePct)
+    .filter((r): r is number => r != null);
+  const rateSpreadPp = rates.length >= 2 ? Math.max(...rates) - Math.min(...rates) : null;
+
+  // What the spread is worth: the same lease at the best rate versus the worst,
+  // on the largest financed amount in the set.
+  let rateSpreadValue: number | null = null;
+  if (rateSpreadPp != null && rateSpreadPp > 0) {
+    const ref = compared
+      .filter((c) => c.decode.amountFinanced != null && c.decode.residualExGst != null)
+      .sort((a, b) => (b.decode.amountFinanced ?? 0) - (a.decode.amountFinanced ?? 0))[0];
+    if (ref) {
+      const financed = ref.decode.amountFinanced!;
+      const residual = ref.decode.residualExGst!;
+      const months = ref.quote.termMonths;
+      const cheap = annuityPayment(financed, residual, Math.min(...rates), months);
+      const dear = annuityPayment(financed, residual, Math.max(...rates), months);
+      rateSpreadValue = (dear - cheap) * months;
+    }
+  }
+
+  return {
+    quotes: compared,
+    bestRate: bestBy((c) => c.decode.impliedRatePct),
+    bestInterest: bestBy((c) => c.decode.totalInterest),
+    bestRunningBudget: bestBy((c) => (c.annualRunningBudget > 0 ? c.annualRunningBudget : null)),
+    bestTotalCost: vehiclesComparable ? bestBy((c) => c.totalPackageOverTerm) : null,
+    rateSpreadPp,
+    rateSpreadValue,
+    vehiclesComparable,
+    notes,
+  };
+}

@@ -10,6 +10,7 @@ import { decodeQuote, type Quote, type QuoteFrequency, type FindingSeverity } fr
 import type { EngineConfig } from "@/lib/au/config";
 import type { FuelType } from "@/lib/au/novated";
 import { track } from "@/lib/analytics";
+import { useSavedQuotes } from "./useSavedQuotes";
 
 /**
  * A worked example so the page opens showing what it does, rather than as an
@@ -76,6 +77,10 @@ export default function QuoteDecoder({
   const [quote, setQuote] = useState<Quote>(EXAMPLE);
   const [isExample, setIsExample] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
+  const saved = useSavedQuotes(Boolean(user));
 
   const set = <K extends keyof Quote>(key: K, value: Quote[K]) => {
     setQuote((q) => ({ ...q, [key]: value }));
@@ -88,6 +93,36 @@ export default function QuoteDecoder({
 
   const decode = useMemo(() => decodeQuote(quote, config), [quote, config]);
   const freqWord = quote.frequency === "monthly" ? "month" : "fortnight";
+
+  const keep = async () => {
+    setSaveError(null);
+    const label = quote.label?.trim() || "Untitled quote";
+    const res = editingId
+      ? await saved.update(editingId, label, quote)
+      : await saved.add(label, quote);
+    if (res.error) return setSaveError(res.error);
+    setJustSaved(true);
+    setIsExample(false);
+    track("Quote kept", { signedIn: Boolean(user), editing: Boolean(editingId) });
+    setTimeout(() => setJustSaved(false), 2_500);
+    if (!editingId) await saved.refresh();
+  };
+
+  const load = (id: string) => {
+    const found = saved.quotes.find((q) => q.id === id);
+    if (!found) return;
+    setQuote(found.data);
+    setEditingId(id);
+    setIsExample(false);
+    setSaveError(null);
+  };
+
+  const startNew = () => {
+    setQuote(EMPTY);
+    setEditingId(null);
+    setIsExample(false);
+    setSaveError(null);
+  };
 
   const copyQuestions = async () => {
     const text = decode.questions.map((q, i) => `${i + 1}. ${q}`).join("\n\n");
@@ -113,9 +148,64 @@ export default function QuoteDecoder({
           <p className="mt-1.5 text-sm text-subtle">
             Type in the figures from the quote a provider sent you. We&apos;ll work out the
             interest rate they didn&apos;t print, check every line against the market, and give you
-            the questions to send back. Nothing is saved or shared.
+            the questions to send back. Keep more than one and you can put them side by side.
           </p>
         </div>
+
+        {saved.quotes.length > 0 && (
+          <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-panel px-4 py-3 shadow-[var(--shadow-card)]">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Your quotes
+            </span>
+            {saved.quotes.map((q) => (
+              <span
+                key={q.id}
+                className={`inline-flex items-center gap-1 rounded-full border py-1 pl-3 pr-1 text-sm transition ${
+                  editingId === q.id
+                    ? "border-accent bg-accent-subtle text-accent"
+                    : "border-line bg-panel-2 text-subtle hover:border-line-bold"
+                }`}
+              >
+                <button type="button" onClick={() => load(q.id)} className="font-medium">
+                  {q.label}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void saved.remove(q.id);
+                    if (editingId === q.id) startNew();
+                  }}
+                  aria-label={`Remove ${q.label}`}
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-muted transition hover:bg-danger-subtle hover:text-danger-text"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={startNew}
+              className="rounded-full border border-dashed border-line-bold px-3 py-1 text-sm font-medium text-muted transition hover:border-accent hover:text-accent"
+            >
+              + New
+            </button>
+            {saved.quotes.length > 1 && (
+              <Link
+                href="/compare"
+                className="ml-auto rounded bg-accent px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-accent-soft"
+              >
+                Compare {saved.quotes.length} quotes
+              </Link>
+            )}
+          </div>
+        )}
+
+        {saved.adopted > 0 && (
+          <p className="mb-5 rounded-lg border border-success/40 bg-success-subtle px-4 py-2.5 text-sm text-success-text">
+            Moved {saved.adopted} quote{saved.adopted === 1 ? "" : "s"} from this browser onto your
+            account. They&apos;ll follow you to any device now.
+          </p>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
           {/* ── The quote ──────────────────────────────────────────── */}
@@ -125,15 +215,23 @@ export default function QuoteDecoder({
                 <h2 className="text-base font-semibold text-ink">Your quote</h2>
                 <button
                   type="button"
-                  onClick={() => {
-                    setQuote(EMPTY);
-                    setIsExample(false);
-                  }}
+                  onClick={startNew}
                   className="text-xs font-medium text-accent hover:underline"
                 >
                   Clear
                 </button>
               </div>
+
+              <label className="mt-4 block">
+                <span className="text-sm font-medium text-ink">Who quoted it</span>
+                <input
+                  type="text"
+                  value={quote.label ?? ""}
+                  placeholder="The provider's name"
+                  onChange={(e) => set("label", e.target.value)}
+                  className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                />
+              </label>
 
               <div className="mt-4">
                 <span className="text-sm font-medium text-ink">Figures on your quote are per</span>
@@ -518,6 +616,23 @@ export default function QuoteDecoder({
             )}
 
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={keep}
+                disabled={isExample}
+                title={isExample ? "Enter your own quote first" : undefined}
+                className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {justSaved ? "Kept" : editingId ? "Save changes" : "Keep this quote"}
+              </button>
+              {saved.quotes.length > 1 && (
+                <Link
+                  href="/compare"
+                  className="rounded border border-line bg-panel px-4 py-2 text-sm font-medium text-ink transition hover:bg-panel-2"
+                >
+                  Compare {saved.quotes.length} quotes
+                </Link>
+              )}
               <Link
                 href="/"
                 className="rounded border border-line bg-panel px-4 py-2 text-sm font-medium text-ink transition hover:bg-panel-2"
@@ -531,6 +646,21 @@ export default function QuoteDecoder({
                 How a novated lease works
               </Link>
             </div>
+
+            {saveError && (
+              <p className="rounded-lg border border-danger/40 bg-danger-subtle px-4 py-2.5 text-sm text-danger-text">
+                {saveError}
+              </p>
+            )}
+            {!user && saved.quotes.length > 0 && (
+              <p className="text-sm text-muted">
+                Your quotes are kept in this browser.{" "}
+                <Link href="/signup" className="font-medium text-accent hover:underline">
+                  Create an account
+                </Link>{" "}
+                and they&apos;ll follow you to any device.
+              </p>
+            )}
 
             <Disclosures config={config} />
           </div>

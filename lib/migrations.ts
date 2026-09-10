@@ -78,6 +78,23 @@ create unique index if not exists plans_share_uidx on plans(share_token) where s
 -- can fall back to another (or create a fresh one).
 alter table users add column if not exists active_plan_id uuid references plans(id) on delete set null;
 
+-- A decoded provider quote the user has kept. \`data\` is a Quote (lib/au/quote.ts)
+-- — the figures transcribed off the document, never the decode, so a benchmark
+-- change re-judges every saved quote the next time it is opened.
+--
+-- \`label\` is the provider's name as the user typed it. That name is theirs: it is
+-- shown back to them and never published. Market findings are published only as
+-- anonymised ranges.
+create table if not exists quotes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  label text not null,
+  data jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists quotes_user_idx on quotes(user_id, updated_at desc);
+
 -- Free-form user feedback from the floating widget. user_id is kept if they were
 -- signed in (set null if the account is later deleted); email is an optional
 -- reply-to. handled = an admin has actioned/triaged it.

@@ -18,6 +18,7 @@ const EXCLUDED = new Set<string>([
   "/reset-password", // auth — noindex
   "/account", // per-user — noindex
   "/report", // per-user report — noindex
+  "/compare", // per-user: your own kept quotes — noindex
 ]);
 
 /** Every route that has a page.tsx, excluding /admin and dynamic ([param]) segments. */
