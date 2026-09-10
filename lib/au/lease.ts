@@ -23,7 +23,8 @@ import type {
   LeaseInputs,
 } from "./novated";
 import { defaultInputs } from "./novated";
-import type { Quote, QuoteFrequency, QuoteLines } from "./quote";
+import { decodeQuote, type Quote, type QuoteFrequency, type QuoteLines } from "./quote";
+import type { EngineConfig } from "./config";
 import { DEFAULT_CONFIG } from "./config";
 
 /** The car. Defined once per lease, shared by every tool. */
@@ -69,7 +70,35 @@ export interface QuoteSpec {
   statedPostTax?: number;
   /** A quote may be written against a different salary than the scenario. */
   salary?: number;
+  /** When it was added. "Processed on" in the UI. */
+  createdAt?: string;
   updatedAt?: string;
+}
+
+/**
+ * How far along a quote is.
+ *
+ * Derived, never stored. A status someone has to remember to set is a status
+ * that goes stale, and this one has an obvious definition anyway: a quote is
+ * complete when we can do the thing the tool exists to do — recover the
+ * interest rate. Anything less is still being typed in.
+ */
+export type QuoteStatus = "new" | "in-progress" | "complete";
+
+export function quoteStatus(
+  lease: Lease,
+  spec: QuoteSpec,
+  config: EngineConfig,
+): QuoteStatus {
+  const touched =
+    spec.amountFinanced != null ||
+    spec.residualIncGst != null ||
+    spec.statedPreTax != null ||
+    Object.values(spec.lines).some((v) => typeof v === "number");
+  if (!touched) return "new";
+  return decodeQuote(leaseToQuote(lease, spec), config).impliedRatePct != null
+    ? "complete"
+    : "in-progress";
 }
 
 export interface Lease {
@@ -114,6 +143,7 @@ export function newQuoteSpec(label = "Untitled quote"): QuoteSpec {
     frequency: "fortnightly",
     termMonths: 60,
     lines: {},
+    createdAt: new Date().toISOString(),
   };
 }
 
@@ -207,7 +237,13 @@ export function migrateLease(raw: unknown): Lease {
     name: l.name?.trim() || "My lease",
     vehicle: { ...defaultVehicle(), ...(l.vehicle ?? {}) },
     scenario: { ...defaultScenario(), ...(l.scenario ?? {}) },
-    quotes: Array.isArray(l.quotes) ? l.quotes.filter((q) => q && q.id) : [],
+    quotes: Array.isArray(l.quotes)
+      ? l.quotes
+          .filter((q) => q && q.id)
+          // Quotes stored before createdAt existed fall back to when they were
+          // last touched, so the list always has a date to show.
+          .map((q) => ({ ...q, createdAt: q.createdAt ?? q.updatedAt }))
+      : [],
     notes: l.notes,
   };
 }

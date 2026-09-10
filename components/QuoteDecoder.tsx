@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import TopBar, { type TopBarUser } from "./TopBar";
 import QuoteField from "./QuoteField";
 import Disclosures from "./Disclosures";
@@ -21,7 +21,7 @@ import { AU_STATES } from "@/lib/au/config";
 import VehicleCard from "./VehicleCard";
 import { track } from "@/lib/analytics";
 import { useLease } from "./useLease";
-import LeaseSwitcher from "./LeaseSwitcher";
+import LeaseCard from "./LeaseCard";
 import {
   applyQuoteEdit,
   leaseToQuote,
@@ -104,7 +104,9 @@ export default function QuoteDecoder({
 }) {
   const store = useLease(Boolean(user));
   const { lease } = store;
-  const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
+  // The lease card links here with the quote it wants opened.
+  const requestedQuoteId = useSearchParams().get("quote");
+  const [activeQuoteId, setActiveQuoteId] = useState<string | null>(requestedQuoteId);
   const [copied, setCopied] = useState(false);
   const router = useRouter();
 
@@ -212,66 +214,13 @@ export default function QuoteDecoder({
           </p>
         </div>
 
-        <LeaseSwitcher store={store} signedIn={Boolean(user)} />
+        <LeaseCard store={store} signedIn={Boolean(user)} config={config} />
 
         {store.adopted > 0 && (
           <p className="mb-5 rounded-lg border border-success/40 bg-success-subtle px-4 py-2.5 text-sm text-success-text">
             Moved {store.adopted} lease{store.adopted === 1 ? "" : "s"} from this browser onto your
             account. They&apos;ll follow you to any device now.
           </p>
-        )}
-
-        {/* Quotes on THIS lease — competing offers on the same car. */}
-        {lease.quotes.length > 0 && (
-          <div className="mb-5 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Quotes on this lease
-            </span>
-            {lease.quotes.map((q) => (
-              <span
-                key={q.id}
-                className={`inline-flex items-center gap-1 rounded-full border py-1 pl-3 pr-1 text-sm transition ${
-                  activeSpec?.id === q.id
-                    ? "border-accent bg-accent-subtle text-accent"
-                    : "border-line bg-panel text-subtle hover:border-line-bold"
-                }`}
-              >
-                <button type="button" onClick={() => setActiveQuoteId(q.id)} className="font-medium">
-                  {q.label}
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Remove ${q.label}`}
-                  onClick={() => {
-                    store.update((l) => ({ ...l, quotes: l.quotes.filter((x) => x.id !== q.id) }));
-                    if (activeSpec?.id === q.id) setActiveQuoteId(null);
-                  }}
-                  className="flex h-5 w-5 items-center justify-center rounded-full text-muted transition hover:bg-danger-subtle hover:text-danger-text"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={() => {
-                const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`);
-                store.update((l) => ({ ...l, quotes: [...l.quotes, spec] }));
-                setActiveQuoteId(spec.id);
-              }}
-              className="rounded-full border border-dashed border-line-bold px-3 py-1 text-sm font-medium text-muted transition hover:border-accent hover:text-accent"
-            >
-              + Add a quote
-            </button>
-            {lease.quotes.length > 1 && (
-              <Link
-                href="/compare"
-                className="ml-auto rounded bg-accent px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-accent-soft"
-              >
-                Compare {lease.quotes.length}
-              </Link>
-            )}
-          </div>
         )}
 
         <div className="mb-6">

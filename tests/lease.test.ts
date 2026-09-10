@@ -7,6 +7,7 @@ import {
   migrateLease,
   newLease,
   newQuoteSpec,
+  quoteStatus,
   type Lease,
 } from "@/lib/au/lease";
 import { calculateLease } from "@/lib/au/novated";
@@ -143,5 +144,64 @@ describe("Reading stored leases", () => {
     });
     expect(back.quotes).toHaveLength(1);
     expect(back.quotes[0].label).toBe("ok");
+  });
+});
+
+describe("Quote status", () => {
+  const base = (): Lease => ({ ...leaseWithCar(), quotes: [] });
+
+  it("calls an untouched quote new", () => {
+    const spec = newQuoteSpec("Fresh");
+    const lease = { ...base(), quotes: [spec] };
+    expect(quoteStatus(lease, spec, config)).toBe("new");
+  });
+
+  it("calls a partly-filled quote in progress", () => {
+    // Something entered, but not enough to recover the rate.
+    const spec = { ...newQuoteSpec(), lines: { insurance: 110 } };
+    const lease = { ...base(), quotes: [spec] };
+    expect(quoteStatus(lease, spec, config)).toBe("in-progress");
+  });
+
+  it("calls a quote complete once the rate can be solved", () => {
+    // Complete means the tool can do its job, not that every box is filled.
+    const spec = {
+      ...newQuoteSpec(),
+      amountFinanced: 65_666,
+      residualIncGst: 20_318,
+      termMonths: 60,
+      lines: { finance: 600 },
+    };
+    const lease = { ...base(), quotes: [spec] };
+    expect(quoteStatus(lease, spec, config)).toBe("complete");
+  });
+
+  it("goes back to in progress if a figure needed for the rate is removed", () => {
+    const spec = {
+      ...newQuoteSpec(),
+      amountFinanced: 65_666,
+      residualIncGst: 20_318,
+      lines: { finance: 600 },
+    };
+    const lease = { ...base(), quotes: [spec] };
+    expect(quoteStatus(lease, spec, config)).toBe("complete");
+    const broken = { ...spec, lines: {} };
+    expect(quoteStatus({ ...base(), quotes: [broken] }, broken, config)).toBe("in-progress");
+  });
+
+  it("stamps a created date on every new quote", () => {
+    const spec = newQuoteSpec("Dated");
+    expect(spec.createdAt).toBeTruthy();
+    expect(Number.isNaN(Date.parse(spec.createdAt!))).toBe(false);
+  });
+
+  it("gives a date to quotes stored before created dates existed", () => {
+    const when = "2026-04-01T00:00:00.000Z";
+    const back = migrateLease({
+      vehicle: { fuelType: "electric" },
+      scenario: {},
+      quotes: [{ id: "q1", label: "Old", frequency: "monthly", termMonths: 60, lines: {}, updatedAt: when }],
+    });
+    expect(back.quotes[0].createdAt).toBe(when);
   });
 });

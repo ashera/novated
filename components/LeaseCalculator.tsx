@@ -15,7 +15,7 @@ import { calculateLease, type FuelType, type LeaseInputs } from "@/lib/au/novate
 import type { EngineConfig } from "@/lib/au/config";
 import { leaseToInputs, type Lease } from "@/lib/au/lease";
 import { useLease } from "./useLease";
-import LeaseSwitcher from "./LeaseSwitcher";
+import LeaseCard from "./LeaseCard";
 import { track, trackLeasePricedConversion } from "@/lib/analytics";
 import { takeHandoff, type QuoteHandoff } from "@/lib/quoteHandoff";
 import { trackVisit } from "@/app/actions/track";
@@ -163,7 +163,7 @@ export default function LeaseCalculator({
           </p>
         </div>
 
-        {!readOnly && <LeaseSwitcher store={store} signedIn={Boolean(user)} />}
+        {!readOnly && <LeaseCard store={store} signedIn={Boolean(user)} config={config} />}
 
         <div className="mb-6">
           <VehicleCard
