@@ -130,6 +130,16 @@ export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   { key: "lease_admin_fee", label: "Lease management fee (annual)", category: "Lease terms", path: "lease.defaultAdminFeeAnnual", unit: "aud", sourceKey: "market-lease-terms" },
   { key: "lease_establishment_fee", label: "Establishment fee (one-off)", category: "Lease terms", path: "lease.defaultEstablishmentFee", unit: "aud", sourceKey: "market-lease-terms" },
   { key: "lease_pay_cycles", label: "Pay cycles per year", category: "Lease terms", path: "lease.payCyclesPerYear", unit: "count", sourceKey: "market-lease-terms" },
+  { key: "lease_lca_pct", label: "Luxury car adjustment (% of amount over the car limit)", category: "Lease terms", path: "lease.luxuryCarAdjustmentPct", unit: "percentPoint", sourceKey: "market-quote-sample" },
+
+  // Market benchmarks — what a quote's figures are judged against.
+  { key: "bench_loan_rate", label: "Comparable car loan rate", category: "Quote benchmarks", path: "benchmarks.loanRatePct", unit: "percentPoint", sourceKey: "market-quote-sample" },
+  { key: "bench_rate_concern", label: "Finance rate flagged at or above", category: "Quote benchmarks", path: "benchmarks.rateConcernPct", unit: "percentPoint", sourceKey: "market-quote-sample" },
+  { key: "bench_mgmt_low", label: "Management fee — market low", category: "Quote benchmarks", path: "benchmarks.managementFeeAnnual.low", unit: "aud", sourceKey: "market-quote-sample" },
+  { key: "bench_mgmt_high", label: "Management fee — market high", category: "Quote benchmarks", path: "benchmarks.managementFeeAnnual.high", unit: "aud", sourceKey: "market-quote-sample" },
+  { key: "bench_ins_low", label: "Insurance — market low (% of value)", category: "Quote benchmarks", path: "benchmarks.insurancePctOfValue.low", unit: "percentPoint", sourceKey: "market-quote-sample" },
+  { key: "bench_ins_high", label: "Insurance — market high (% of value)", category: "Quote benchmarks", path: "benchmarks.insurancePctOfValue.high", unit: "percentPoint", sourceKey: "market-quote-sample" },
+  { key: "bench_running_tolerance", label: "Running-cost budget tolerance", category: "Quote benchmarks", path: "benchmarks.runningCostTolerancePct", unit: "percentPoint", sourceKey: "market-quote-sample" },
 
   // Running-cost benchmarks
   { key: "run_litres_100km", label: "Fuel use — litres per 100km", category: "Running costs", path: "running.fuel.litresPer100km", unit: "count", sourceKey: "green-vehicle-guide" },
@@ -155,6 +165,7 @@ export const PARAM_CATEGORIES: string[] = [
   "GST & luxury car tax",
   "Lease terms",
   "Running costs",
+  "Quote benchmarks",
 ];
 
 // --- Path-based read/write over the config object ---

@@ -1,0 +1,432 @@
+// Decoding a real provider quote.
+//
+// A novated lease quote is a dense page of figures that answers the question
+// "what comes out of your pay" and studiously avoids the question "what is this
+// costing me". The gap between those two is where this module lives.
+//
+// The central move is arithmetic, not opinion: a lease quote states the amount
+// financed, the residual, the term and a finance rental, and those four numbers
+// determine the interest rate exactly. Providers publish the first four and omit
+// the fifth. We solve for it.
+//
+// Everything else here is a comparison against a benchmark that is itself stored
+// as cited reference data, so a finding is a sourced claim rather than our
+// opinion — see EngineConfig.benchmarks and lib/au/sources.ts.
+
+import type { EngineConfig } from "./config";
+import {
+  annuityPayment,
+  impliedRate,
+  luxuryCarAdjustment,
+  buildRunningCosts,
+  type FuelType,
+  type LeaseInputs,
+} from "./novated";
+
+/** Providers publish either monthly or fortnightly figures, never both. */
+export type QuoteFrequency = "monthly" | "fortnightly";
+
+/** The line items a quote breaks its package into. Every field is optional: a
+ *  quote that omits one is a real quote, and the omission is itself a finding. */
+export interface QuoteLines {
+  /** The finance rental — "Lease Payment", "Repayments", "Lease Rental". */
+  finance?: number;
+  /** "Power", "Fuel/Charging", "Electricity". */
+  energy?: number;
+  /** "Servicing", "Maintenance". */
+  maintenance?: number;
+  tyres?: number;
+  /** "Registration", "Registration + CTP". */
+  registration?: number;
+  insurance?: number;
+  roadside?: number;
+  /** "Lease Management", "Management Fee", "Admin Fee". */
+  managementFee?: number;
+  /** "Luxury Car Charge", "Luxury Car Adjustment". */
+  luxuryCarAdjustment?: number;
+}
+
+export interface Quote {
+  /** Free-text label the user gives it — the provider's name, usually. Never
+   *  leaves the owner's own account; published benchmarks are anonymised. */
+  label?: string;
+  frequency: QuoteFrequency;
+
+  // The car
+  vehiclePrice?: number; // drive-away, inc GST
+  fuelType: FuelType;
+
+  // The finance
+  amountFinanced?: number;
+  residualIncGst?: number;
+  termMonths: number;
+
+  // What the quote says comes out of your pay, at `frequency`
+  lines: QuoteLines;
+  statedPreTax?: number;
+  statedPostTax?: number;
+
+  // You
+  salary?: number;
+  annualKm?: number;
+}
+
+export type FindingSeverity = "critical" | "warn" | "ok";
+
+export interface Finding {
+  /** Stable key, so a finding can be tested and linked to without matching prose. */
+  key: string;
+  severity: FindingSeverity;
+  /** Short category shown as a chip: Rate, Framing, Budget, Fees, GST… */
+  category: string;
+  title: string;
+  detail: string;
+  /** What this finding is worth over the whole term, where that's calculable.
+   *  Findings are ordered by this, so the expensive ones surface first. */
+  costOverTerm?: number;
+  /** A question to send back to the provider, when the finding implies one. */
+  question?: string;
+}
+
+export interface QuoteDecode {
+  /** The rate the quote didn't print. Null when it can't be determined. */
+  impliedRatePct: number | null;
+  /** Why we couldn't determine it, when we couldn't. */
+  rateBlockedBy: string | null;
+  amountFinanced: number | null;
+  /** True when we derived the financed amount rather than reading it. */
+  financedWasDerived: boolean;
+  residualExGst: number | null;
+  residualPctOfFinanced: number | null;
+  monthlyFinancePayment: number | null;
+  totalInterest: number | null;
+  /** What the same lease would cost at the benchmark loan rate. */
+  interestAtBenchmark: number | null;
+  financeMargin: number | null;
+  /** The itemised lines, annualised and summed. */
+  annualLines: Record<string, number>;
+  annualPackageTotal: number;
+  /** Stated pre-tax + post-tax, annualised. Null when the quote doesn't say. */
+  annualStatedDeduction: number | null;
+  /** Stated deduction less the lines that explain it. */
+  reconciliationGap: number | null;
+  findings: Finding[];
+  questions: string[];
+}
+
+const GST = 1.1;
+
+/** Annualise a figure published at the quote's frequency. */
+function annualise(v: number, f: QuoteFrequency): number {
+  return f === "monthly" ? v * 12 : v * 26;
+}
+
+const money = (n: number) =>
+  n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
+const pct = (n: number) => `${n.toFixed(2)}%`;
+
+/**
+ * Decode a quote: solve the rate, reconcile the payment, and compare every line
+ * against a cited benchmark.
+ */
+export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
+  const f = quote.frequency;
+  const findings: Finding[] = [];
+
+  // ── The financed amount ──────────────────────────────────────────────────
+  // Where a quote doesn't state it, drive-away less the capped GST credit
+  // reproduces it exactly on every quote that does — so derive it, and say so.
+  const creditable = Math.min(quote.vehiclePrice ?? 0, config.gst.carLimit);
+  const gstCredit = creditable - creditable / (1 + config.gst.rate);
+  let amountFinanced = quote.amountFinanced ?? null;
+  let financedWasDerived = false;
+  if (amountFinanced == null && quote.vehiclePrice != null) {
+    amountFinanced = quote.vehiclePrice - gstCredit;
+    financedWasDerived = true;
+  }
+
+  const residualExGst = quote.residualIncGst != null ? quote.residualIncGst / GST : null;
+  const residualPctOfFinanced =
+    residualExGst != null && amountFinanced ? (residualExGst / amountFinanced) * 100 : null;
+
+  // ── The rate ─────────────────────────────────────────────────────────────
+  const monthlyFinance =
+    quote.lines.finance != null ? (annualise(quote.lines.finance, f)) / 12 : null;
+
+  let rate: number | null = null;
+  let rateBlockedBy: string | null = null;
+  if (quote.lines.finance == null) {
+    rateBlockedBy =
+      "The quote doesn't separate the finance payment from the running costs, so the interest rate can't be worked out from it.";
+  } else if (amountFinanced == null) {
+    rateBlockedBy =
+      "The quote doesn't state the amount financed or the drive-away price, so the interest rate can't be worked out from it.";
+  } else if (residualExGst == null) {
+    rateBlockedBy =
+      "The quote doesn't state the residual, so the interest rate can't be worked out from it.";
+  } else {
+    rate = impliedRate(amountFinanced, residualExGst, monthlyFinance!, quote.termMonths);
+    if (rate == null) {
+      rateBlockedBy =
+        "These figures don't produce a sensible interest rate — one of the amount financed, residual, term or payment is likely to have been read wrongly.";
+    }
+  }
+
+  // ── Interest, and what it would be at the benchmark ───────────────────────
+  let totalInterest: number | null = null;
+  let interestAtBenchmark: number | null = null;
+  let financeMargin: number | null = null;
+  if (rate != null && amountFinanced != null && residualExGst != null && monthlyFinance != null) {
+    totalInterest = monthlyFinance * quote.termMonths + residualExGst - amountFinanced;
+    const benchPayment = annuityPayment(
+      amountFinanced,
+      residualExGst,
+      config.benchmarks.loanRatePct,
+      quote.termMonths,
+    );
+    interestAtBenchmark =
+      benchPayment * quote.termMonths + residualExGst - amountFinanced;
+    financeMargin = totalInterest - interestAtBenchmark;
+  }
+
+  // ── Annualise the lines ──────────────────────────────────────────────────
+  const annualLines: Record<string, number> = {};
+  for (const [k, v] of Object.entries(quote.lines)) {
+    if (typeof v === "number") annualLines[k] = annualise(v, f);
+  }
+  const annualPackageTotal = Object.values(annualLines).reduce((a, b) => a + b, 0);
+
+  const annualStatedDeduction =
+    quote.statedPreTax != null || quote.statedPostTax != null
+      ? annualise((quote.statedPreTax ?? 0) + (quote.statedPostTax ?? 0), f)
+      : null;
+  const reconciliationGap =
+    annualStatedDeduction != null ? annualStatedDeduction - annualPackageTotal : null;
+
+  // ── Findings ─────────────────────────────────────────────────────────────
+
+  if (rate != null) {
+    const over = rate - config.benchmarks.loanRatePct;
+    // A rate a rounding error above the benchmark is not a finding. Only call it
+    // out once the gap is big enough to be worth a conversation.
+    const MATERIAL_PP = 0.1;
+    findings.push({
+      key: "implied-rate",
+      severity:
+        rate >= config.benchmarks.rateConcernPct
+          ? "critical"
+          : over > MATERIAL_PP
+            ? "warn"
+            : "ok",
+      category: "Rate",
+      title: `Finance is priced at ${pct(rate)}`,
+      detail:
+        over > MATERIAL_PP
+          ? `The quote doesn't state a rate. Solved from the finance payment, it works out at ${pct(rate)} — ${pct(over)} above a comparable secured car loan at ${pct(config.benchmarks.loanRatePct)}, costing ${money(financeMargin ?? 0)} more over the term.`
+          : `Solved from the finance payment. That is at or below a comparable secured car loan at ${pct(config.benchmarks.loanRatePct)} — a good rate.`,
+      costOverTerm: financeMargin != null && financeMargin > 0 ? financeMargin : undefined,
+      question:
+        over > MATERIAL_PP
+          ? "What interest rate is the finance written at, which financier is it with, and can you match a lower rate?"
+          : undefined,
+    });
+  } else if (rateBlockedBy) {
+    findings.push({
+      key: "rate-undeterminable",
+      severity: "warn",
+      category: "Rate",
+      title: "The interest rate can't be determined from this quote",
+      detail: rateBlockedBy,
+      question:
+        "What interest rate is the finance written at, what is the amount financed, and what is the residual?",
+    });
+  }
+
+  // The savings headline never nets off the interest.
+  if (totalInterest != null && totalInterest > 0) {
+    findings.push({
+      key: "interest-vs-savings",
+      severity: "warn",
+      category: "Framing",
+      title: `The lease costs ${money(totalInterest)} in interest over the term`,
+      detail:
+        "Quotes lead with tax and GST savings. Those are real — but so is the interest, and it is rarely shown beside them. Judge the lease on the two together.",
+    });
+  }
+
+  // Residual: at the ATO minimum, or padded to flatter the payment?
+  if (residualPctOfFinanced != null) {
+    const years = quote.termMonths / 12;
+    const minPct = config.lease.residualMinPct[String(Math.round(years))];
+    if (minPct != null) {
+      const over = residualPctOfFinanced - minPct;
+      findings.push({
+        key: "residual",
+        severity: over > 2 ? "warn" : "ok",
+        category: "Residual",
+        title:
+          over > 2
+            ? `The residual is ${pct(over)} above the ATO minimum`
+            : "The residual is at the ATO minimum",
+        detail:
+          over > 2
+            ? `At ${pct(residualPctOfFinanced)} against a minimum of ${pct(minPct)}, this lowers the payment now and leaves more owing at the end. You still owe ${money(quote.residualIncGst ?? 0)} in ${years} years.`
+            : `${pct(residualPctOfFinanced)} of the amount financed, the lowest the ATO accepts for a ${years}-year term. You will owe ${money(quote.residualIncGst ?? 0)} at the end — that part is not optional.`,
+        question: over > 2 ? "Why is the residual set above the ATO minimum for this term?" : undefined,
+      });
+    }
+  }
+
+  // Insurance — the widest-varying line in the market.
+  if (annualLines.insurance != null && quote.vehiclePrice) {
+    const asPct = (annualLines.insurance / quote.vehiclePrice) * 100;
+    const { low, high } = config.benchmarks.insurancePctOfValue;
+    const atLow = quote.vehiclePrice * (low / 100);
+    const years = quote.termMonths / 12;
+    findings.push({
+      key: "insurance",
+      severity: asPct > high * 0.85 ? "critical" : asPct > (low + high) / 2 ? "warn" : "ok",
+      category: "Insurance",
+      title:
+        asPct > (low + high) / 2
+          ? `Insurance is ${money(annualLines.insurance)} a year — the high end of the market`
+          : `Insurance is ${money(annualLines.insurance)} a year — competitive`,
+      detail:
+        asPct > (low + high) / 2
+          ? `That is ${asPct.toFixed(1)}% of the vehicle's value, against a market range of ${low}%–${high}%. At the low end this line would be about ${money(atLow)} a year, a difference of ${money((annualLines.insurance - atLow) * years)} over the term. Packaged insurance is often placed by the provider, who may earn commission on it.`
+          : `That is ${asPct.toFixed(1)}% of the vehicle's value, at the low end of the ${low}%–${high}% range seen across providers.`,
+      costOverTerm: asPct > (low + high) / 2 ? (annualLines.insurance - atLow) * years : undefined,
+      question:
+        asPct > (low + high) / 2
+          ? "Can I use my own comprehensive policy instead of the one bundled in this quote, and do you receive a commission on it?"
+          : undefined,
+    });
+  }
+
+  // Management fee against the observed market range.
+  if (annualLines.managementFee != null) {
+    const { low, high } = config.benchmarks.managementFeeAnnual;
+    const fee = annualLines.managementFee;
+    if (fee > high) {
+      findings.push({
+        key: "management-fee",
+        severity: "warn",
+        category: "Fees",
+        title: `The management fee is ${money(fee)} a year`,
+        detail: `Above the ${money(low)}–${money(high)} range seen across providers, so worth ${money((fee - high) * (quote.termMonths / 12))} over the term.`,
+        costOverTerm: (fee - high) * (quote.termMonths / 12),
+        question: "Is the management fee negotiable, and what does it cover?",
+      });
+    } else {
+      findings.push({
+        key: "management-fee",
+        severity: "ok",
+        category: "Fees",
+        title: `The management fee is ${money(fee)} a year`,
+        detail: `Within the ${money(low)}–${money(high)} range seen across providers.`,
+      });
+    }
+  }
+
+  // Running-cost budgets against what the car actually needs.
+  if (quote.annualKm && quote.vehiclePrice) {
+    const bench = buildRunningCosts(
+      {
+        vehiclePrice: quote.vehiclePrice,
+        fuelType: quote.fuelType,
+        annualKm: quote.annualKm,
+      } as LeaseInputs,
+      config,
+    );
+    const pairs: [keyof QuoteLines, number, string][] = [
+      ["energy", bench.fuel, "energy"],
+      ["maintenance", bench.servicing, "maintenance"],
+      ["tyres", bench.tyres, "tyres"],
+      ["registration", bench.registration, "registration"],
+    ];
+    const tol = 1 + config.benchmarks.runningCostTolerancePct / 100;
+    let padded = 0;
+    const paddedNames: string[] = [];
+    for (const [key, benchmark, label] of pairs) {
+      const quoted = annualLines[key];
+      if (quoted == null || benchmark <= 0) continue;
+      if (quoted > benchmark * tol) {
+        padded += quoted - benchmark;
+        paddedNames.push(label);
+      }
+    }
+    if (padded > 0) {
+      const years = quote.termMonths / 12;
+      findings.push({
+        key: "running-cost-padding",
+        severity: "warn",
+        category: "Budget",
+        title: `Running-cost budgets look padded by about ${money(padded)} a year`,
+        detail: `The ${paddedNames.join(", ")} ${paddedNames.length === 1 ? "budget is" : "budgets are"} above what this car should need at ${quote.annualKm.toLocaleString("en-AU")} km. You pre-pay the difference from every pay — ${money(padded * years)} across the term. Budgets are a lever providers use to shape the headline figure.`,
+        costOverTerm: padded * years,
+        question:
+          "How were the running-cost budgets set, and what happens to any surplus at the end of the lease — is it refunded to me?",
+      });
+    }
+  }
+
+  // Do the itemised lines actually add up to the deduction they state?
+  if (reconciliationGap != null && Math.abs(reconciliationGap) > 50) {
+    const expectedLca =
+      amountFinanced != null ? luxuryCarAdjustment(amountFinanced, config) : 0;
+    const looksLikeLca =
+      quote.lines.luxuryCarAdjustment == null &&
+      expectedLca > 0 &&
+      Math.abs(reconciliationGap - expectedLca) < expectedLca * 0.35;
+    findings.push({
+      key: "reconciliation",
+      severity: "warn",
+      category: "Adds up?",
+      title: `The stated deduction is ${money(Math.abs(reconciliationGap))} a year ${reconciliationGap > 0 ? "more" : "less"} than the listed items`,
+      detail: looksLikeLca
+        ? `The listed lines total ${money(annualPackageTotal)} but the deduction is ${money(annualStatedDeduction!)}. The gap is close to the luxury car adjustment this vehicle would attract (about ${money(expectedLca)} a year, because the financed amount is above the ${money(config.gst.carLimit)} car limit) — but the quote doesn't name it.`
+        : `The listed lines total ${money(annualPackageTotal)} but the deduction is ${money(annualStatedDeduction!)}. Nothing on the quote explains the difference.`,
+      question: "Your itemised inclusions don't add up to the salary deduction — what is the difference?",
+    });
+  }
+
+  // The GST credit cap — a check that usually passes, and worth saying so.
+  if (quote.vehiclePrice && quote.vehiclePrice > config.gst.carLimit && amountFinanced != null) {
+    const impliedCredit = quote.vehiclePrice - amountFinanced;
+    const expected = gstCredit;
+    if (Math.abs(impliedCredit - expected) < 25) {
+      findings.push({
+        key: "gst-credit",
+        severity: "ok",
+        category: "GST",
+        title: `The GST credit is capped correctly at ${money(expected)}`,
+        detail: `One eleventh of the ${money(config.gst.carLimit)} car limit. Above that limit the GST isn't recoverable, so this is the most that can come off the price.`,
+      });
+    }
+  }
+
+  // Order by what each finding costs, worst first; "ok" findings sink.
+  const rank: Record<FindingSeverity, number> = { critical: 0, warn: 1, ok: 2 };
+  findings.sort(
+    (a, b) => rank[a.severity] - rank[b.severity] || (b.costOverTerm ?? 0) - (a.costOverTerm ?? 0),
+  );
+
+  return {
+    impliedRatePct: rate,
+    rateBlockedBy,
+    amountFinanced,
+    financedWasDerived,
+    residualExGst,
+    residualPctOfFinanced,
+    monthlyFinancePayment: monthlyFinance,
+    totalInterest,
+    interestAtBenchmark,
+    financeMargin,
+    annualLines,
+    annualPackageTotal,
+    annualStatedDeduction,
+    reconciliationGap,
+    findings,
+    questions: findings.map((x) => x.question).filter((q): q is string => Boolean(q)),
+  };
+}

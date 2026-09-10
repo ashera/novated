@@ -65,6 +65,27 @@ export interface LeaseConfig {
   defaultEstablishmentFee: number;
   /** Pay cycles per year the deduction is spread over. */
   payCyclesPerYear: number;
+  /** Above the car limit the financier loses depreciation and GST deductions, and
+   *  passes the cost on as a "luxury car adjustment". Expressed as a % per year of
+   *  the financed amount ABOVE the limit. Derived from quotes that itemise it:
+   *  two independent providers agreed to within 0.02 of a percentage point. */
+  luxuryCarAdjustmentPct: number;
+}
+
+/** Market observations a finding can be measured against. Kept separate from the
+ *  engine's own defaults: these describe what the market DOES, not what we assume,
+ *  and they are what turns "this fee is high" into a sourced claim. */
+export interface BenchmarkConfig {
+  /** A comparable secured car loan — what a lease's finance rate is judged against. */
+  loanRatePct: number;
+  /** A finance rate at or above this is flagged outright. */
+  rateConcernPct: number;
+  /** Lease management fee, annual, ex GST. */
+  managementFeeAnnual: { low: number; high: number };
+  /** Packaged comprehensive insurance, as a % of vehicle value, ex GST. */
+  insurancePctOfValue: { low: number; high: number };
+  /** How far a running-cost budget may exceed our benchmark before it's flagged. */
+  runningCostTolerancePct: number;
 }
 
 export interface GstConfig {
@@ -119,6 +140,7 @@ export interface EngineConfig {
   lct: LctConfig;
   lease: LeaseConfig;
   running: RunningCostConfig;
+  benchmarks: BenchmarkConfig;
 }
 
 export const DEFAULT_CONFIG: EngineConfig = {
@@ -180,9 +202,11 @@ export const DEFAULT_CONFIG: EngineConfig = {
     },
     defaultTermYears: 5,
     defaultInterestRatePct: 7.5,
-    defaultAdminFeeAnnual: 550,
+    // Observed range across sampled providers was $360-$470 a year.
+    defaultAdminFeeAnnual: 420,
     defaultEstablishmentFee: 450,
     payCyclesPerYear: 26, // fortnightly
+    luxuryCarAdjustmentPct: 6.15,
   },
 
   running: {
@@ -193,10 +217,22 @@ export const DEFAULT_CONFIG: EngineConfig = {
       pricePerKwh: 0.28,
     },
     servicing: { annualBase: 420, perKm: 0.012, evMultiplier: 0.55 },
-    tyres: { setCost: 900, kmPerSet: 45_000 },
-    registrationAnnual: 880,
+    // Recalibrated against packaged quotes: a set at this price over this distance
+    // lands at ~$400/yr ex GST, which is where three providers independently sat.
+    tyres: { setCost: 1_320, kmPerSet: 45_000 },
+    registrationAnnual: 780,
     insurance: { pctOfValue: 2.4, minAnnual: 900 },
     roadsideAnnual: 120,
+  },
+
+  benchmarks: {
+    loanRatePct: 7.5,
+    rateConcernPct: 9.0,
+    managementFeeAnnual: { low: 360, high: 470 },
+    // The widest spread of any line: packaged comprehensive ranged from 1.7% to
+    // 4.6% of vehicle value across the sampled providers, for the same class of car.
+    insurancePctOfValue: { low: 1.7, high: 4.6 },
+    runningCostTolerancePct: 20,
   },
 };
 
@@ -220,6 +256,12 @@ export function withDefaults(data: EngineConfig): EngineConfig {
   }
   if (out.fbt.evExemption == null) {
     out = { ...out, fbt: { ...out.fbt, evExemption: DEFAULT_CONFIG.fbt.evExemption } };
+  }
+  if (out.lease.luxuryCarAdjustmentPct == null) {
+    out = {
+      ...out,
+      lease: { ...out.lease, luxuryCarAdjustmentPct: DEFAULT_CONFIG.lease.luxuryCarAdjustmentPct },
+    };
   }
   return out;
 }

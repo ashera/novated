@@ -103,6 +103,8 @@ export interface LeaseFinance {
   totalPayments: number;
   totalInterest: number;
   luxuryCarTax: number;
+  /** Annual charge passed on for deductions lost above the car limit. */
+  luxuryCarAdjustment: number;
 }
 
 export interface PackageBreakdown {
@@ -173,6 +175,53 @@ export function annuityPayment(
   return (principal * growth - balloon) * (r / (growth - 1));
 }
 
+/**
+ * The inverse of {@link annuityPayment}: given what is being paid, recover the
+ * interest rate behind it.
+ *
+ * This is the single most useful thing the app can do with a real lease quote.
+ * Providers quote a monthly or fortnightly finance rental and, almost without
+ * exception, no rate — but the rate is fully determined by the amount financed,
+ * the residual, the term and the payment, so it can simply be solved for.
+ *
+ * Bisection rather than Newton: the payment rises monotonically with the rate,
+ * so bisection cannot diverge or land on the wrong root, and 200 halvings over
+ * the search window is exact to far more precision than the input warrants.
+ *
+ * Returns null when no rate explains the payment — a payment below the
+ * interest-free floor means one of the inputs is wrong, and saying so is more
+ * useful than returning a negative rate.
+ */
+export function impliedRate(
+  principal: number,
+  balloon: number,
+  payment: number,
+  months: number,
+  opts: { min?: number; max?: number } = {},
+): number | null {
+  let lo = opts.min ?? -5;
+  let hi = opts.max ?? 60;
+  if (!(principal > 0) || !(payment > 0) || !(months > 0)) return null;
+  if (balloon < 0 || balloon > principal) return null;
+  // The interest-free floor IS explainable — it is exactly 0% — so compare with a
+  // tolerance rather than rejecting the boundary case.
+  if (payment < (principal - balloon) / months - 1e-6) return null;
+  if (payment > annuityPayment(principal, balloon, hi, months)) return null;
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    if (annuityPayment(principal, balloon, mid, months) < payment) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/** The charge a financier passes on for the deductions it loses above the car
+ *  limit. Nil for a car under the limit. */
+export function luxuryCarAdjustment(financed: number, config: EngineConfig): number {
+  const excess = Math.max(0, financed - config.gst.carLimit);
+  return excess * (config.lease.luxuryCarAdjustmentPct / 100);
+}
+
 /** Luxury car tax on a vehicle above the relevant threshold. LCT applies to the
  *  GST-inclusive value above the threshold, excluding the GST on that excess. */
 export function luxuryCarTax(
@@ -224,6 +273,7 @@ export function buildFinance(
     totalPayments,
     totalInterest: totalPayments + residual - amountFinanced,
     luxuryCarTax: luxuryCarTax(price, inputs.fuelType, config),
+    luxuryCarAdjustment: luxuryCarAdjustment(amountFinanced, config),
   };
 }
 
@@ -336,6 +386,9 @@ export function assessFbt(
 
 // --- The package -----------------------------------------------------------
 
+const fmt = (n: number) =>
+  n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
+
 export function calculateLease(
   inputs: LeaseInputs,
   config: EngineConfig,
@@ -350,7 +403,11 @@ export function calculateLease(
 
   // Everything the employer deducts, before deciding pre- vs post-tax.
   const packagedTotal =
-    finance.annualPayment + runningInPackage + adminFee + fbt.fbtPayable;
+    finance.annualPayment +
+    runningInPackage +
+    adminFee +
+    finance.luxuryCarAdjustment +
+    fbt.fbtPayable;
   // The employee contribution can't exceed the package it is paid out of — on a
   // very expensive car the statutory taxable value can otherwise run past the
   // whole year's cost, which no provider would actually deduct.
@@ -397,7 +454,12 @@ export function calculateLease(
   // --- Sanity checks the UI surfaces as plain-English warnings ---
   if (finance.luxuryCarTax > 0) {
     warnings.push(
-      `This car is over the luxury car tax threshold, so roughly ${Math.round(finance.luxuryCarTax).toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 })} of the price you pay is luxury car tax. The GST credit is also capped at the car limit, so not all of the GST comes back.`,
+      `This car is over the luxury car tax threshold, so roughly ${fmt(finance.luxuryCarTax)} of the price you pay is luxury car tax. The GST credit is also capped at the car limit, so not all of the GST comes back.`,
+    );
+  }
+  if (finance.luxuryCarAdjustment > 0) {
+    warnings.push(
+      `Because the financed amount is above the ${fmt(config.gst.carLimit)} car limit, the financier can't claim full depreciation or GST credits on the excess and passes that cost on — about ${fmt(finance.luxuryCarAdjustment)} a year here, often shown on a quote as a "luxury car charge" or "luxury car adjustment".`,
     );
   }
   if (inputs.fuelType === "phev" && config.fbt.evExemption.enabled) {

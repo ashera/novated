@@ -118,6 +118,16 @@ export const SOURCE_SEEDS: SourceSeed[] = [
       "Representative financier interest rates, management fees and establishment fees, sampled across the major novated lease providers.",
   },
   {
+    key: "market-quote-sample",
+    name: "Novated lease quote sample",
+    organisation: "Collected quotes (internal)",
+    url: "",
+    updateFrequency: "As quotes are collected",
+    reviewIntervalDays: 180,
+    description:
+      "Anonymised sample of real provider quotes, used to benchmark finance rates, management fees, insurance and running-cost budgets. Providers are never named in published ranges — a provider is identified only to the user whose own quote it is.",
+  },
+  {
     key: "green-vehicle-guide",
     name: "Green Vehicle Guide",
     organisation: "Department of Infrastructure, Transport, Regional Development and Communications",
