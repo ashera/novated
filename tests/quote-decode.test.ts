@@ -8,10 +8,39 @@ const find = (q: Quote, key: string) =>
   decodeQuote(q, config).findings.find((f) => f.key === key);
 
 describe("Quote decoding", () => {
-  it("annualises a monthly quote and a fortnightly one onto the same footing", () => {
-    // The same $630 a year, published two different ways.
+  it("annualises every pay cycle onto the same footing", () => {
+    // The same $630 a year, published three different ways. A is monthly and
+    // B is fortnightly in the real quotes; weekly is constructed here.
     expect(decodeQuote(QUOTE_A, config).annualLines.energy).toBeCloseTo(630, 0);
     expect(decodeQuote(QUOTE_B, config).annualLines.energy).toBeCloseTo(630, 0);
+    const weekly: Quote = {
+      ...QUOTE_A,
+      frequency: "weekly",
+      lines: { ...QUOTE_A.lines, energy: 630 / 52 },
+    };
+    expect(decodeQuote(weekly, config).annualLines.energy).toBeCloseTo(630, 0);
+  });
+
+  it("solves the same rate whichever cycle the quote is published in", () => {
+    // The rate is a property of the lease, not of how the provider slices the
+    // payment. Publishing weekly must not change the answer.
+    const monthly = decodeQuote(QUOTE_A, config).impliedRatePct!;
+    const asWeekly: Quote = {
+      ...QUOTE_A,
+      frequency: "weekly",
+      lines: { ...QUOTE_A.lines, finance: (QUOTE_A.lines.finance! * 12) / 52 },
+    };
+    expect(decodeQuote(asWeekly, config).impliedRatePct!).toBeCloseTo(monthly, 6);
+  });
+
+  it("reads a weekly quote as weekly, not as something else", () => {
+    // The trap this guards: mistaking a weekly figure for a fortnightly one
+    // halves every annual total and makes a dear lease look cheap.
+    const weekly: Quote = { ...QUOTE_A, frequency: "weekly" };
+    const fortnightly: Quote = { ...QUOTE_A, frequency: "fortnightly" };
+    const w = decodeQuote(weekly, config).annualPackageTotal;
+    const f = decodeQuote(fortnightly, config).annualPackageTotal;
+    expect(w / f).toBeCloseTo(2, 6);
   });
 
   it("reports the interest actually paid over the term", () => {

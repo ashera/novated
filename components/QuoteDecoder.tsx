@@ -65,6 +65,17 @@ const FUEL_TYPES: { key: FuelType; label: string }[] = [
   { key: "phev", label: "Plug-in hybrid" },
 ];
 
+const FREQ_LABEL: Record<QuoteFrequency, string> = {
+  weekly: "Week",
+  fortnightly: "Fortnight",
+  monthly: "Month",
+};
+const FREQ_WORD: Record<QuoteFrequency, string> = {
+  weekly: "week",
+  fortnightly: "fortnight",
+  monthly: "month",
+};
+
 const SEVERITY_STYLE: Record<FindingSeverity, { chip: string; edge: string }> = {
   critical: { chip: "bg-danger-subtle text-danger-text", edge: "border-l-danger" },
   warn: { chip: "bg-warning-subtle text-warning-text", edge: "border-l-warning" },
@@ -101,7 +112,7 @@ export default function QuoteDecoder({
   };
 
   const decode = useMemo(() => decodeQuote(quote, config), [quote, config]);
-  const freqWord = quote.frequency === "monthly" ? "month" : "fortnight";
+  const freqWord = FREQ_WORD[quote.frequency];
 
   const keep = async () => {
     setSaveError(null);
@@ -277,7 +288,7 @@ export default function QuoteDecoder({
               <div className="mt-4">
                 <span className="text-sm font-medium text-ink">Figures on your quote are per</span>
                 <div className="mt-2 flex gap-1.5">
-                  {(["fortnightly", "monthly"] as QuoteFrequency[]).map((f) => (
+                  {(["weekly", "fortnightly", "monthly"] as QuoteFrequency[]).map((f) => (
                     <button
                       key={f}
                       type="button"
@@ -288,13 +299,14 @@ export default function QuoteDecoder({
                           : "border-line bg-panel-2 text-subtle hover:border-line-bold hover:text-ink"
                       }`}
                     >
-                      {f === "fortnightly" ? "Fortnight" : "Month"}
+                      {FREQ_LABEL[f]}
                     </button>
                   ))}
                 </div>
                 <p className="mt-1.5 text-[11px] text-muted">
-                  Providers publish one or the other, never both. Get this wrong and every figure
-                  below is out by more than double.
+                  Look for it in the heading above the figures &mdash; providers label it once and
+                  never repeat it. Get this wrong and every number below is out by two or four
+                  times.
                 </p>
               </div>
             </section>

@@ -25,8 +25,17 @@ import {
   type LeaseInputs,
 } from "./novated";
 
-/** Providers publish either monthly or fortnightly figures, never both. */
-export type QuoteFrequency = "monthly" | "fortnightly";
+/** The pay cycle a quote's figures are expressed in. Providers publish exactly
+ *  one of these and never label it twice, so the reader has to tell us which —
+ *  and getting it wrong scales every figure by 2x or more. */
+export type QuoteFrequency = "weekly" | "fortnightly" | "monthly";
+
+/** Pays per year for each cycle. */
+export const CYCLES_PER_YEAR: Record<QuoteFrequency, number> = {
+  weekly: 52,
+  fortnightly: 26,
+  monthly: 12,
+};
 
 /** The line items a quote breaks its package into. Every field is optional: a
  *  quote that omits one is a real quote, and the omission is itself a finding. */
@@ -120,7 +129,7 @@ const GST = 1.1;
 
 /** Annualise a figure published at the quote's frequency. */
 function annualise(v: number, f: QuoteFrequency): number {
-  return f === "monthly" ? v * 12 : v * 26;
+  return v * CYCLES_PER_YEAR[f];
 }
 
 const money = (n: number) =>
