@@ -83,7 +83,13 @@ export interface VehicleCardProps {
 
 export default function VehicleCard(p: VehicleCardProps) {
   const selected = findVehicle(p.vehicleId);
-  const [make, setMake] = useState<string>(selected?.make ?? "");
+  // The make shown is DERIVED from the selected vehicle whenever there is one.
+  // Holding it in state and seeding it from props only worked if the vehicle
+  // was known at first render — and the lease loads asynchronously, so on a
+  // reload the dropdowns stayed empty while the title showed the right car.
+  // Local state only covers the gap between choosing a make and a model.
+  const [pendingMake, setPendingMake] = useState("");
+  const make = selected?.make ?? pendingMake;
   const [imageFailed, setImageFailed] = useState(false);
 
   const models = make ? vehiclesForMake(make) : [];
@@ -139,7 +145,7 @@ export default function VehicleCard(p: VehicleCardProps) {
               <select
                 value={make}
                 onChange={(e) => {
-                  setMake(e.target.value);
+                  setPendingMake(e.target.value);
                   setImageFailed(false);
                   p.onVehicle(null); // a new make invalidates the model
                 }}

@@ -24,6 +24,7 @@ import { useLease } from "./useLease";
 import LeaseCard from "./LeaseCard";
 import {
   applyQuoteEdit,
+  defaultVehicle,
   leaseToQuote,
   newQuoteSpec,
   type Lease,
@@ -113,19 +114,27 @@ export default function QuoteDecoder({
   // Which quote are we decoding? The lease's first, unless one was chosen.
   const activeSpec =
     lease.quotes.find((q) => q.id === activeQuoteId) ?? lease.quotes[0] ?? null;
-  const isExample = lease.quotes.length === 0;
+  // A worked example is only right for someone who has told us nothing yet.
+  // Once they have described a car, showing the example's car instead would
+  // hide the very thing the lease exists to share — and showing the example's
+  // FIGURES against their car would look like their numbers.
+  const untouched =
+    !lease.vehicle.vehicleId && lease.vehicle.price === defaultVehicle().price;
+  const isExample = lease.quotes.length === 0 && untouched;
+  const blankAgainstTheirCar = lease.quotes.length === 0 && !untouched;
 
-  // With no quotes yet, show a worked example so the page demonstrates itself
-  // rather than opening as an empty form. It is never saved — the first edit
-  // creates a real quote on the lease.
-  const quote: Quote = isExample ? EXAMPLE : leaseToQuote(lease, activeSpec!);
+  const quote: Quote = isExample
+    ? EXAMPLE
+    : blankAgainstTheirCar
+      ? leaseToQuote(lease, newQuoteSpec("Your quote"))
+      : leaseToQuote(lease, activeSpec!);
 
   /** Any edit writes back through the lease, splitting the car onto the parent
    *  and the rest onto the quote — which is how the two tools stay in step. */
   const setQuote = (fn: (q: Quote) => Quote) => {
     const next = fn(quote);
     store.update((l) => {
-      if (isExample) {
+      if (isExample || blankAgainstTheirCar) {
         const spec = newQuoteSpec(next.label?.trim() || "My quote");
         const seeded: Lease = { ...l, quotes: [...l.quotes, spec] };
         setActiveQuoteId(spec.id);
@@ -469,7 +478,13 @@ export default function QuoteDecoder({
             {isExample && (
               <p className="rounded-lg border border-accent-border bg-accent-subtle px-4 py-2.5 text-sm text-ink">
                 <strong>This is an example quote</strong>, so you can see what the tool does.
-                Start typing, or hit Clear, to use your own.
+                Start typing to use your own.
+              </p>
+            )}
+            {blankAgainstTheirCar && (
+              <p className="rounded-lg border border-accent-border bg-accent-subtle px-4 py-2.5 text-sm text-ink">
+                <strong>Ready for your first quote on this car.</strong> Type in the figures from
+                the document a provider sent you and we&apos;ll take it apart.
               </p>
             )}
 

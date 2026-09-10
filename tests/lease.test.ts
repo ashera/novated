@@ -12,6 +12,7 @@ import {
 } from "@/lib/au/lease";
 import { calculateLease } from "@/lib/au/novated";
 import { decodeQuote } from "@/lib/au/quote";
+import { findVehicle } from "@/lib/au/vehicles";
 
 const config = DEFAULT_CONFIG;
 
@@ -203,5 +204,34 @@ describe("Quote status", () => {
       quotes: [{ id: "q1", label: "Old", frequency: "monthly", termMonths: 60, lines: {}, updatedAt: when }],
     });
     expect(back.quotes[0].createdAt).toBe(when);
+  });
+});
+
+describe("The car survives a round trip through storage", () => {
+  // The bug this guards: the vehicle read back correctly for the title but
+  // the make/model controls stayed empty, because they were seeded from props
+  // at first render and the lease loads asynchronously. Nothing about the
+  // stored lease was wrong — so the guard belongs on what a consumer can
+  // derive from it, not on the store.
+  it("can recover make and model from a stored lease alone", () => {
+    const lease: Lease = {
+      ...leaseWithCar(),
+      vehicle: { ...leaseWithCar().vehicle, vehicleId: "kia-ev6" },
+    };
+    const back = migrateLease(JSON.parse(JSON.stringify(lease)));
+    const v = findVehicle(back.vehicle.vehicleId);
+    expect(v?.make).toBe("Kia");
+    expect(v?.model).toBe("EV6");
+  });
+
+  it("keeps a picked vehicle through an edit made in the decoder", () => {
+    const spec = newQuoteSpec();
+    let lease: Lease = { ...leaseWithCar(), quotes: [spec] };
+    lease = applyQuoteEdit(lease, spec.id, {
+      ...leaseToQuote(lease, spec),
+      lines: { finance: 700 },
+    });
+    expect(lease.vehicle.vehicleId).toBe("tesla-model-y");
+    expect(findVehicle(lease.vehicle.vehicleId)?.make).toBe("Tesla");
   });
 });
