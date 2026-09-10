@@ -407,6 +407,32 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     });
   }
 
+  // Drive-away price and amount financed are the pair people most often mix up,
+  // partly because some quotes also show an FBT "base value" that looks like a
+  // third candidate. Only flag what is unambiguously wrong: a lease cannot be
+  // written over more than the car costs, and the two figures are never equal
+  // (the GST credit always separates them).
+  if (quote.vehiclePrice != null && quote.amountFinanced != null) {
+    const gap = quote.vehiclePrice - quote.amountFinanced;
+    if (gap < 0) {
+      findings.push({
+        key: "financed-above-price",
+        severity: "critical",
+        category: "Check",
+        title: "The amount financed is more than the car costs",
+        detail: `You've entered ${money(quote.amountFinanced)} financed against a ${money(quote.vehiclePrice)} drive-away price. The lease is written over the price LESS the GST the financier claims back, so it is always the smaller of the two — these look swapped.`,
+      });
+    } else if (gap === 0) {
+      findings.push({
+        key: "financed-equals-price",
+        severity: "warn",
+        category: "Check",
+        title: "The amount financed is exactly the drive-away price",
+        detail: `The financier claims the GST back on the car, so the lease is normally written over about ${money(quote.vehiclePrice - gstCredit)} — around ${money(gstCredit)} less. Check you haven't entered the same figure twice.`,
+      });
+    }
+  }
+
   // The GST credit cap — a check that usually passes, and worth saying so.
   if (quote.vehiclePrice && quote.vehiclePrice > config.gst.carLimit && amountFinanced != null) {
     const impliedCredit = quote.vehiclePrice - amountFinanced;

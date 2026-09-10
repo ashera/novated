@@ -162,6 +162,31 @@ describe("Quote findings", () => {
     expect(find(lean, "running-cost-padding")).toBeUndefined();
   });
 
+  it("catches a swapped price and amount financed", () => {
+    // The lease is written over the price LESS the GST credit, so financed can
+    // never exceed the price. If it does, the two fields are the wrong way round.
+    const swapped: Quote = {
+      ...QUOTE_A,
+      vehiclePrice: QUOTE_A.amountFinanced,
+      amountFinanced: QUOTE_A.vehiclePrice,
+    };
+    const f = find(swapped, "financed-above-price")!;
+    expect(f.severity).toBe("critical");
+    expect(f.detail).toMatch(/swapped/i);
+  });
+
+  it("catches the same figure entered in both fields", () => {
+    const same: Quote = { ...QUOTE_A, amountFinanced: QUOTE_A.vehiclePrice };
+    const f = find(same, "financed-equals-price")!;
+    expect(f.severity).toBe("warn");
+    expect(f.detail).toMatch(/\$6,334/);
+  });
+
+  it("says nothing when the pair is entered correctly", () => {
+    expect(find(QUOTE_A, "financed-above-price")).toBeUndefined();
+    expect(find(QUOTE_A, "financed-equals-price")).toBeUndefined();
+  });
+
   it("confirms the GST credit is capped at the car limit", () => {
     const f = find(QUOTE_A, "gst-credit")!;
     expect(f.severity).toBe("ok");

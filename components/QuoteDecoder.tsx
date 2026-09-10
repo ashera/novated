@@ -112,6 +112,15 @@ export default function QuoteDecoder({
   };
 
   const decode = useMemo(() => decodeQuote(quote, config), [quote, config]);
+
+  // What the amount financed should be, given the price: the financier claims
+  // the GST back, capped at the car limit. Shown beside the field so the pair
+  // explains itself rather than needing to be explained.
+  const derivedFinanced = useMemo(() => {
+    if (!quote.vehiclePrice) return null;
+    const creditable = Math.min(quote.vehiclePrice, config.gst.carLimit);
+    return quote.vehiclePrice - (creditable - creditable / (1 + config.gst.rate));
+  }, [quote.vehiclePrice, config]);
   const freqWord = FREQ_WORD[quote.frequency];
 
   const keep = async () => {
@@ -314,14 +323,6 @@ export default function QuoteDecoder({
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h2 className="text-base font-semibold text-ink">The car</h2>
               <div className="mt-4 space-y-4">
-                <QuoteField
-                  label="Drive-away price"
-                  alsoCalled={["Vehicle Price", "Drive Away Price"]}
-                  value={quote.vehiclePrice}
-                  onChange={(v) => set("vehiclePrice", v)}
-                  placeholder="85,000"
-                  hint="GST included, as advertised."
-                />
                 <div>
                   <span className="text-sm font-medium text-ink">Fuel type</span>
                   <div className="mt-2 flex flex-wrap gap-1.5">
@@ -341,22 +342,64 @@ export default function QuoteDecoder({
                     ))}
                   </div>
                 </div>
+                <QuoteField
+                  label="Kilometres a year"
+                  prefix={null}
+                  suffix="km"
+                  value={quote.annualKm}
+                  onChange={(v) => set("annualKm", v)}
+                  placeholder="15,000"
+                  hint="Used to check the running-cost budgets against what the car needs."
+                />
               </div>
             </section>
 
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h2 className="text-base font-semibold text-ink">The finance</h2>
               <p className="mt-1 text-xs text-muted">
-                These three, plus the payment below, are what let us solve the interest rate.
+                These, plus the payment below, are what let us solve the interest rate.
               </p>
               <div className="mt-4 space-y-4">
+                <QuoteField
+                  label="Price of the car"
+                  alsoCalled={["Vehicle Price", "Drive Away Price"]}
+                  value={quote.vehiclePrice}
+                  onChange={(v) => set("vehiclePrice", v)}
+                  placeholder="85,000"
+                  hint="What the car costs, GST included, as advertised."
+                />
+
+                {/* The relationship between the two, spelled out with their own
+                    numbers — this pair is the most common point of confusion. */}
+                <div className="rounded-md border border-line bg-panel-2 px-3 py-2 text-[11px] leading-relaxed text-muted">
+                  {derivedFinanced != null ? (
+                    <>
+                      The financier buys the car and claims the GST back, so the lease is written
+                      over <strong className="text-ink">less</strong> than the price. On{" "}
+                      {fmtCurrency(quote.vehiclePrice!)} that&apos;s about{" "}
+                      <strong className="text-ink">{fmtCurrency(derivedFinanced)}</strong>{" "}
+                      ({fmtCurrency(quote.vehiclePrice! - derivedFinanced)} of GST comes off).
+                    </>
+                  ) : (
+                    <>
+                      The financier claims the GST back on the car, so the amount financed is
+                      always <strong className="text-ink">less</strong> than the price. Enter the
+                      price above and we&apos;ll show you what to expect.
+                    </>
+                  )}
+                </div>
+
                 <QuoteField
                   label="Amount financed"
                   alsoCalled={["Vehicle Amount Financed", "Financed Amount"]}
                   value={quote.amountFinanced}
                   onChange={(v) => set("amountFinanced", v)}
-                  placeholder="78,666"
-                  hint="If it isn't stated, leave it — we can work it out from the price."
+                  placeholder={derivedFinanced != null ? Math.round(derivedFinanced).toLocaleString("en-AU") : "78,666"}
+                  hint={
+                    derivedFinanced != null
+                      ? "Leave blank and we'll use the figure above. Not the same as a “base value” — that's for FBT."
+                      : "Only if your quote states it. Not the same as a “base value” — that's for FBT."
+                  }
                 />
                 <QuoteField
                   label="Residual"
@@ -476,15 +519,6 @@ export default function QuoteDecoder({
                   value={quote.salary}
                   onChange={(v) => set("salary", v)}
                   placeholder="130,000"
-                />
-                <QuoteField
-                  label="Kilometres a year"
-                  prefix={null}
-                  suffix="km"
-                  value={quote.annualKm}
-                  onChange={(v) => set("annualKm", v)}
-                  placeholder="15,000"
-                  hint="Used to check the running-cost budgets against what the car needs."
                 />
               </div>
             </section>
