@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_CONFIG } from "@/lib/au/config";
+import { AU_STATES, DEFAULT_CONFIG } from "@/lib/au/config";
 import {
   annuityPayment,
   buildFinance,
@@ -154,5 +154,42 @@ describe("Running costs", () => {
       r.fuel + r.servicing + r.tyres + r.registration + r.insurance + r.roadside,
       6,
     );
+  });
+});
+
+describe("State-based registration", () => {
+  it("uses the national default when no state is given", () => {
+    const r = buildRunningCosts(base, config);
+    expect(r.registration).toBe(config.running.registrationAnnual);
+  });
+
+  it("uses the state's own figure when one is given", () => {
+    for (const state of ["NSW", "VIC", "WA"] as const) {
+      const r = buildRunningCosts(withInputs({ state }), config);
+      expect(r.registration).toBe(config.running.registrationByState[state]);
+    }
+  });
+
+  it("separates the cheapest state from the dearest", () => {
+    const wa = buildRunningCosts(withInputs({ state: "WA" }), config).total;
+    const nsw = buildRunningCosts(withInputs({ state: "NSW" }), config).total;
+    expect(wa).toBeLessThan(nsw);
+  });
+
+  it("has a figure for every state, and none of them silly", () => {
+    for (const state of AU_STATES) {
+      const v = config.running.registrationByState[state];
+      expect(Number.isFinite(v), `${state} missing`).toBe(true);
+      expect(v).toBeGreaterThan(200);
+      expect(v).toBeLessThan(2_000);
+    }
+  });
+
+  it("still honours an explicit override over the state figure", () => {
+    const r = buildRunningCosts(
+      withInputs({ state: "NSW", runningCostOverrides: { registration: 1_234 } }),
+      config,
+    );
+    expect(r.registration).toBe(1_234);
   });
 });

@@ -17,6 +17,7 @@ import {
 import { stashHandoff } from "@/lib/quoteHandoff";
 import type { EngineConfig } from "@/lib/au/config";
 import type { FuelType } from "@/lib/au/novated";
+import { AU_STATES, type AuState } from "@/lib/au/config";
 import { track } from "@/lib/analytics";
 import { useSavedQuotes } from "./useSavedQuotes";
 
@@ -351,6 +352,45 @@ export default function QuoteDecoder({
                   placeholder="15,000"
                   hint="Used to check the running-cost budgets against what the car needs."
                 />
+
+                <div>
+                  <span className="text-sm font-medium text-ink">Registered in</span>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {AU_STATES.map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => set("state", quote.state === st ? undefined : st)}
+                        className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
+                          quote.state === st
+                            ? "border-accent bg-accent-subtle text-accent"
+                            : "border-line bg-panel-2 text-subtle hover:border-line-bold hover:text-ink"
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-muted">
+                    Registration and CTP vary a lot between states. Leave it blank for a
+                    national average.
+                  </p>
+                </div>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">Expected delivery</span>
+                  <input
+                    type="date"
+                    value={quote.firstHeldDate ?? ""}
+                    onChange={(e) => set("firstHeldDate", e.target.value || undefined)}
+                    className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                  />
+                  <span className="mt-1 block text-[11px] leading-snug text-muted">
+                    Optional. The FBT year ends 31 March, so a car delivered late in it is a
+                    fringe benefit for only part of the year &mdash; and your first-year
+                    deductions differ from the quote.
+                  </span>
+                </label>
               </div>
             </section>
 

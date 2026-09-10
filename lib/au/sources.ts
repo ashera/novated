@@ -156,6 +156,16 @@ export const SOURCE_SEEDS: SourceSeed[] = [
     description: "Residential electricity price used to budget home charging for an EV.",
   },
   {
+    key: "state-road-authorities",
+    name: "Vehicle registration and CTP schedules",
+    organisation: "State and territory road authorities",
+    url: "",
+    updateFrequency: "Annually (each state sets its own date)",
+    reviewIntervalDays: 365,
+    description:
+      "Combined registration and compulsory third-party premium for a private passenger vehicle, per state. CTP is bundled into registration in some states and bought separately in others; these are the combined figure, which is what a lease budgets.",
+  },
+  {
     key: "raa-running-costs",
     name: "Vehicle running costs survey",
     organisation: "Australian motoring clubs (RACV / RAA / NRMA)",

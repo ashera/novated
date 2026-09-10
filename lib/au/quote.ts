@@ -13,7 +13,8 @@
 // as cited reference data, so a finding is a sourced claim rather than our
 // opinion — see EngineConfig.benchmarks and lib/au/sources.ts.
 
-import type { EngineConfig } from "./config";
+import type { AuState, EngineConfig } from "./config";
+import { fbtProRataFactor, fbtYearFor, daysAvailableInFirstFbtYear } from "./fbtYear";
 import {
   annuityPayment,
   impliedRate,
@@ -77,9 +78,15 @@ export interface Quote {
   statedPreTax?: number;
   statedPostTax?: number;
 
+  /** Where the car is registered — registration and CTP vary by state. */
+  state?: AuState;
+
   // You
   salary?: number;
   annualKm?: number;
+  /** When the car is first held — delivery, in practice. ISO date. Quotes are
+   *  written on a full-FBT-year assumption; this is what tests that. */
+  firstHeldDate?: string;
 }
 
 export type FindingSeverity = "critical" | "warn" | "ok";
@@ -352,6 +359,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         vehiclePrice: quote.vehiclePrice,
         fuelType: quote.fuelType,
         annualKm: quote.annualKm,
+        state: quote.state,
       } as LeaseInputs,
       config,
     );
@@ -429,6 +437,40 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         category: "Check",
         title: "The amount financed is exactly the drive-away price",
         detail: `The financier claims the GST back on the car, so the lease is normally written over about ${money(quote.vehiclePrice - gstCredit)} — around ${money(gstCredit)} less. Check you haven't entered the same figure twice.`,
+      });
+    }
+  }
+
+  // Every quote is priced on a full FBT year and says so in its fine print.
+  // The FBT year ends 31 March, so a car delivered in November attracts about
+  // five months of fringe benefit, not twelve — and the contribution that
+  // cancels it shrinks in proportion. The provider adjusts it later; the
+  // quote never shows it.
+  if (quote.firstHeldDate) {
+    const factor = fbtProRataFactor(quote.firstHeldDate);
+    if (factor < 0.999) {
+      const held = new Date(`${quote.firstHeldDate}T00:00:00Z`);
+      const fy = fbtYearFor(held);
+      const days = daysAvailableInFirstFbtYear(held);
+      const fullYearEcm = annualLines.postTaxContribution ?? 0;
+      // An ECM quote states the contribution; an exempt EV has none, but its
+      // reportable benefit is pro-rated the same way.
+      const statedEcm =
+        quote.statedPostTax != null ? annualise(quote.statedPostTax, f) : fullYearEcm;
+      const firstYear = statedEcm * factor;
+      findings.push({
+        key: "part-year-fbt",
+        severity: statedEcm > 0 ? "warn" : "ok",
+        category: "First year",
+        title: `Your first FBT year is ${days} days, not a full one`,
+        detail:
+          statedEcm > 0
+            ? `The FBT year ends 31 March, so a car first held on ${quote.firstHeldDate} is only a fringe benefit for ${days} of the ${fy.days} days in FBT year ${fy.label}. The post-tax contribution is pro-rated to match: about ${money(firstYear)} in the first year against the ${money(statedEcm)} this quote is priced on — a difference of ${money(statedEcm - firstYear)}. Quotes assume a full year, so expect the deduction to be trued up once the car is delivered.`
+            : `The FBT year ends 31 March, so this car is a fringe benefit for ${days} of the ${fy.days} days in FBT year ${fy.label}. Nothing to pay either way on an exempt vehicle, but the reportable amount on your first payment summary is pro-rated to match.`,
+        question:
+          statedEcm > 0
+            ? "This quote assumes a full FBT year — what will my actual deductions be for the first year, given the expected delivery date?"
+            : undefined,
       });
     }
   }
@@ -671,6 +713,7 @@ export function quoteToLeaseInputs(
     fuelType: quote.fuelType,
     termYears: years,
     annualKm: quote.annualKm ?? base.annualKm,
+    state: quote.state,
     // The whole point: model their deal at their rate, not at our default.
     interestRatePct:
       decode.impliedRatePct != null ? round(decode.impliedRatePct, 2) : base.interestRatePct,

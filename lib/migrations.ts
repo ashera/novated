@@ -312,7 +312,12 @@ export async function seedRefData(c: Client): Promise<void> {
       lastVerifiedAt: null,
       verifiedBy: null,
       note: "",
-      needsVerification: NEEDS_VERIFICATION.has(d.key) || d.sourceKey === "market-lease-terms",
+      needsVerification:
+        NEEDS_VERIFICATION.has(d.key) ||
+        d.sourceKey === "market-lease-terms" ||
+        // Seeded as estimates so the mechanism works; none has been checked
+        // against the relevant state road authority yet.
+        d.sourceKey === "state-road-authorities",
     };
   }
 

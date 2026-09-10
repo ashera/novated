@@ -101,6 +101,9 @@ export interface LctConfig {
   thresholdOther: number;
 }
 
+export const AU_STATES = ["NSW", "VIC", "QLD", "SA", "WA", "TAS", "NT", "ACT"] as const;
+export type AuState = (typeof AU_STATES)[number];
+
 /** Benchmark running costs, all EXCLUDING GST (a packaged running cost is paid
  *  by the employer, who claims the GST credit, so the employee budgets ex-GST). */
 export interface RunningCostConfig {
@@ -122,8 +125,14 @@ export interface RunningCostConfig {
     setCost: number;
     kmPerSet: number;
   };
-  /** Registration + CTP, annual. State-varying — the default is a national midpoint. */
+  /** Registration + CTP, annual, for someone who hasn't said where they live. */
   registrationAnnual: number;
+  /** Registration + CTP by state. Compulsory third-party cover is bundled into
+   *  registration in some states and bought separately in others, so these are
+   *  the combined figure — which is what a lease budgets and what a quote
+   *  itemises. Every one of these is an ESTIMATE pending verification against
+   *  the relevant state road authority. */
+  registrationByState: Record<AuState, number>;
   insurance: {
     /** Comprehensive premium as a % of vehicle value, with a floor. */
     pctOfValue: number;
@@ -224,6 +233,18 @@ export const DEFAULT_CONFIG: EngineConfig = {
     // lands at ~$400/yr ex GST, which is where three providers independently sat.
     tyres: { setCost: 1_320, kmPerSet: 45_000 },
     registrationAnnual: 780,
+    // Estimates only — seeded so the mechanism works and flagged for
+    // verification against each state's road authority. Do not quote these.
+    registrationByState: {
+      NSW: 880,
+      VIC: 850,
+      QLD: 800,
+      SA: 720,
+      WA: 640,
+      TAS: 700,
+      NT: 740,
+      ACT: 820,
+    },
     insurance: { pctOfValue: 2.4, minAnnual: 900 },
     roadsideAnnual: 120,
   },

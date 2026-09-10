@@ -87,3 +87,21 @@ describe("Quote to calculator", () => {
     expect(Math.abs(modelled - quoted) / quoted).toBeLessThan(0.05);
   });
 });
+
+describe("State carries to the calculator", () => {
+  it("passes the quote's state through", () => {
+    const q: Quote = { ...QUOTE_A, state: "VIC" };
+    expect(handoff(q).state).toBe("VIC");
+  });
+
+  it("benchmarks running costs against the right state", () => {
+    // A padded-budget finding must compare against the state the user is in,
+    // not a national average, or it fires on honest quotes in dear states.
+    const wa = decodeQuote({ ...QUOTE_A, state: "WA" }, config);
+    const nsw = decodeQuote({ ...QUOTE_A, state: "NSW" }, config);
+    const waPad = wa.findings.find((f) => f.key === "running-cost-padding");
+    const nswPad = nsw.findings.find((f) => f.key === "running-cost-padding");
+    // The same registration line reads as more padded against WA's lower figure.
+    expect((waPad?.costOverTerm ?? 0)).toBeGreaterThanOrEqual(nswPad?.costOverTerm ?? 0);
+  });
+});

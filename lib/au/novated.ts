@@ -26,7 +26,7 @@
 // service costs across the term, so a saving shown is a saving in money the user
 // recognises today.
 
-import type { EngineConfig, RunningCostConfig } from "./config";
+import type { AuState, EngineConfig, RunningCostConfig } from "./config";
 import { takeHome, marginalRelief, type TakeHome } from "./tax";
 
 export type FbtMethod = "ecm" | "employer-pays";
@@ -56,6 +56,9 @@ export interface LeaseInputs {
   establishmentFee?: number;
   /** Interest rate on the car loan the "buy it yourself" comparison uses. */
   comparisonLoanRatePct?: number;
+  /** Where the car is registered. Registration and CTP vary materially by
+   *  state; without one we use a national midpoint. */
+  state?: AuState;
 }
 
 export interface AnnualRunningCosts {
@@ -314,7 +317,8 @@ export function buildRunningCosts(
   const modelled: AnnualRunningCosts = {
     // Registration is largely GST-free (the CTP component carries GST, but the
     // registration fee itself doesn't) — budget it as-is.
-    registration: r.registrationAnnual,
+    registration:
+      (inputs.state && r.registrationByState?.[inputs.state]) || r.registrationAnnual,
     fuel: exGst(fuel),
     servicing: exGst(servicing),
     tyres: exGst(tyres),

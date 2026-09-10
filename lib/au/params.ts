@@ -3,7 +3,7 @@
 // category, unit, authoritative source, and how to read/write its value in the
 // config object (by dot/index path).
 
-import { DEFAULT_CONFIG, type EngineConfig } from "./config";
+import { AU_STATES, DEFAULT_CONFIG, type EngineConfig } from "./config";
 
 // "percent" values are STORED as a fraction (0.47) and edited as a percentage;
 // "percentPoint" values are stored as the percentage number itself (7.5).
@@ -151,7 +151,15 @@ export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   { key: "run_service_ev_mult", label: "Servicing — EV multiplier", category: "Running costs", path: "running.servicing.evMultiplier", unit: "percent", sourceKey: "raa-running-costs" },
   { key: "run_tyre_set", label: "Tyres — cost per set", category: "Running costs", path: "running.tyres.setCost", unit: "aud", sourceKey: "raa-running-costs" },
   { key: "run_tyre_km", label: "Tyres — km per set", category: "Running costs", path: "running.tyres.kmPerSet", unit: "count", sourceKey: "raa-running-costs" },
-  { key: "run_registration", label: "Registration + CTP (annual)", category: "Running costs", path: "running.registrationAnnual", unit: "aud", sourceKey: "raa-running-costs" },
+  { key: "run_registration", label: "Registration + CTP — national default", category: "Running costs", path: "running.registrationAnnual", unit: "aud", sourceKey: "raa-running-costs" },
+  ...AU_STATES.map((st) => ({
+    key: `run_registration_${st.toLowerCase()}`,
+    label: `Registration + CTP — ${st}`,
+    category: "Running costs",
+    path: `running.registrationByState.${st}`,
+    unit: "aud" as const,
+    sourceKey: "state-road-authorities",
+  })),
   { key: "run_insurance_pct", label: "Insurance — % of vehicle value", category: "Running costs", path: "running.insurance.pctOfValue", unit: "percentPoint", sourceKey: "raa-running-costs" },
   { key: "run_insurance_min", label: "Insurance — minimum annual premium", category: "Running costs", path: "running.insurance.minAnnual", unit: "aud", sourceKey: "raa-running-costs" },
   { key: "run_roadside", label: "Roadside assistance (annual)", category: "Running costs", path: "running.roadsideAnnual", unit: "aud", sourceKey: "raa-running-costs" },

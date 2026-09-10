@@ -258,3 +258,51 @@ describe("Comparing quotes", () => {
     expect(spread).toBeGreaterThan(2); // 2.47 percentage points, in practice
   });
 });
+
+describe("Part-year FBT", () => {
+  // Every provider quote is priced on a full FBT year and says so in the fine
+  // print. The FBT year ends 31 March, not 30 June, and nobody expects that.
+  const ecmQuote: Quote = {
+    ...QUOTE_A,
+    fuelType: "petrol", // so there IS a contribution to pro-rate
+    statedPostTax: 1_403.65, // monthly, ~20% of $84,219 a year
+    statedPreTax: 500,
+  };
+
+  it("says nothing when no start date is given", () => {
+    expect(find(ecmQuote, "part-year-fbt")).toBeUndefined();
+  });
+
+  it("says nothing for a lease starting on 1 April", () => {
+    const full: Quote = { ...ecmQuote, firstHeldDate: "2026-04-01" };
+    expect(find(full, "part-year-fbt")).toBeUndefined();
+  });
+
+  it("flags a lease delivered part-way through the FBT year", () => {
+    const nov: Quote = { ...ecmQuote, firstHeldDate: "2026-11-01" };
+    const f = find(nov, "part-year-fbt")!;
+    expect(f.severity).toBe("warn");
+    expect(f.title).toContain("151 days");
+    expect(f.detail).toMatch(/31 March/);
+    expect(f.question).toMatch(/full FBT year/i);
+  });
+
+  it("uses the FBT year, not the financial year, to decide", () => {
+    // 1 May is early in the FBT year (11 months left) but late in nothing —
+    // getting this backwards would flag it as nearly over.
+    const may = find({ ...ecmQuote, firstHeldDate: "2026-05-01" }, "part-year-fbt")!;
+    expect(may.title).toContain("335 days");
+    // 1 February is nearly the END of FBT year 2026-27, not the start of one.
+    const feb = find({ ...ecmQuote, firstHeldDate: "2027-02-01" }, "part-year-fbt")!;
+    expect(feb.title).toContain("59 days");
+  });
+
+  it("notes the pro-rating on an exempt EV without alarming about it", () => {
+    // No contribution to shrink, but the reportable amount still is.
+    const ev: Quote = { ...QUOTE_A, firstHeldDate: "2026-11-01", statedPostTax: 0 };
+    const f = find(ev, "part-year-fbt")!;
+    expect(f.severity).toBe("ok");
+    expect(f.question).toBeUndefined();
+    expect(f.detail).toMatch(/reportable/i);
+  });
+});
