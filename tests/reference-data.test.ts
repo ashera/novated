@@ -136,3 +136,25 @@ describe("Source staleness", () => {
     expect(computeStaleness("2024-01-01", 365, now).state).toBe("stale");
   });
 });
+
+describe("Reference data currency", () => {
+  it("uses the FY2026-27 luxury car tax threshold, not last year's", () => {
+    // This threshold is also the FBT-exemption price cap for electric vehicles,
+    // so a stale value silently denies the exemption to cars that qualify.
+    // 91,387 was 2025-26 and shipped by mistake.
+    expect(DEFAULT_CONFIG.lct.thresholdFuelEfficient).not.toBe(91_387);
+    expect(DEFAULT_CONFIG.lct.thresholdFuelEfficient).toBe(91_661);
+  });
+
+  it("exempts an EV priced between the old and new thresholds", () => {
+    // The regression the stale figure caused, stated as a behaviour.
+    expect(91_500).toBeLessThanOrEqual(DEFAULT_CONFIG.lct.thresholdFuelEfficient);
+  });
+
+  it("spans the observed market in the management fee benchmark", () => {
+    // Published provider pricing goes to $200/yr; the range must not sit above
+    // real quotes, or every one of them reads as suspiciously cheap.
+    expect(DEFAULT_CONFIG.benchmarks.managementFeeAnnual.low).toBeLessThanOrEqual(200);
+    expect(DEFAULT_CONFIG.benchmarks.managementFeeAnnual.high).toBeGreaterThanOrEqual(470);
+  });
+});

@@ -189,7 +189,10 @@ export const DEFAULT_CONFIG: EngineConfig = {
 
   gst: { rate: 0.1, carLimit: 69_674 },
 
-  lct: { rate: 0.33, thresholdFuelEfficient: 91_387, thresholdOther: 80_567 },
+  // thresholdFuelEfficient doubles as the FBT-exemption price cap for EVs, so a
+  // stale value silently denies the exemption to cars that qualify. Both figures
+  // are indexed annually and remain flagged for verification against the ATO.
+  lct: { rate: 0.33, thresholdFuelEfficient: 91_661, thresholdOther: 80_567 },
 
   lease: {
     // ATO IT 2509 minimum residuals, by term.
@@ -228,7 +231,9 @@ export const DEFAULT_CONFIG: EngineConfig = {
   benchmarks: {
     loanRatePct: 7.5,
     rateConcernPct: 9.0,
-    managementFeeAnnual: { low: 360, high: 470 },
+    // Sampled quotes ran $360-$470, but published provider pricing goes lower
+    // ($200-$240 a year), so the low end came from too small a sample.
+    managementFeeAnnual: { low: 200, high: 470 },
     // The widest spread of any line: packaged comprehensive ranged from 1.7% to
     // 4.6% of vehicle value across the sampled providers, for the same class of car.
     insurancePctOfValue: { low: 1.7, high: 4.6 },

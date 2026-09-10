@@ -439,6 +439,18 @@ const CORRECTIONS: { path: string; from: number; to: number; why: string }[] = [
     why: "Recalibrated against packaged quotes — observed range $612-$917.",
   },
   {
+    path: "lct.thresholdFuelEfficient",
+    from: 91_387,
+    to: 91_661,
+    why: "FY2026-27 figure; 91,387 was 2025-26. This threshold is also the FBT-exemption price cap for EVs, so a stale value denies the exemption to cars that qualify.",
+  },
+  {
+    path: "benchmarks.managementFeeAnnual.low",
+    from: 360,
+    to: 200,
+    why: "Published provider pricing runs to $200-$240 a year, below the $360 low from the original three-quote sample.",
+  },
+  {
     path: "lease.defaultAdminFeeAnnual",
     from: 550,
     to: 420,
