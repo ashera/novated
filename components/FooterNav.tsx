@@ -4,6 +4,7 @@ import Link from "next/link";
 // per-user surfaces (report, account, admin) live in the top bar's account menu.
 const LINKS = [
   { href: "/", label: "Calculator" },
+  { href: "/decode", label: "Decode a quote" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/faq", label: "FAQ" },
   { href: "/about", label: "About & sources" },

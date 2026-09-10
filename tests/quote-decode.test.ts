@@ -109,6 +109,21 @@ describe("Quote findings", () => {
     expect(f.question).toMatch(/surplus/i);
   });
 
+  it("reads as English when several budgets are padded", () => {
+    const padded: Quote = {
+      ...QUOTE_A,
+      lines: { ...QUOTE_A.lines, energy: 120, maintenance: 90, tyres: 95 },
+    };
+    const f = find(padded, "running-cost-padding")!;
+    // Not "The energy, maintenance, tyres budgets are…"
+    expect(f.detail).toContain("energy, maintenance and tyres budgets are");
+  });
+
+  it("names a single padded budget in the singular", () => {
+    const padded: Quote = { ...QUOTE_A, lines: { ...QUOTE_A.lines, maintenance: 90 } };
+    expect(find(padded, "running-cost-padding")!.detail).toContain("The maintenance budget is");
+  });
+
   it("leaves an honest budget alone", () => {
     // Provider A's energy, tyres and registration all sit at or under benchmark.
     const lean: Quote = {

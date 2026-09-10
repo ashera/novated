@@ -2,8 +2,8 @@
 // Imported by scripts/migrate.ts (run on every deploy) and the granular seed
 // scripts. Every statement here MUST be safe to run repeatedly.
 import type { Client } from "pg";
-import { DEFAULT_CONFIG } from "./au/config";
-import { PARAM_DESCRIPTORS } from "./au/params";
+import { DEFAULT_CONFIG, type EngineConfig } from "./au/config";
+import { PARAM_DESCRIPTORS, getByPath, setByPath } from "./au/params";
 import { SOURCE_SEEDS } from "./au/sources";
 import { RELEASE_HISTORY } from "./releaseHistory";
 import { APP_VERSION, BUILD, GIT_SHA, BUILD_DATE, COMMITS } from "./version";
@@ -395,10 +395,92 @@ export async function autoDraftRelease(c: Client): Promise<void> {
   console.log(`  releases: auto-drafted ${APP_VERSION} with ${notes.length} commit note(s) — UNPUBLISHED.`);
 }
 
+/**
+ * Corrections to the ACTIVE reference-data version.
+ *
+ * Seeding never overwrites an existing financial year — that rule protects
+ * admin edits, and it must stay. But it also means a value we later discover to
+ * be wrong stays wrong in every running environment. This applies a specific,
+ * audited correction, and only where the stored value is still exactly the one
+ * originally seeded: if an admin has since changed it, their figure wins and we
+ * leave it alone.
+ *
+ * Idempotent by construction — once applied, the `from` no longer matches.
+ * Append to the list when a benchmark is corrected; entries can stay forever.
+ */
+const CORRECTIONS: { path: string; from: number; to: number; why: string }[] = [
+  {
+    path: "running.tyres.setCost",
+    from: 900,
+    to: 1_320,
+    why: "Recalibrated against packaged quotes — three providers budget ~$400/yr ex GST at 15,000 km; the old figure produced $273.",
+  },
+  {
+    path: "running.registrationAnnual",
+    from: 880,
+    to: 780,
+    why: "Recalibrated against packaged quotes — observed range $612-$917.",
+  },
+  {
+    path: "lease.defaultAdminFeeAnnual",
+    from: 550,
+    to: 420,
+    why: "Recalibrated against packaged quotes — observed range $360-$470.",
+  },
+];
+
+export async function applyReferenceDataCorrections(c: Client): Promise<void> {
+  const active = await c.query<{ id: string; financial_year: string; data: EngineConfig }>(
+    "select id, financial_year, data from ref_data_versions where is_active limit 1",
+  );
+  const version = active.rows[0];
+  if (!version) return;
+
+  let data = version.data;
+  let applied = 0;
+
+  for (const fix of CORRECTIONS) {
+    const current = getByPath(data, fix.path);
+    if (current !== fix.from) continue; // already corrected, or deliberately changed
+    data = setByPath<EngineConfig>(data, fix.path, fix.to);
+    await c.query(
+      `insert into ref_data_audit (version_id, financial_year, param_key, action, old_value, new_value, note, changed_by_email)
+       values ($1,$2,$3,'edit',$4,$5,$6,'system')`,
+      [version.id, version.financial_year, fix.path, String(fix.from), String(fix.to), fix.why],
+    );
+    applied++;
+  }
+
+  // Blocks added to EngineConfig after this version was seeded. withDefaults
+  // backfills them on read, but persisting makes them editable in the backoffice.
+  if (data.benchmarks == null) {
+    data = { ...data, benchmarks: DEFAULT_CONFIG.benchmarks };
+    applied++;
+  }
+  if (data.lease?.luxuryCarAdjustmentPct == null) {
+    data = {
+      ...data,
+      lease: { ...data.lease, luxuryCarAdjustmentPct: DEFAULT_CONFIG.lease.luxuryCarAdjustmentPct },
+    };
+    applied++;
+  }
+
+  if (!applied) {
+    console.log("  ref-data: no corrections outstanding.");
+    return;
+  }
+  await c.query("update ref_data_versions set data = $1, updated_at = now() where id = $2", [
+    JSON.stringify(data),
+    version.id,
+  ]);
+  console.log(`  ref-data: applied ${applied} correction(s) to FY${version.financial_year}.`);
+}
+
 export async function migrate(c: Client): Promise<void> {
   await applySchema(c);
   console.log("  schema: applied.");
   await seedRefData(c);
+  await applyReferenceDataCorrections(c);
   await seedSources(c);
   await seedReleases(c);
   await autoDraftRelease(c);

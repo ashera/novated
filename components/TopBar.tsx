@@ -15,6 +15,7 @@ export interface TopBarUser {
 
 const NAV = [
   { href: "/", label: "Calculator" },
+  { href: "/decode", label: "Decode a quote" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/faq", label: "FAQ" },
   { href: "/about", label: "About" },

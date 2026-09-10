@@ -8,6 +8,7 @@ import { BUILD_DATE } from "@/lib/version";
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: `${SITE_URL}/`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 1 },
+    { url: `${SITE_URL}/decode`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.95 },
     { url: `${SITE_URL}/how-it-works`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE_URL}/faq`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE_URL}/about`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.7 },

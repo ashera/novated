@@ -125,6 +125,12 @@ const money = (n: number) =>
   n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 const pct = (n: number) => `${n.toFixed(2)}%`;
 
+/** "a", "a and b", "a, b and c" — so a generated sentence reads like English. */
+function listOf(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
 /**
  * Decode a quote: solve the rate, reconcile the payment, and compare every line
  * against a cited benchmark.
@@ -362,7 +368,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         severity: "warn",
         category: "Budget",
         title: `Running-cost budgets look padded by about ${money(padded)} a year`,
-        detail: `The ${paddedNames.join(", ")} ${paddedNames.length === 1 ? "budget is" : "budgets are"} above what this car should need at ${quote.annualKm.toLocaleString("en-AU")} km. You pre-pay the difference from every pay — ${money(padded * years)} across the term. Budgets are a lever providers use to shape the headline figure.`,
+        detail: `The ${listOf(paddedNames)} ${paddedNames.length === 1 ? "budget is" : "budgets are"} above what this car should need at ${quote.annualKm.toLocaleString("en-AU")} km. You pre-pay the difference from every pay — ${money(padded * years)} across the term. Budgets are a lever providers use to shape the headline figure.`,
         costOverTerm: padded * years,
         question:
           "How were the running-cost budgets set, and what happens to any surplus at the end of the lease — is it refunded to me?",
