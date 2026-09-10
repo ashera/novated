@@ -19,6 +19,8 @@ import {
   impliedRate,
   luxuryCarAdjustment,
   buildRunningCosts,
+  defaultInputs,
+  type AnnualRunningCosts,
   type FuelType,
   type LeaseInputs,
 } from "./novated";
@@ -582,5 +584,68 @@ export function compareQuotes(quotes: Quote[], config: EngineConfig): QuoteCompa
     rateSpreadValue,
     vehiclesComparable,
     notes,
+  };
+}
+
+// ── Handing a quote to the calculator ───────────────────────────────────────
+//
+// Someone who has just decoded a quote has a second question — "so is this
+// lease worth it for me at all?" — and they have already typed everything
+// needed to answer it. Making them enter it again would be indefensible.
+//
+// The mapping is worth more than convenience. The calculator's defaults are
+// generic; a quote supplies the person's ACTUAL interest rate, residual and
+// running-cost budgets, so the model runs on the deal in front of them rather
+// than on a representative one.
+
+/** Turn a decoded quote into calculator inputs. Anything the quote doesn't say
+ *  falls back to the engine's defaults, so the result is always complete. */
+export function quoteToLeaseInputs(
+  quote: Quote,
+  decode: QuoteDecode,
+  config: EngineConfig,
+): LeaseInputs {
+  const base = defaultInputs(config);
+  const years = Math.max(1, Math.round(quote.termMonths / 12));
+
+  // Only override a running cost the quote actually itemised — a zero we
+  // invented would tell the user this car needs no tyres.
+  const overrides: Partial<AnnualRunningCosts> = {};
+  const map: [keyof AnnualRunningCosts, string][] = [
+    ["fuel", "energy"],
+    ["servicing", "maintenance"],
+    ["tyres", "tyres"],
+    ["registration", "registration"],
+    ["insurance", "insurance"],
+    ["roadside", "roadside"],
+  ];
+  for (const [target, source] of map) {
+    const v = decode.annualLines[source];
+    if (typeof v === "number") overrides[target] = v;
+  }
+
+  // These land in editable number fields, so they get the precision a person
+  // would actually type. The solver's full precision is meaningless here —
+  // nobody negotiates a rate of 10.49820794350002%.
+  const round = (n: number, dp: number) => Math.round(n * 10 ** dp) / 10 ** dp;
+
+  return {
+    ...base,
+    salary: quote.salary ?? base.salary,
+    vehiclePrice: quote.vehiclePrice ?? base.vehiclePrice,
+    fuelType: quote.fuelType,
+    termYears: years,
+    annualKm: quote.annualKm ?? base.annualKm,
+    // The whole point: model their deal at their rate, not at our default.
+    interestRatePct:
+      decode.impliedRatePct != null ? round(decode.impliedRatePct, 2) : base.interestRatePct,
+    residualPct:
+      decode.residualPctOfFinanced != null ? round(decode.residualPctOfFinanced, 2) : undefined,
+    includeRunningCosts: Object.keys(overrides).length > 0,
+    runningCostOverrides: Object.keys(overrides).length > 0 ? overrides : undefined,
+    adminFeeAnnual: decode.annualLines.managementFee ?? base.adminFeeAnnual,
+    // A quote showing a post-tax deduction is using the employee contribution
+    // method; one showing none is either exempt or has the employer paying.
+    fbtMethod: "ecm",
   };
 }

@@ -14,6 +14,7 @@ import { calculateLease, type FuelType, type LeaseInputs } from "@/lib/au/novate
 import type { EngineConfig } from "@/lib/au/config";
 import { DEFAULT_SCENARIO, migrateScenario, type LeaseScenario } from "@/lib/au/types";
 import { track, trackLeasePricedConversion } from "@/lib/analytics";
+import { takeHandoff, type QuoteHandoff } from "@/lib/quoteHandoff";
 import { trackVisit } from "@/app/actions/track";
 
 const STORAGE_KEY = "leasewiz-scenario";
@@ -47,11 +48,26 @@ export default function LeaseCalculator({
     initialScenario ?? DEFAULT_SCENARIO,
   );
   const [hydrated, setHydrated] = useState(false);
+  const [fromQuote, setFromQuote] = useState<QuoteHandoff | null>(null);
 
   // Guests keep their work in the browser. A scenario passed in from the server
   // (a saved plan or a share link) always wins, so a shared link never gets
   // silently replaced by whatever the viewer last modelled.
   useEffect(() => {
+    // A quote just handed over from the decoder wins over everything else: it
+    // is the most recent thing the user did, and they clicked a button to get
+    // here. Consumed once, so a later visit opens on their own work again.
+    const handed = takeHandoff();
+    if (handed) {
+      setFromQuote(handed);
+      setScenario({
+        version: 1,
+        name: handed.label,
+        inputs: handed.inputs,
+      });
+      setHydrated(true);
+      return;
+    }
     if (initialScenario) {
       setHydrated(true);
       return;
@@ -114,6 +130,40 @@ export default function LeaseCalculator({
       <TopBar user={user} country={country} reviewDue={reviewDue} />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        {fromQuote ? (
+          <div className="mb-5 rounded-xl border border-accent-border bg-accent-subtle px-4 py-3">
+            <p className="text-sm text-ink">
+              <strong>Filled in from {fromQuote.label}.</strong>{" "}
+              {fromQuote.impliedRatePct != null && (
+                <>
+                  Modelled at the {fromQuote.impliedRatePct.toFixed(2)}% we solved from that
+                  quote, with its own running-cost budgets.{" "}
+                </>
+              )}
+              Change anything below to see what would have to be different.
+            </p>
+            <Link
+              href="/decode"
+              className="mt-1 inline-block text-sm font-medium text-accent hover:underline"
+            >
+              ← Back to the quote
+            </Link>
+          </div>
+        ) : (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 shadow-[var(--shadow-card)]">
+            <p className="text-sm text-subtle">
+              <strong className="text-ink">Already been sent a quote?</strong> We&apos;ll work out
+              the interest rate it doesn&apos;t print, and what the numbers really mean.
+            </p>
+            <Link
+              href="/decode"
+              className="rounded bg-accent px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-accent-soft"
+            >
+              Decode a quote
+            </Link>
+          </div>
+        )}
+
         <div className="mb-5"><InfoBlastBanner /></div>
 
         <div className="mb-6">

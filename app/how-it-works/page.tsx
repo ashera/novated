@@ -110,6 +110,13 @@ export default async function HowItWorksPage() {
             car is worth less?</strong> The shortfall is yours, not the financier&apos;s.
           </li>
         </ol>
+        <p className="mt-3 text-sm text-subtle">
+          If you already have a quote,{" "}
+          <Link href="/decode" className="font-medium text-accent hover:underline">
+            our decoder answers the first one for you
+          </Link>{" "}
+          — the rate is recoverable from the figures on the page, even when it isn&apos;t printed.
+        </p>
       </section>
 
       <section className="mt-8 rounded-xl border border-line bg-panel p-5">
@@ -129,8 +136,14 @@ export default async function HowItWorksPage() {
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Link
-          href="/"
+          href="/decode"
           className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
+        >
+          Decode a quote you&apos;ve been sent
+        </Link>
+        <Link
+          href="/"
+          className="rounded border border-line bg-panel px-4 py-2 text-sm font-medium text-ink transition hover:bg-panel-2"
         >
           Model your own lease
         </Link>

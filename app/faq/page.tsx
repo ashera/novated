@@ -44,7 +44,11 @@ export default function FaqPage() {
           <Link href="/how-it-works" className="font-medium text-accent hover:underline">
             Start with how a novated lease works →
           </Link>{" "}
-          — the whole mechanism in six steps.
+          — the whole mechanism in six steps. Already holding a quote?{" "}
+          <Link href="/decode" className="font-medium text-accent hover:underline">
+            Decode it →
+          </Link>{" "}
+          — we&apos;ll find the interest rate it doesn&apos;t print.
         </p>
       </header>
 
@@ -74,14 +78,23 @@ export default function FaqPage() {
         <h2 className="text-base font-semibold text-ink">Still not sure?</h2>
         <p className="mt-2 text-sm text-subtle">
           {SITE_NAME} takes no commission and has no relationship with any lease provider. Put your
-          own numbers in, print the report, and take it to whoever is quoting you.
+          own numbers in, or paste in a quote you&apos;ve been sent and we&apos;ll tell you what
+          it actually costs.
         </p>
-        <Link
-          href="/"
-          className="mt-4 inline-flex rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
-        >
-          Model your lease
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href="/decode"
+            className="inline-flex rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
+          >
+            Decode a quote
+          </Link>
+          <Link
+            href="/"
+            className="inline-flex rounded border border-line bg-panel px-4 py-2 text-sm font-medium text-ink transition hover:bg-panel-2"
+          >
+            Model a lease
+          </Link>
+        </div>
       </div>
       </main>
     </>

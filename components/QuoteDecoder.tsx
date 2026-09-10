@@ -2,11 +2,19 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import TopBar, { type TopBarUser } from "./TopBar";
 import QuoteField from "./QuoteField";
 import Disclosures from "./Disclosures";
 import { fmtCurrency } from "@/lib/au/format";
-import { decodeQuote, type Quote, type QuoteFrequency, type FindingSeverity } from "@/lib/au/quote";
+import {
+  decodeQuote,
+  quoteToLeaseInputs,
+  type Quote,
+  type QuoteFrequency,
+  type FindingSeverity,
+} from "@/lib/au/quote";
+import { stashHandoff } from "@/lib/quoteHandoff";
 import type { EngineConfig } from "@/lib/au/config";
 import type { FuelType } from "@/lib/au/novated";
 import { track } from "@/lib/analytics";
@@ -81,6 +89,7 @@ export default function QuoteDecoder({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
   const saved = useSavedQuotes(Boolean(user));
+  const router = useRouter();
 
   const set = <K extends keyof Quote>(key: K, value: Quote[K]) => {
     setQuote((q) => ({ ...q, [key]: value }));
@@ -123,6 +132,38 @@ export default function QuoteDecoder({
     setIsExample(false);
     setSaveError(null);
   };
+
+  /** Hand this quote to the calculator, so "is it worth it at all?" costs a
+   *  click rather than re-typing everything. */
+  const modelIt = () => {
+    stashHandoff({
+      inputs: quoteToLeaseInputs(quote, decode, config),
+      label: quote.label?.trim() || "your quote",
+      impliedRatePct: decode.impliedRatePct,
+    });
+    track("Quote handed to calculator", {
+      rate: decode.impliedRatePct == null ? "unsolved" : decode.impliedRatePct.toFixed(2),
+    });
+    router.push("/?from=quote");
+  };
+
+  // What to say next depends on what we found — a fair quote and a poor one
+  // deserve different sentences, and a fixed one would ring false for both.
+  const nextStepCopy = (() => {
+    const rate = decode.impliedRatePct;
+    const critical = decode.findings.filter((f) => f.severity === "critical").length;
+    const costly = decode.findings
+      .filter((f) => f.costOverTerm != null)
+      .reduce((sum, f) => sum + (f.costOverTerm ?? 0), 0);
+    if (rate == null) return "";
+    if (critical === 0 && costly < 2_000) {
+      return "Nothing here looks out of line. The remaining question is whether a novated lease beats simply buying the car — which depends on your tax rate, not on this provider.";
+    }
+    if (critical > 0) {
+      return `There is about ${fmtCurrency(costly)} of avoidable cost in this quote. Worth fixing before you sign — but also worth knowing whether a lease still beats buying the car outright, even at these numbers.`;
+    }
+    return "A few things here are worth pushing back on. Either way, the bigger question is whether a lease beats buying the car outright at your tax rate.";
+  })();
 
   const copyQuestions = async () => {
     const text = decode.questions.map((q, i) => `${i + 1}. ${q}`).join("\n\n");
@@ -612,6 +653,24 @@ export default function QuoteDecoder({
                     <li key={q}>{q}</li>
                   ))}
                 </ol>
+              </section>
+            )}
+
+            {decode.impliedRatePct != null && (
+              <section className="rounded-xl border border-accent-border bg-accent-subtle p-5">
+                <h2 className="text-base font-semibold text-ink">So what now?</h2>
+                <p className="mt-1.5 text-sm text-subtle">{nextStepCopy}</p>
+                <button
+                  type="button"
+                  onClick={modelIt}
+                  className="mt-4 rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
+                >
+                  See what this lease saves you
+                </button>
+                <p className="mt-2 text-xs text-muted">
+                  Opens the calculator already filled in from this quote — your salary, the car,
+                  the term, and the {decode.impliedRatePct.toFixed(2)}% we just solved.
+                </p>
               </section>
             )}
 
