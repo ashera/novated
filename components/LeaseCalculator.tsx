@@ -25,7 +25,13 @@ import {
   type PayCycle,
 } from "@/lib/au/novated";
 import type { EngineConfig } from "@/lib/au/config";
-import { leaseToInputs, leaseToQuote, quoteLabel, type Lease } from "@/lib/au/lease";
+import {
+  applyScenarioFromQuote,
+  leaseToInputs,
+  leaseToQuote,
+  quoteLabel,
+  type Lease,
+} from "@/lib/au/lease";
 import { useLease } from "./useLease";
 import LeaseBar from "./LeaseBar";
 import QuotesCard from "./QuotesCard";
@@ -77,19 +83,7 @@ export default function LeaseCalculator({
     applied.current = true;
     const handed = takeHandoff();
     if (handed) {
-      store.update((l) => ({
-        ...l,
-        scenario: {
-          ...l.scenario,
-          interestRatePct: handed.inputs.interestRatePct,
-          residualPct: handed.inputs.residualPct,
-          includeRunningCosts: handed.inputs.includeRunningCosts,
-          runningCostOverrides: handed.inputs.runningCostOverrides,
-          adminFeeAnnual: handed.inputs.adminFeeAnnual,
-          termYears: handed.inputs.termYears,
-          fromQuoteId: handed.quoteId,
-        },
-      }));
+      store.update((l) => applyScenarioFromQuote(l, handed.inputs, handed.quoteId));
     }
     setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -6,6 +6,8 @@ import {
   leaseToQuote,
   migrateLease,
   newLease,
+  activateQuote,
+  applyScenarioFromQuote,
   newQuoteSpec,
   quoteLabel,
   quoteStatus,
@@ -372,5 +374,83 @@ describe("Which quote the calculator is showing", () => {
     const afterDelete: Lease = { ...pinned, quotes: pinned.quotes.filter((q) => q.id !== a.id) };
     expect(afterDelete.quotes.find((q) => q.id === afterDelete.scenario.fromQuoteId)).toBeUndefined();
     expect(afterDelete.quotes[0].id).toBe(b.id);
+  });
+});
+
+describe("Activating a quote from the lease page", () => {
+  // A quote with enough on it to solve a rate.
+  const solvable = (label: string, finance: number) => {
+    const spec = newQuoteSpec(label);
+    return {
+      ...spec,
+      frequency: "monthly" as const,
+      termMonths: 60,
+      amountFinanced: 50_000,
+      residualIncGst: 14_065,
+      lines: { finance, insurance: 120, maintenance: 40 },
+    };
+  };
+
+  const leaseWith = (...specs: ReturnType<typeof solvable>[]): Lease => ({
+    ...leaseWithCar(),
+    quotes: specs,
+  });
+
+  it("puts the quote's rate and budgets into the scenario, and records which", () => {
+    const a = solvable("Maxxia", 900);
+    const lease = leaseWith(a);
+    const next = activateQuote(lease, a.id, DEFAULT_CONFIG);
+    expect(next.scenario.fromQuoteId).toBe(a.id);
+    expect(next.scenario.interestRatePct).not.toBe(lease.scenario.interestRatePct);
+    expect(next.scenario.runningCostOverrides?.insurance).toBeCloseTo(120 * 12, 6);
+    expect(next.scenario.termYears).toBe(5);
+  });
+
+  it("switching to another quote replaces the first", () => {
+    const a = solvable("Maxxia", 900);
+    const b = solvable("Smartleasing", 1_100);
+    let lease = leaseWith(a, b);
+    lease = activateQuote(lease, a.id, DEFAULT_CONFIG);
+    const rateA = lease.scenario.interestRatePct;
+    lease = activateQuote(lease, b.id, DEFAULT_CONFIG);
+    expect(lease.scenario.fromQuoteId).toBe(b.id);
+    expect(lease.scenario.interestRatePct).not.toBeCloseTo(rateA, 6);
+    // Both quotes are still there — only the scenario moved.
+    expect(lease.quotes.map((q) => q.id)).toEqual([a.id, b.id]);
+  });
+
+  it("leaves the car alone — every quote on a lease is for the same car", () => {
+    const a = solvable("Maxxia", 900);
+    const lease = leaseWith(a);
+    expect(activateQuote(lease, a.id, DEFAULT_CONFIG).vehicle).toEqual(lease.vehicle);
+  });
+
+  // The guard that matters: without a solved rate quoteToLeaseInputs falls
+  // back to OUR default, and applying that while labelling it the quote's
+  // figures would be a lie the user cannot see.
+  it("refuses a quote it cannot solve, rather than applying our own default", () => {
+    const empty = newQuoteSpec("Half typed");
+    const lease: Lease = { ...leaseWithCar(), quotes: [empty] };
+    expect(activateQuote(lease, empty.id, DEFAULT_CONFIG)).toBe(lease);
+    expect(activateQuote(lease, empty.id, DEFAULT_CONFIG).scenario.fromQuoteId).toBeUndefined();
+  });
+
+  it("shrugs at an id that isn't on the lease", () => {
+    const lease = leaseWithCar();
+    expect(activateQuote(lease, "nope", DEFAULT_CONFIG)).toBe(lease);
+  });
+
+  it("shares one definition of the scenario patch with the decoder hand-off", () => {
+    const a = solvable("Maxxia", 900);
+    const lease = leaseWith(a);
+    const viaActivate = activateQuote(lease, a.id, DEFAULT_CONFIG);
+    const viaHandoff = applyScenarioFromQuote(
+      lease,
+      leaseToInputs(viaActivate),
+      a.id,
+    );
+    for (const k of ["interestRatePct", "residualPct", "termYears", "adminFeeAnnual"] as const) {
+      expect(viaHandoff.scenario[k], k).toEqual(viaActivate.scenario[k]);
+    }
   });
 });

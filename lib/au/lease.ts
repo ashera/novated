@@ -24,7 +24,13 @@ import type {
   PayCycle,
 } from "./novated";
 import { defaultInputs } from "./novated";
-import { decodeQuote, type Quote, type QuoteFrequency, type QuoteLines } from "./quote";
+import {
+  decodeQuote,
+  quoteToLeaseInputs,
+  type Quote,
+  type QuoteFrequency,
+  type QuoteLines,
+} from "./quote";
 import type { EngineConfig } from "./config";
 import { DEFAULT_CONFIG } from "./config";
 
@@ -230,6 +236,52 @@ export function withLeaseVehicle(lease: Lease, q: Quote): Quote {
     state: v.state,
     consumptionPer100km: v.consumptionPer100km,
   };
+}
+
+/**
+ * Put a quote's figures into the lease's scenario.
+ *
+ * One definition of what "modelling this quote" means, because there are two
+ * ways in — the decoder's hand-off and the quotes list on the hub — and a
+ * field copied in one place but not the other would quietly model half a
+ * quote. The car is untouched: it belongs to the lease, and every quote on
+ * that lease is a quote for the same car.
+ */
+export function applyScenarioFromQuote(
+  lease: Lease,
+  inputs: LeaseInputs,
+  quoteId?: string,
+): Lease {
+  return {
+    ...lease,
+    scenario: {
+      ...lease.scenario,
+      interestRatePct: inputs.interestRatePct,
+      residualPct: inputs.residualPct,
+      includeRunningCosts: inputs.includeRunningCosts,
+      runningCostOverrides: inputs.runningCostOverrides,
+      adminFeeAnnual: inputs.adminFeeAnnual,
+      termYears: inputs.termYears,
+      fromQuoteId: quoteId,
+    },
+  };
+}
+
+/**
+ * Model one of the lease's own quotes, without going via the decoder.
+ *
+ * Returns the lease unchanged when the quote can't be solved: without a rate,
+ * quoteToLeaseInputs falls back to OUR default, and applying that while
+ * labelling it the quote's figures would be a lie the user has no way to see.
+ * Callers should only offer this for a quote that decodes.
+ */
+export function activateQuote(lease: Lease, quoteId: string, config: EngineConfig): Lease {
+  const spec = lease.quotes.find((q) => q.id === quoteId);
+  if (!spec) return lease;
+  const quote = leaseToQuote(lease, spec);
+  const decoded = decodeQuote(quote, config);
+  if (decoded.impliedRatePct == null) return lease;
+  return applyScenarioFromQuote(lease, quoteToLeaseInputs(quote, decoded, config), quoteId);
 }
 
 /** Split an edited Quote back apart: the car onto the lease, the rest onto the

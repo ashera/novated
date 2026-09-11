@@ -2,7 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { newQuoteSpec, quoteLabel, quoteStatus, type QuoteStatus } from "@/lib/au/lease";
+import {
+  activateQuote,
+  newQuoteSpec,
+  quoteLabel,
+  quoteStatus,
+  type QuoteStatus,
+} from "@/lib/au/lease";
 import type { EngineConfig } from "@/lib/au/config";
 import { fmtDate } from "@/lib/au/format";
 import type { UseLease } from "./useLease";
@@ -42,6 +48,10 @@ export default function QuotesCard({
   const { lease } = store;
   const router = useRouter();
   const activeId = lease.scenario.fromQuoteId;
+
+  /** Model this quote in the figures below, without a trip to the decoder.
+   *  Only offered where the quote solves — see activateQuote. */
+  const activate = (id: string) => store.update((l) => activateQuote(l, id, config));
 
   const addQuote = () => {
     const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`);
@@ -110,6 +120,16 @@ export default function QuotesCard({
                   >
                     Active
                   </span>
+                )}
+                {!active && status === "complete" && (
+                  <button
+                    type="button"
+                    onClick={() => activate(q.id)}
+                    title="Model the figures below on this quote"
+                    className="rounded border border-line bg-panel-2 px-2 py-0.5 text-[11px] font-medium text-ink transition hover:border-accent hover:text-accent"
+                  >
+                    Use this one
+                  </button>
                 )}
                 <span className="text-xs text-muted">
                   {q.createdAt ? `Processed ${fmtDate(q.createdAt)}` : "Not yet processed"}
