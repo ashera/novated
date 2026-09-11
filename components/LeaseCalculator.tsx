@@ -115,7 +115,7 @@ export default function LeaseCalculator({
     const rate = decoded.impliedRatePct;
     const edited =
       rate != null && Math.abs(rate - lease.scenario.interestRatePct) > 0.01;
-    return { label: quoteLabel(spec), rate, edited };
+    return { id: spec.id, label: quoteLabel(spec), rate, edited };
   }, [lease, config]);
 
   const setVehicle = (patch: Partial<Lease["vehicle"]>) => {
@@ -188,11 +188,14 @@ export default function LeaseCalculator({
                 ))}
               Change anything below to see what would have to be different.
             </p>
+            {/* Named, and with its id: without one the decoder falls back to
+                the lease's FIRST quote, so "back to the quote" opened a
+                different quote than the one these figures came from. */}
             <Link
-              href="/decode"
+              href={`/decode?quote=${encodeURIComponent(activeQuote.id)}`}
               className="mt-1 inline-block text-sm font-medium text-accent hover:underline"
             >
-              ← Back to the quote
+              ← Back to {activeQuote.label}
             </Link>
           </div>
         )}

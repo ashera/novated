@@ -2,13 +2,14 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import TopBar, { type TopBarUser } from "./TopBar";
 import Disclosures from "./Disclosures";
 import { fmtCurrency } from "@/lib/au/format";
 import { compareQuotes } from "@/lib/au/quote";
 import type { EngineConfig } from "@/lib/au/config";
 import { useLease } from "./useLease";
-import { leaseToQuote, quoteLabel } from "@/lib/au/lease";
+import { leaseToQuote, newQuoteSpec, quoteLabel } from "@/lib/au/lease";
 
 /** A row of the comparison table. `best` marks the winning column, where one
  *  can honestly be named. */
@@ -39,6 +40,16 @@ export default function QuoteComparison({
     () => compareQuotes(lease.quotes.map((q) => leaseToQuote(lease, q)), config),
     [lease, config],
   );
+
+  const router = useRouter();
+
+  /** Same as the quotes card: a new quote, then straight to typing it in.
+   *  Linking to a bare /decode opened the FIRST existing quote instead. */
+  const addQuote = () => {
+    const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`);
+    store.update((l) => ({ ...l, quotes: [...l.quotes, spec] }));
+    router.push(`/decode?quote=${encodeURIComponent(spec.id)}`);
+  };
 
   const cols = comparison.quotes;
   const money = (n: number | null | undefined) => (n == null ? null : fmtCurrency(n));
@@ -124,12 +135,13 @@ export default function QuoteComparison({
               them prints.
             </p>
           </div>
-          <Link
-            href="/decode"
+          <button
+            type="button"
+            onClick={addQuote}
             className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
           >
             Add another quote
-          </Link>
+          </button>
         </div>
 
         {store.adopted > 0 && (
@@ -148,12 +160,13 @@ export default function QuoteComparison({
               Decode a quote and hit <strong>Keep this quote</strong>. Once you have two, this page
               puts them next to each other — which is where the differences usually show up.
             </p>
-            <Link
-              href="/decode"
+            <button
+              type="button"
+              onClick={addQuote}
               className="mt-5 inline-flex rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
             >
               Decode a quote
-            </Link>
+            </button>
           </section>
         ) : (
           <div className="space-y-5">
@@ -282,8 +295,11 @@ export default function QuoteComparison({
                         ))}
                       </ul>
                     )}
+                    {/* This column's quote, not the lease's first — the
+                        columns are in lease.quotes order. A bare /decode
+                        opened whichever quote came first, from every card. */}
                     <Link
-                      href="/decode"
+                      href={`/decode?quote=${encodeURIComponent(lease.quotes[i]?.id ?? "")}`}
                       className="mt-4 inline-block text-sm font-medium text-accent hover:underline"
                     >
                       Open in the decoder →
