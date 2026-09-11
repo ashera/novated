@@ -152,7 +152,7 @@ export default function AdminBackoffice({
       {/* Top bar */}
       <div className="mb-6 flex items-center justify-between gap-3 text-sm">
         <Link href="/" className="text-muted hover:text-ink">
-          ← Calculator
+          ← Your leases
         </Link>
         <span className="text-muted">{email} · admin</span>
       </div>

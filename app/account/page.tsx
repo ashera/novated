@@ -136,7 +136,7 @@ export default async function AccountPage({
 
         <div className="mt-6 flex items-center justify-between border-t border-line pt-4">
           <Link href="/" className="text-sm text-muted hover:text-ink">
-            ← Back to the calculator
+            ← Back to your leases
           </Link>
           <form action={logout}>
             <button className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink transition hover:border-accent/50 hover:text-ink">

@@ -42,7 +42,7 @@ export default function LeaseReport({
           href="/"
           className="rounded border border-line bg-panel px-3 py-1.5 text-sm font-medium text-ink transition hover:bg-panel-2 print:hidden"
         >
-          Back to the calculator
+          Back to your leases
         </Link>
       </div>
 

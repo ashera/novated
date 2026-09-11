@@ -5,7 +5,7 @@ import Link from "next/link";
 // menu, and the decoder is reached from the calculator rather than listed as
 // a destination of its own.
 const LINKS = [
-  { href: "/", label: "Calculator" },
+  { href: "/", label: "Your leases" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/faq", label: "FAQ" },
   { href: "/about", label: "About & sources" },

@@ -27,7 +27,7 @@ export default async function ReleasesPage() {
           <Logo className="h-10 w-auto" />
         </Link>
         <Link href="/" className="text-sm text-muted hover:text-ink">
-          ← Calculator
+          ← Your leases
         </Link>
       </div>
 

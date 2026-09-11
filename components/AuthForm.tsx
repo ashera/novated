@@ -142,7 +142,7 @@ export default function AuthForm({
         </p>
         <p className="mt-4 text-center">
           <Link href="/" className="text-xs text-muted hover:text-ink">
-            ← Back to the calculator
+            ← Back to your leases
           </Link>
         </p>
       </div>

@@ -233,7 +233,7 @@ export default function VehiclesAdmin({ vehicles }: { vehicles: VehicleRow[] }) 
     <div className="mx-auto max-w-7xl px-5 py-8">
       <div className="mb-1 text-sm">
         <Link href="/" className="text-muted hover:text-ink">
-          ← Calculator
+          ← Your leases
         </Link>
       </div>
       <h1 className="text-3xl font-bold text-ink">Vehicles</h1>

@@ -21,7 +21,6 @@ import type { Vehicle } from "@/lib/au/vehicles";
 import { track } from "@/lib/analytics";
 import { useLease } from "./useLease";
 import LeaseBar from "./LeaseBar";
-import QuotesCard from "./QuotesCard";
 import QuoteIdentity from "./QuoteIdentity";
 import {
   applyQuoteEdit,
@@ -205,15 +204,27 @@ export default function QuoteDecoder({
       <TopBar user={user} country={country} reviewDue={reviewDue} />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <div className="mb-6 max-w-3xl">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-            Decode your novated lease quote
-          </h1>
-          <p className="mt-1.5 text-sm text-subtle">
-            Type in the figures from the quote a provider sent you. We&apos;ll work out the
-            interest rate they didn&apos;t print, check every line against the market, and give you
-            the questions to send back. Keep more than one and you can put them side by side.
-          </p>
+        {/* The way back. This page is only ever reached from Your leases, so it
+            needs a visible return — the browser's back button is not an
+            interface. */}
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div className="max-w-3xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+              Decode your novated lease quote
+            </h1>
+            <p className="mt-1.5 text-sm text-subtle">
+              Type in the figures from the quote a provider sent you. We&apos;ll work out the
+              interest rate they didn&apos;t print, check every line against the market, and give
+              you the questions to send back. Keep more than one and you can put them side by
+              side.
+            </p>
+          </div>
+          <Link
+            href="/"
+            className="mt-1 shrink-0 whitespace-nowrap rounded-md border border-line bg-panel px-3 py-1.5 text-sm font-medium text-ink shadow-[var(--shadow-card)] transition hover:border-accent hover:text-accent"
+          >
+            ← Your leases
+          </Link>
         </div>
 
         {store.adopted > 0 && (
@@ -262,8 +273,6 @@ export default function QuoteDecoder({
             onFirstHeldDate={(d) => set("firstHeldDate", d)}
           />
         </div>
-
-        <QuotesCard store={store} config={config} />
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
           {/* ── The quote ──────────────────────────────────────────── */}

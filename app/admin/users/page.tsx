@@ -41,7 +41,7 @@ export default async function UsersPage({
   return (
     <main className="mx-auto max-w-6xl px-5 py-10">
       <div className="mb-6 flex items-center justify-between gap-3 text-sm">
-        <Link href="/" className="text-muted hover:text-ink">← Calculator</Link>
+        <Link href="/" className="text-muted hover:text-ink">← Your leases</Link>
         <span className="text-muted">{user.email} · admin</span>
       </div>
 

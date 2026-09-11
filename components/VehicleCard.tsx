@@ -192,7 +192,7 @@ export default function VehicleCard(p: VehicleCardProps) {
               {p.changeHref && (
                 <>
                   <Link href={p.changeHref} className="font-medium text-accent hover:underline">
-                    Change it in the calculator
+                    Change it there
                   </Link>{" "}
                   and every quote on this lease follows.
                 </>

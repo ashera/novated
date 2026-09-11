@@ -104,7 +104,7 @@ export default function TestsView({
     <main className="mx-auto max-w-5xl px-5 py-10">
       <div className="mb-6 flex items-center justify-between gap-3 text-sm">
         <Link href="/" className="text-muted hover:text-ink">
-          ← Calculator
+          ← Your leases
         </Link>
         <span className="text-muted">{email} · admin</span>
       </div>

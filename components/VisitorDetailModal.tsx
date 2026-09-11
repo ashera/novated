@@ -9,7 +9,7 @@ import type { AdminVisitorRow } from "@/lib/adminVisitors";
 function prettyPath(path: string | null): string {
   if (!path) return "—";
   const map: Record<string, string> = {
-    "/": "Calculator",
+    "/": "Your leases",
     "/how-it-works": "How it works",
     "/report": "Lease report",
     "/faq": "FAQ",

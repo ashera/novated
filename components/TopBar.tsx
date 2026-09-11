@@ -16,7 +16,7 @@ export interface TopBarUser {
 // The decoder is deliberately absent: it is opened from the calculator, which
 // is the site's single entry point, not jumped to from anywhere in the shell.
 const NAV = [
-  { href: "/", label: "Calculator" },
+  { href: "/", label: "Your leases" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/faq", label: "FAQ" },
   { href: "/about", label: "About" },
