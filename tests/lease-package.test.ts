@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_CONFIG } from "@/lib/au/config";
-import { calculateLease, defaultInputs, type LeaseInputs } from "@/lib/au/novated";
+import {
+  PAY_CYCLES_PER_YEAR,
+  calculateLease,
+  defaultInputs,
+  effectivePayCycle,
+  type LeaseInputs,
+  type PayCycle,
+} from "@/lib/au/novated";
 import { takeHome } from "@/lib/au/tax";
 
 const config = DEFAULT_CONFIG;
@@ -162,5 +169,59 @@ describe("Whole-of-term totals", () => {
     const r = run();
     expect(r.term.residualPayable).toBe(r.finance.residual);
     expect(r.term.residualPayable).toBeGreaterThan(0);
+  });
+});
+
+describe("How often you're paid", () => {
+  // The point of the setting, and the thing that must never break: it slices
+  // the same year up differently. If changing it moved an annual figure, it
+  // would be arithmetic rather than presentation, and a weekly-paid person
+  // would be told a different lease costs a different amount.
+  const cycles: PayCycle[] = ["weekly", "fortnightly", "monthly"];
+
+  it("leaves every annual figure untouched", () => {
+    const [first, ...rest] = cycles.map((payCycle) => run({ payCycle }));
+    for (const r of rest) {
+      expect(r.package.preTaxAnnual).toBeCloseTo(first.package.preTaxAnnual, 6);
+      expect(r.package.postTaxAnnual).toBeCloseTo(first.package.postTaxAnnual, 6);
+      expect(r.package.takeHomeReduction).toBeCloseTo(first.package.takeHomeReduction, 6);
+      expect(r.package.taxSaved).toBeCloseTo(first.package.taxSaved, 6);
+      expect(r.term.netCost).toBeCloseTo(first.term.netCost, 6);
+    }
+  });
+
+  it("divides the year by the right number of pays", () => {
+    for (const payCycle of cycles) {
+      const r = run({ payCycle });
+      const n = PAY_CYCLES_PER_YEAR[payCycle];
+      expect(r.perPayCycle.takeHomeReduction * n, payCycle).toBeCloseTo(
+        r.package.takeHomeReduction,
+        6,
+      );
+      expect(r.perPayCycle.preTax * n, payCycle).toBeCloseTo(r.package.preTaxAnnual, 6);
+      expect(r.perPayCycle.postTax * n, payCycle).toBeCloseTo(r.package.postTaxAnnual, 6);
+    }
+  });
+
+  it("makes a weekly slice smaller than a monthly one", () => {
+    expect(run({ payCycle: "weekly" }).perPayCycle.takeHomeReduction).toBeLessThan(
+      run({ payCycle: "monthly" }).perPayCycle.takeHomeReduction,
+    );
+  });
+
+  it("falls back to the reference data when nobody has chosen", () => {
+    expect(effectivePayCycle(undefined, config)).toBe("fortnightly");
+    expect(run({}).perPayCycle.takeHomeReduction).toBeCloseTo(
+      run({ payCycle: "fortnightly" }).perPayCycle.takeHomeReduction,
+      6,
+    );
+  });
+
+  it("still honours a reference-data cycle that isn't fortnightly", () => {
+    const monthlyConfig = {
+      ...config,
+      lease: { ...config.lease, payCyclesPerYear: 12 },
+    };
+    expect(effectivePayCycle(undefined, monthlyConfig)).toBe("monthly");
   });
 });

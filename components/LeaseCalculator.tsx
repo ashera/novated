@@ -12,7 +12,16 @@ import InfoBlastBanner from "./InfoBlastBanner";
 import VehicleCard from "./VehicleCard";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
-import { calculateLease, type FuelType, type LeaseInputs } from "@/lib/au/novated";
+import {
+  calculateLease,
+  effectivePayCycle,
+  PAY_CYCLES_PER_YEAR,
+  PAY_CYCLE_LABEL,
+  PAY_CYCLE_NOUN,
+  type FuelType,
+  type LeaseInputs,
+  type PayCycle,
+} from "@/lib/au/novated";
 import type { EngineConfig } from "@/lib/au/config";
 import { leaseToInputs, type Lease } from "@/lib/au/lease";
 import { useLease } from "./useLease";
@@ -114,7 +123,8 @@ export default function LeaseCalculator({
   }, [hydrated, inputs.salary]);
 
   const { package: pkg, fbt, finance, running, comparison, term, warnings } = result;
-  const cycleLabel = config.lease.payCyclesPerYear === 26 ? "fortnight" : "pay";
+  const payCycle = effectivePayCycle(inputs.payCycle, config);
+  const cycleLabel = PAY_CYCLE_NOUN[payCycle];
 
   return (
     <>
@@ -204,6 +214,31 @@ export default function LeaseCalculator({
                   prefix="$"
                   hint="Before tax and before any packaging."
                 />
+
+                <div>
+                  <span className="text-sm font-medium text-ink">You&apos;re paid</span>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {(Object.keys(PAY_CYCLES_PER_YEAR) as PayCycle[]).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        disabled={readOnly}
+                        onClick={() => set("payCycle", c)}
+                        className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                          payCycle === c
+                            ? "border-accent bg-accent-subtle text-accent"
+                            : "border-line bg-panel-2 text-subtle hover:border-line-bold hover:text-ink"
+                        }`}
+                      >
+                        {PAY_CYCLE_LABEL[c]}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-muted">
+                    Only changes how the figures are sliced &mdash; the yearly totals are the
+                    same either way.
+                  </p>
+                </div>
 
                 <div>
                   <span className="text-sm font-medium text-ink">Lease term</span>
@@ -329,7 +364,7 @@ export default function LeaseCalculator({
               <div className="grid gap-3 sm:grid-cols-3">
                 <StatCard
                   label={`Costs you per ${cycleLabel}`}
-                  value={fmtCurrency(pkg.takeHomeReduction / config.lease.payCyclesPerYear)}
+                  value={fmtCurrency(result.perPayCycle.takeHomeReduction)}
                   highlight
                   sub={`${fmtCurrency(pkg.takeHomeReduction)} a year off your take-home pay`}
                 />

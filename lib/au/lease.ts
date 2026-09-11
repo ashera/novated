@@ -21,6 +21,7 @@ import type {
   FbtMethod,
   FuelType,
   LeaseInputs,
+  PayCycle,
 } from "./novated";
 import { defaultInputs } from "./novated";
 import { decodeQuote, type Quote, type QuoteFrequency, type QuoteLines } from "./quote";
@@ -55,6 +56,8 @@ export interface ScenarioSpec {
   adminFeeAnnual?: number;
   establishmentFee?: number;
   comparisonLoanRatePct?: number;
+  /** How often this person is paid. Display only. */
+  payCycle?: PayCycle;
 }
 
 /** Everything a decoded quote holds that ISN'T about the car. */

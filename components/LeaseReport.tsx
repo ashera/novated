@@ -2,7 +2,12 @@ import Link from "next/link";
 import Logo from "./Logo";
 import Disclosures from "./Disclosures";
 import { fmtCurrency, fmtDate } from "@/lib/au/format";
-import { calculateLease, type LeaseInputs } from "@/lib/au/novated";
+import {
+  calculateLease,
+  effectivePayCycle,
+  PAY_CYCLE_NOUN,
+  type LeaseInputs,
+} from "@/lib/au/novated";
 import type { EngineConfig } from "@/lib/au/config";
 
 /**
@@ -24,7 +29,7 @@ export default function LeaseReport({
 }) {
   const r = calculateLease(inputs, config);
   const { package: pkg, fbt, finance, running, comparison, term } = r;
-  const cycles = config.lease.payCyclesPerYear;
+  const payCycle = effectivePayCycle(inputs.payCycle, config);
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-8 print:px-0 print:py-0">
@@ -49,8 +54,8 @@ export default function LeaseReport({
       <Section title="At a glance">
         <div className="grid gap-4 sm:grid-cols-3">
           <Figure
-            label={`Cost per ${cycles === 26 ? "fortnight" : "pay"}`}
-            value={fmtCurrency(pkg.takeHomeReduction / cycles)}
+            label={`Cost per ${PAY_CYCLE_NOUN[payCycle]}`}
+            value={fmtCurrency(r.perPayCycle.takeHomeReduction)}
             note={`${fmtCurrency(pkg.takeHomeReduction)} a year off take-home pay`}
           />
           <Figure

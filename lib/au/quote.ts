@@ -21,6 +21,7 @@ import {
   luxuryCarAdjustment,
   buildRunningCosts,
   defaultInputs,
+  PAY_CYCLES_PER_YEAR,
   type AnnualRunningCosts,
   type FuelType,
   type LeaseInputs,
@@ -31,12 +32,11 @@ import {
  *  and getting it wrong scales every figure by 2x or more. */
 export type QuoteFrequency = "weekly" | "fortnightly" | "monthly";
 
-/** Pays per year for each cycle. */
-export const CYCLES_PER_YEAR: Record<QuoteFrequency, number> = {
-  weekly: 52,
-  fortnightly: 26,
-  monthly: 12,
-};
+/** Pays per year for each cycle. The same numbers as a pay cycle, kept in one
+ *  place — though the two stay separate types, because how a provider presents
+ *  its figures and how often someone is paid are different facts that only
+ *  happen to share an enum. */
+export const CYCLES_PER_YEAR: Record<QuoteFrequency, number> = PAY_CYCLES_PER_YEAR;
 
 /** The line items a quote breaks its package into. Every field is optional: a
  *  quote that omits one is a real quote, and the omission is itself a finding. */

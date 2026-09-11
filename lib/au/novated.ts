@@ -32,6 +32,50 @@ import { takeHome, marginalRelief, type TakeHome } from "./tax";
 export type FbtMethod = "ecm" | "employer-pays";
 export type FuelType = "petrol" | "diesel" | "electric" | "phev" | "hybrid";
 
+/**
+ * How often someone is paid.
+ *
+ * Presentation, not arithmetic: every figure the engine computes is annual,
+ * and this decides how it is sliced. Fortnightly is the Australian default and
+ * lives in the reference data, but plenty of people are paid weekly or
+ * monthly, and "costs you $X a fortnight" is meaningless to them.
+ */
+export type PayCycle = "weekly" | "fortnightly" | "monthly";
+
+export const PAY_CYCLES_PER_YEAR: Record<PayCycle, number> = {
+  weekly: 52,
+  fortnightly: 26,
+  monthly: 12,
+};
+
+/** The cycle as a noun, for "costs you per ___". */
+export const PAY_CYCLE_NOUN: Record<PayCycle, string> = {
+  weekly: "week",
+  fortnightly: "fortnight",
+  monthly: "month",
+};
+
+/** The cycle as a label on a control. */
+export const PAY_CYCLE_LABEL: Record<PayCycle, string> = {
+  weekly: "Weekly",
+  fortnightly: "Fortnightly",
+  monthly: "Monthly",
+};
+
+/** What the user chose, or whatever the reference data says is typical. */
+export function effectivePayCycle(
+  payCycle: PayCycle | undefined,
+  config: EngineConfig,
+): PayCycle {
+  if (payCycle) return payCycle;
+  const n = config.lease.payCyclesPerYear;
+  return (
+    (Object.keys(PAY_CYCLES_PER_YEAR) as PayCycle[]).find(
+      (k) => PAY_CYCLES_PER_YEAR[k] === n,
+    ) ?? "fortnightly"
+  );
+}
+
 export interface LeaseInputs {
   /** Gross annual salary, before any packaging. */
   salary: number;
@@ -59,6 +103,10 @@ export interface LeaseInputs {
   /** Where the car is registered. Registration and CTP vary materially by
    *  state; without one we use a national midpoint. */
   state?: AuState;
+  /** How often the user is paid. Slices the annual figures for display;
+   *  nothing in the calculation depends on it. Defaults to the reference
+   *  data's typical cycle. */
+  payCycle?: PayCycle;
   /** Catalogue vehicle, when the user picked one. Carries the image and, more
    *  usefully, this model's own consumption. */
   vehicleId?: string;
@@ -462,7 +510,7 @@ export function calculateLease(
     takeHomeReduction: before.net - takeHomeAfter,
   };
 
-  const cycles = config.lease.payCyclesPerYear;
+  const cycles = PAY_CYCLES_PER_YEAR[effectivePayCycle(inputs.payCycle, config)];
   const comparison = compareOwnership(inputs, finance, running, netAnnualCost, config);
 
   // --- Sanity checks the UI surfaces as plain-English warnings ---
