@@ -38,3 +38,8 @@ scratch_dev.log
 
 # claude code — machine-local scheduler state
 .claude/scheduled_tasks.lock
+
+# Vehicle artwork is uploaded through /admin/vehicles and stored in the
+# database, not served from here. Only the shared placeholder is tracked.
+public/*.jpg
+!public/vehicle-placeholder.jpg
