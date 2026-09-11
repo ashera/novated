@@ -21,6 +21,10 @@ import type { FuelType } from "@/lib/au/novated";
  *
  * Fields are opt-in: the calculator has no delivery date to ask about, and
  * anything not passed simply isn't rendered.
+ *
+ * The catalogue is passed in rather than imported, because it comes from the
+ * database — an admin can add a car or fix a spec without a release, and this
+ * has to show it.
  */
 
 const FUEL_TYPES: { key: FuelType; label: string; hint: string }[] = [
@@ -59,6 +63,8 @@ function Chip({
 }
 
 export interface VehicleCardProps {
+  /** Every vehicle on offer, from the database. */
+  catalogue: Vehicle[];
   vehicleId?: string;
   onVehicle: (v: Vehicle | null) => void;
 
@@ -82,7 +88,7 @@ export interface VehicleCardProps {
 }
 
 export default function VehicleCard(p: VehicleCardProps) {
-  const selected = findVehicle(p.vehicleId);
+  const selected = findVehicle(p.catalogue, p.vehicleId);
   // The make shown is DERIVED from the selected vehicle whenever there is one.
   // Holding it in state and seeding it from props only worked if the vehicle
   // was known at first render — and the lease loads asynchronously, so on a
@@ -92,7 +98,7 @@ export default function VehicleCard(p: VehicleCardProps) {
   const make = selected?.make ?? pendingMake;
   const [imageFailed, setImageFailed] = useState(false);
 
-  const models = make ? vehiclesForMake(make) : [];
+  const models = make ? vehiclesForMake(p.catalogue, make) : [];
 
   const art =
     selected && !imageFailed ? (
@@ -152,7 +158,7 @@ export default function VehicleCard(p: VehicleCardProps) {
                 className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
               >
                 <option value="">Not listed / skip</option>
-                {vehicleMakes().map((m) => (
+                {vehicleMakes(p.catalogue).map((m) => (
                   <option key={m} value={m}>
                     {m}
                   </option>
@@ -167,7 +173,7 @@ export default function VehicleCard(p: VehicleCardProps) {
                 disabled={!make}
                 onChange={(e) => {
                   setImageFailed(false);
-                  p.onVehicle(findVehicle(e.target.value));
+                  p.onVehicle(findVehicle(p.catalogue, e.target.value));
                 }}
                 className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent disabled:opacity-50"
               >

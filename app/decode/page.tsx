@@ -5,6 +5,7 @@ import VisitorActivity from "@/components/VisitorActivity";
 import { getCurrentUser } from "@/lib/auth";
 import { countryFromIp } from "@/lib/geo";
 import { buildReviewData, getActiveConfig } from "@/lib/refdata";
+import { getCatalogue } from "@/lib/catalogue";
 import { breadcrumbLd } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export const metadata: Metadata = {
 export default async function DecodePage() {
   const user = await getCurrentUser();
   const config = await getActiveConfig();
+  const catalogue = await getCatalogue();
   const reviewDue = user?.is_admin ? (await buildReviewData()).dueTotal : 0;
 
   let country = user?.country ?? null;
@@ -41,6 +43,7 @@ export default async function DecodePage() {
       />
       {!user && <VisitorActivity />}
       <QuoteDecoder
+        catalogue={catalogue}
         user={
           user
             ? { email: user.email, isAdmin: user.is_admin, name: user.name, avatarUrl: user.avatar_url }

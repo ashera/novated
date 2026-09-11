@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import LeaseCalculator from "@/components/LeaseCalculator";
 import { query } from "@/lib/db";
 import { getActiveConfig } from "@/lib/refdata";
+import { getCatalogue } from "@/lib/catalogue";
 import { migrateLease } from "@/lib/au/lease";
 
 // A public, read-only share link. No login: the lease is looked up by its
@@ -39,5 +40,12 @@ export default async function SharedLeasePage({
     quotes: q.rows.map((x) => x.data),
   });
 
-  return <LeaseCalculator user={null} config={config} sharedLease={lease} />;
+  return (
+    <LeaseCalculator
+      user={null}
+      config={config}
+      catalogue={await getCatalogue()}
+      sharedLease={lease}
+    />
+  );
 }

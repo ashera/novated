@@ -13,7 +13,7 @@ import {
 } from "@/lib/au/lease";
 import { calculateLease } from "@/lib/au/novated";
 import { decodeQuote } from "@/lib/au/quote";
-import { findVehicle } from "@/lib/au/vehicles";
+import { VEHICLES, findVehicle } from "@/lib/au/vehicles";
 
 const config = DEFAULT_CONFIG;
 
@@ -220,7 +220,7 @@ describe("The car survives a round trip through storage", () => {
       vehicle: { ...leaseWithCar().vehicle, vehicleId: "kia-ev6" },
     };
     const back = migrateLease(JSON.parse(JSON.stringify(lease)));
-    const v = findVehicle(back.vehicle.vehicleId);
+    const v = findVehicle(VEHICLES, back.vehicle.vehicleId);
     expect(v?.make).toBe("Kia");
     expect(v?.model).toBe("EV6");
   });
@@ -233,7 +233,7 @@ describe("The car survives a round trip through storage", () => {
       lines: { finance: 700 },
     });
     expect(lease.vehicle.vehicleId).toBe("tesla-model-y");
-    expect(findVehicle(lease.vehicle.vehicleId)?.make).toBe("Tesla");
+    expect(findVehicle(VEHICLES, lease.vehicle.vehicleId)?.make).toBe("Tesla");
   });
 });
 

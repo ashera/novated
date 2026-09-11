@@ -10,6 +10,7 @@ import PayPacketSplit from "./PayPacketSplit";
 import CostComparisonChart from "./CostComparisonChart";
 import InfoBlastBanner from "./InfoBlastBanner";
 import VehicleCard from "./VehicleCard";
+import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import { calculateLease, type FuelType, type LeaseInputs } from "@/lib/au/novated";
 import type { EngineConfig } from "@/lib/au/config";
@@ -26,12 +27,15 @@ export default function LeaseCalculator({
   user,
   country,
   config,
+  catalogue,
   reviewDue = 0,
   sharedLease,
 }: {
   user: TopBarUser | null;
   country?: string | null;
   config: EngineConfig;
+  /** The vehicle picker's options, read from the database by the page. */
+  catalogue: Vehicle[];
   reviewDue?: number;
   /** A lease opened from a public share link: shown as-is, not editable, and
    *  never mixed into the viewer's own saved leases. */
@@ -167,6 +171,7 @@ export default function LeaseCalculator({
 
         <div className="mb-6">
           <VehicleCard
+            catalogue={catalogue}
             vehicleId={inputs.vehicleId}
             onVehicle={(v) =>
               setVehicle({

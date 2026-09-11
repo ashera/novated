@@ -4,6 +4,7 @@ import VisitorActivity from "@/components/VisitorActivity";
 import { getCurrentUser } from "@/lib/auth";
 import { countryFromIp } from "@/lib/geo";
 import { buildReviewData, getActiveConfig } from "@/lib/refdata";
+import { getCatalogue } from "@/lib/catalogue";
 import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from "@/lib/site";
 
 const jsonLd = {
@@ -44,6 +45,7 @@ const jsonLd = {
 export default async function Page() {
   const user = await getCurrentUser();
   const config = await getActiveConfig();
+  const catalogue = await getCatalogue();
   const reviewDue = user?.is_admin ? (await buildReviewData()).dueTotal : 0;
 
   // The flag in the menu bar: a signed-in user's stored country, else the
@@ -60,6 +62,7 @@ export default async function Page() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {!user && <VisitorActivity />}
       <LeaseCalculator
+        catalogue={catalogue}
         user={
           user
             ? { email: user.email, isAdmin: user.is_admin, name: user.name, avatarUrl: user.avatar_url }

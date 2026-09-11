@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { VEHICLES, findVehicle, vehicleMakes, vehiclesForMake } from "@/lib/au/vehicles";
+import {
+  BODY_TYPES,
+  CONSUMPTION_RANGE,
+  VEHICLES,
+  findVehicle,
+  validateVehicle,
+  vehicleMakes,
+  vehicleSlug,
+  vehiclesForMake,
+} from "@/lib/au/vehicles";
 
 describe("Vehicle catalogue", () => {
   it("gives every vehicle a unique id", () => {
@@ -30,23 +39,97 @@ describe("Vehicle catalogue", () => {
   });
 
   it("covers the makes that dominate Australian novated leasing", () => {
-    const makes = vehicleMakes();
+    const makes = vehicleMakes(VEHICLES);
     for (const m of ["Tesla", "BYD", "Kia", "Hyundai", "Toyota", "MG"]) {
       expect(makes, `${m} missing`).toContain(m);
     }
   });
 
   it("looks a vehicle up by id, and shrugs at an unknown one", () => {
-    expect(findVehicle("tesla-model-y")?.model).toBe("Model Y");
-    expect(findVehicle("nope")).toBeNull();
-    expect(findVehicle(undefined)).toBeNull();
+    expect(findVehicle(VEHICLES, "tesla-model-y")?.model).toBe("Model Y");
+    expect(findVehicle(VEHICLES, "nope")).toBeNull();
+    expect(findVehicle(VEHICLES, undefined)).toBeNull();
   });
 
   it("lists models for a make, sorted, and nothing for an unknown make", () => {
-    const byd = vehiclesForMake("BYD");
+    const byd = vehiclesForMake(VEHICLES, "BYD");
     expect(byd.length).toBeGreaterThan(2);
     expect(byd.every((v) => v.make === "BYD")).toBe(true);
     expect([...byd].sort((a, b) => a.model.localeCompare(b.model))).toEqual(byd);
-    expect(vehiclesForMake("Lada")).toEqual([]);
+    expect(vehiclesForMake(VEHICLES, "Lada")).toEqual([]);
+  });
+});
+
+describe("Editing the vehicle catalogue", () => {
+  const good = { make: "Kia", model: "EV3", fuelType: "electric", consumption: 15.2, bodyType: "SUV" };
+
+  it("accepts a sound vehicle and derives its id", () => {
+    const r = validateVehicle(good);
+    expect(r.ok && r.vehicle.id).toBe("kia-ev3");
+    expect(r.ok && r.vehicle.make).toBe("Kia");
+  });
+
+  it("trims what was typed, rather than storing the whitespace", () => {
+    const r = validateVehicle({ ...good, make: "  Kia  ", model: " EV3 " });
+    expect(r.ok && r.vehicle.make).toBe("Kia");
+    expect(r.ok && r.vehicle.model).toBe("EV3");
+  });
+
+  it("insists on a make and a model", () => {
+    expect(validateVehicle({ ...good, make: "" }).ok).toBe(false);
+    expect(validateVehicle({ ...good, model: "   " }).ok).toBe(false);
+  });
+
+  it("rejects a fuel or body type the engine doesn't handle", () => {
+    expect(validateVehicle({ ...good, fuelType: "hydrogen" }).ok).toBe(false);
+    expect(validateVehicle({ ...good, bodyType: "Convertible" }).ok).toBe(false);
+  });
+
+  // The one that matters. An EV's figure is kWh/100km and a petrol car's is
+  // L/100km, so a petrol number entered against "electric" is a plausible
+  // slip that would halve the running-cost budget with nothing looking wrong.
+  it("catches a consumption figure in the wrong unit for the fuel type", () => {
+    const r = validateVehicle({ ...good, consumption: 7.4 });
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.error).toContain("kWh/100km");
+  });
+
+  it("catches a figure that is simply a typo", () => {
+    expect(validateVehicle({ ...good, consumption: 152 }).ok).toBe(false);
+    expect(validateVehicle({ ...good, consumption: 0 }).ok).toBe(false);
+    expect(validateVehicle({ ...good, consumption: "abc" }).ok).toBe(false);
+  });
+
+  it("allows each fuel type its own plausible range", () => {
+    for (const [fuel, range] of Object.entries(CONSUMPTION_RANGE)) {
+      const mid = (range.min + range.max) / 2;
+      expect(validateVehicle({ ...good, fuelType: fuel, consumption: mid }).ok, fuel).toBe(true);
+    }
+  });
+
+  it("rounds a consumption figure to one decimal, the way they're published", () => {
+    const r = validateVehicle({ ...good, consumption: 15.239 });
+    expect(r.ok && r.vehicle.consumption).toBe(15.2);
+  });
+
+  it("makes a usable id out of an awkward name", () => {
+    expect(vehicleSlug("Mercedes-Benz", "EQA 250+")).toBe("mercedes-benz-eqa-250");
+    expect(vehicleSlug("Smart", "#3")).toBe("smart-3");
+    expect(vehicleSlug("Škoda", "Enyaq")).toBe("skoda-enyaq");
+  });
+
+  it("keeps an id that was given, rather than re-deriving it from a rename", () => {
+    // A saved lease points at the id, so renaming the model must not move it.
+    const r = validateVehicle({ ...good, id: "kia-ev3", model: "EV3 Air" });
+    expect(r.ok && r.vehicle.id).toBe("kia-ev3");
+  });
+
+  it("refuses an id that isn't a clean slug", () => {
+    expect(validateVehicle({ ...good, id: "Kia EV3" }).ok).toBe(false);
+    expect(validateVehicle({ ...good, id: "kia--ev3" }).ok).toBe(false);
+  });
+
+  it("only offers body types the seed catalogue actually uses", () => {
+    for (const v of VEHICLES) expect(BODY_TYPES, v.id).toContain(v.bodyType);
   });
 });

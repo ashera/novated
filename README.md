@@ -126,6 +126,31 @@ database is what the engine runs on, and it is edited in the admin backoffice at
 Rolling to a new financial year: `/admin` → **Roll forward next FY**, then verify each
 parameter against its source.
 
+## The vehicle catalogue
+
+The same seed-then-own pattern, one table over. [`lib/au/vehicles.ts`](lib/au/vehicles.ts)
+is the code catalogue: it fills the `vehicles` table on every migrate and is the fixture
+the tests run against. What the picker actually reads is the table, via
+[`lib/catalogue.ts`](lib/catalogue.ts), so a car can be added or a spec corrected at
+`/admin/vehicles` without a release.
+
+The two stay out of each other's way through one column. Any admin write sets
+`edited`, and the deploy seed skips a row that carries it — otherwise the next release
+would silently undo the correction. **Revert to catalogue** puts a row back under the
+seed's control.
+
+- The catalogue deliberately carries **no price**. The same model varies by thousands
+  between dealers, so the drive-away figure stays something the user reads off their
+  own quote.
+- `consumption` is the combined-cycle figure — kWh/100km for a battery-electric car,
+  L/100km for everything else. It drives the fuel budget, so `validateVehicle` refuses
+  a figure outside the plausible range for the fuel type: a petrol car's 7.4 entered
+  against "electric" would otherwise halve the budget with nothing looking wrong.
+- Artwork is bytes in the same row, served by `/api/vehicle-image/[id]`, and falls back
+  to a drawn silhouette. It is never seeded, so a revert leaves it alone.
+- A vehicle a saved lease names is **hidden, never deleted** — the id lives in that
+  lease, and the car at the top of someone's page should not vanish.
+
 ## Layout
 
 ```

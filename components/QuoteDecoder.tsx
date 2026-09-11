@@ -19,6 +19,7 @@ import type { EngineConfig } from "@/lib/au/config";
 import type { FuelType } from "@/lib/au/novated";
 import { AU_STATES } from "@/lib/au/config";
 import VehicleCard from "./VehicleCard";
+import type { Vehicle } from "@/lib/au/vehicles";
 import { track } from "@/lib/analytics";
 import { useLease } from "./useLease";
 import LeaseCard from "./LeaseCard";
@@ -96,11 +97,14 @@ export default function QuoteDecoder({
   user,
   country,
   config,
+  catalogue,
   reviewDue = 0,
 }: {
   user: TopBarUser | null;
   country?: string | null;
   config: EngineConfig;
+  /** The vehicle picker's options, read from the database by the page. */
+  catalogue: Vehicle[];
   reviewDue?: number;
 }) {
   const store = useLease(Boolean(user));
@@ -234,6 +238,7 @@ export default function QuoteDecoder({
 
         <div className="mb-6">
           <VehicleCard
+            catalogue={catalogue}
             vehicleId={quote.vehicleId}
             onVehicle={(v) =>
               setQuote((q) => ({

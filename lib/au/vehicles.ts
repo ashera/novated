@@ -17,10 +17,18 @@
 // manufacturer/Green Vehicle Guide combined numbers and are indicative — a real
 // car driven in real traffic will differ, which is why the user can override.
 //
-// `make` and `model` are the strings the image provider expects, so adding a
-// vehicle is one line here and nothing else.
+// This list is the SEED, not the running catalogue. It is upserted into the
+// `vehicles` table on every deploy and the picker reads the table, so an admin
+// can add a car, fix a consumption figure or hide a model without a release.
+// A row an admin has touched is left alone by the seed from then on — see
+// seedVehicles in lib/migrations.ts, and revertVehicle to put one back.
 
 import type { FuelType } from "./novated";
+
+export const BODY_TYPES = ["SUV", "Hatch", "Sedan", "Wagon", "Ute", "People mover"] as const;
+export type BodyType = (typeof BODY_TYPES)[number];
+
+export const FUEL_TYPES: FuelType[] = ["electric", "petrol", "diesel", "hybrid", "phev"];
 
 export interface Vehicle {
   id: string;
@@ -29,7 +37,7 @@ export interface Vehicle {
   fuelType: FuelType;
   /** L/100km, or kWh/100km when fuelType is "electric". */
   consumption: number;
-  bodyType: "SUV" | "Hatch" | "Sedan" | "Wagon" | "Ute" | "People mover";
+  bodyType: BodyType;
 }
 
 export const VEHICLES: Vehicle[] = [
@@ -86,17 +94,118 @@ export const VEHICLES: Vehicle[] = [
   { id: "toyota-prado", make: "Toyota", model: "Prado", fuelType: "diesel", consumption: 7.6, bodyType: "SUV" },
 ];
 
-export function findVehicle(id: string | undefined | null): Vehicle | null {
+// ── Reading a catalogue ─────────────────────────────────────────────────────
+//
+// These take the list to search rather than closing over VEHICLES, because at
+// runtime the list comes from the database and only the tests and the seed use
+// the constant.
+
+export function findVehicle(list: Vehicle[], id: string | undefined | null): Vehicle | null {
   if (!id) return null;
-  return VEHICLES.find((v) => v.id === id) ?? null;
+  return list.find((v) => v.id === id) ?? null;
 }
 
-/** Makes, in the order they should be offered: alphabetical, but grouped so the
- *  electric-heavy brands people actually novate come first. */
-export function vehicleMakes(): string[] {
-  return [...new Set(VEHICLES.map((v) => v.make))].sort((a, b) => a.localeCompare(b));
+/** Makes, alphabetically. */
+export function vehicleMakes(list: Vehicle[]): string[] {
+  return [...new Set(list.map((v) => v.make))].sort((a, b) => a.localeCompare(b));
 }
 
-export function vehiclesForMake(make: string): Vehicle[] {
-  return VEHICLES.filter((v) => v.make === make).sort((a, b) => a.model.localeCompare(b.model));
+export function vehiclesForMake(list: Vehicle[], make: string): Vehicle[] {
+  return list.filter((v) => v.make === make).sort((a, b) => a.model.localeCompare(b.model));
+}
+
+// ── Adding and editing one ──────────────────────────────────────────────────
+
+/**
+ * What a combined-cycle figure can plausibly be, in that fuel's own unit.
+ *
+ * A guard against typos, not a statement about what cars exist — someone
+ * entering a petrol car's 7.4 while "electric" is selected would otherwise
+ * quietly cut the running-cost budget by half, and nothing downstream would
+ * look wrong enough to notice.
+ */
+export const CONSUMPTION_RANGE: Record<FuelType, { min: number; max: number; unit: string }> = {
+  electric: { min: 8, max: 35, unit: "kWh/100km" },
+  phev: { min: 0.3, max: 6, unit: "L/100km" },
+  hybrid: { min: 2, max: 12, unit: "L/100km" },
+  petrol: { min: 3, max: 25, unit: "L/100km" },
+  diesel: { min: 3, max: 25, unit: "L/100km" },
+};
+
+export const consumptionUnit = (f: FuelType) => CONSUMPTION_RANGE[f].unit;
+
+/** How to name a fuel type mid-sentence. */
+export const FUEL_PHRASE: Record<FuelType, string> = {
+  electric: "a battery-electric car",
+  phev: "a plug-in hybrid",
+  hybrid: "a hybrid",
+  petrol: "a petrol car",
+  diesel: "a diesel car",
+};
+
+/** The id for a new vehicle: lowercase, hyphenated, ASCII. Stable enough to
+ *  live in a saved lease, which is why it is derived once and then left. */
+export function vehicleSlug(make: string, model: string): string {
+  return `${make} ${model}`
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
+export interface VehicleInput {
+  id?: string;
+  make: string;
+  model: string;
+  fuelType: string;
+  consumption: number | string;
+  bodyType: string;
+}
+
+/** Check and normalise what came off the admin form. Pure, so the rules are
+ *  testable and the same message reaches the UI wherever it is used. */
+export function validateVehicle(
+  input: VehicleInput,
+): { ok: true; vehicle: Vehicle } | { ok: false; error: string } {
+  const make = input.make?.trim() ?? "";
+  const model = input.model?.trim() ?? "";
+  if (!make) return { ok: false, error: "Give it a make." };
+  if (!model) return { ok: false, error: "Give it a model." };
+  if (make.length > 60 || model.length > 60) {
+    return { ok: false, error: "Make and model need to be under 60 characters." };
+  }
+
+  const fuelType = input.fuelType as FuelType;
+  if (!FUEL_TYPES.includes(fuelType)) {
+    return { ok: false, error: `"${input.fuelType}" isn't a fuel type we handle.` };
+  }
+
+  const bodyType = input.bodyType as BodyType;
+  if (!BODY_TYPES.includes(bodyType)) {
+    return { ok: false, error: `"${input.bodyType}" isn't a body type we handle.` };
+  }
+
+  const consumption = Number(input.consumption);
+  if (!Number.isFinite(consumption)) {
+    return { ok: false, error: "Consumption needs to be a number." };
+  }
+  const range = CONSUMPTION_RANGE[fuelType];
+  if (consumption < range.min || consumption > range.max) {
+    return {
+      ok: false,
+      error: `The combined figure for ${FUEL_PHRASE[fuelType]} is quoted in ${range.unit}, so ${consumption} looks wrong — expected somewhere between ${range.min} and ${range.max}.`,
+    };
+  }
+
+  const id = (input.id?.trim() || vehicleSlug(make, model)).toLowerCase();
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(id)) {
+    return { ok: false, error: `"${id}" isn't a usable id — lowercase letters, numbers and hyphens only.` };
+  }
+
+  return {
+    ok: true,
+    vehicle: { id, make, model, fuelType, consumption: Math.round(consumption * 10) / 10, bodyType },
+  };
 }

@@ -130,13 +130,22 @@ create table if not exists quotes (
 );
 create index if not exists quotes_user_idx on quotes(user_id, updated_at desc);
 
--- The vehicles offered in the picker, and their artwork.
+-- The vehicles offered in the picker, their specs and their artwork.
 --
--- The list and its specs are seeded from code (lib/au/vehicles.ts) so the
--- engine and its tests have a source of truth that does not depend on a
--- database. What lives ONLY here is the image: bytes, not a URL, because a
--- few dozen small images are far simpler to keep beside the data than in
--- separate object storage, and they version with it.
+-- This table is what the running app reads. lib/au/vehicles.ts is the seed
+-- that fills it on deploy and the fixture the tests run against, so the engine
+-- still has a source of truth that needs no database — but an admin can add a
+-- car, correct a consumption figure or retire a model without a release.
+--
+-- "edited" is how those two survive each other: any admin write sets it, and
+-- the deploy seed skips a row that carries it. Same principle as the reference
+-- data — a hand-checked value is never silently overwritten by a redeploy.
+-- "source" says where the row came from, so the UI can offer a revert to the
+-- catalogue on one and a real delete on the other.
+--
+-- The image is bytes, not a URL: a few dozen small images are far simpler to
+-- keep beside the data than in separate object storage, and they version with
+-- it.
 create table if not exists vehicles (
   id text primary key,
   make text not null,
@@ -151,6 +160,9 @@ create table if not exists vehicles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table vehicles add column if not exists source text not null default 'seed';
+alter table vehicles add column if not exists edited boolean not null default false;
+alter table vehicles add column if not exists notes text;
 create index if not exists vehicles_make_idx on vehicles (active, make, model);
 
 -- Free-form user feedback from the floating widget. user_id is kept if they were
@@ -427,9 +439,19 @@ export async function seedSources(c: Client): Promise<void> {
  * with the code. The image column is deliberately untouched: it is uploaded
  * through the backoffice and a redeploy must never wipe it.
  */
+/**
+ * Fill the catalogue from code, without treading on anyone.
+ *
+ * A row an admin has edited keeps its values — including a model they have
+ * hidden, which must not come back on the next deploy. Everything else is
+ * brought up to date, so correcting a consumption figure in the seed still
+ * reaches production the way it always did. An admin can put an edited row
+ * back under the seed's control with "revert to catalogue".
+ */
 export async function seedVehicles(c: Client): Promise<void> {
+  let added = 0;
   for (const v of VEHICLES) {
-    await c.query(
+    const r = await c.query(
       `insert into vehicles (id, make, model, fuel_type, consumption, body_type)
        values ($1,$2,$3,$4,$5,$6)
        on conflict (id) do update
@@ -438,15 +460,25 @@ export async function seedVehicles(c: Client): Promise<void> {
              fuel_type = excluded.fuel_type,
              consumption = excluded.consumption,
              body_type = excluded.body_type,
-             updated_at = now()`,
+             updated_at = now()
+         where vehicles.edited = false
+       returning (xmax = 0) as inserted`,
       [v.id, v.make, v.model, v.fuelType, v.consumption, v.bodyType],
     );
+    if (r.rows[0]?.inserted) added++;
   }
-  const withArt = await c.query<{ n: number }>(
-    "select count(*)::int as n from vehicles where image is not null",
+  const stats = await c.query<{ total: number; art: number; edited: number; own: number }>(
+    `select count(*)::int as total,
+            count(*) filter (where image is not null)::int as art,
+            count(*) filter (where edited)::int as edited,
+            count(*) filter (where source = 'admin')::int as own
+       from vehicles`,
   );
+  const s = stats.rows[0];
   console.log(
-    `  vehicles: upserted ${VEHICLES.length}; ${withArt.rows[0]?.n ?? 0} have artwork.`,
+    `  vehicles: ${s?.total ?? 0} in the catalogue (${added} new this deploy, ` +
+      `${s?.own ?? 0} added by an admin, ${s?.edited ?? 0} edited and left alone); ` +
+      `${s?.art ?? 0} have artwork.`,
   );
 }
 
