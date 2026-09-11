@@ -22,7 +22,8 @@ import VehicleCard from "./VehicleCard";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { track } from "@/lib/analytics";
 import { useLease } from "./useLease";
-import LeaseCard from "./LeaseCard";
+import LeaseBar from "./LeaseBar";
+import QuotesCard from "./QuotesCard";
 import {
   applyQuoteEdit,
   defaultVehicle,
@@ -227,8 +228,6 @@ export default function QuoteDecoder({
           </p>
         </div>
 
-        <LeaseCard store={store} signedIn={Boolean(user)} config={config} />
-
         {store.adopted > 0 && (
           <p className="mb-5 rounded-lg border border-success/40 bg-success-subtle px-4 py-2.5 text-sm text-success-text">
             Moved {store.adopted} lease{store.adopted === 1 ? "" : "s"} from this browser onto your
@@ -238,6 +237,7 @@ export default function QuoteDecoder({
 
         <div className="mb-6">
           <VehicleCard
+            header={<LeaseBar store={store} signedIn={Boolean(user)} />}
             catalogue={catalogue}
             vehicleId={quote.vehicleId}
             onVehicle={(v) =>
@@ -260,6 +260,8 @@ export default function QuoteDecoder({
             onFirstHeldDate={(d) => set("firstHeldDate", d)}
           />
         </div>
+
+        <QuotesCard store={store} config={config} />
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
           {/* ── The quote ──────────────────────────────────────────── */}

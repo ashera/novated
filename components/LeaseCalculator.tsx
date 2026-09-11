@@ -16,7 +16,8 @@ import { calculateLease, type FuelType, type LeaseInputs } from "@/lib/au/novate
 import type { EngineConfig } from "@/lib/au/config";
 import { leaseToInputs, type Lease } from "@/lib/au/lease";
 import { useLease } from "./useLease";
-import LeaseCard from "./LeaseCard";
+import LeaseBar from "./LeaseBar";
+import QuotesCard from "./QuotesCard";
 import { track, trackLeasePricedConversion } from "@/lib/analytics";
 import { takeHandoff, type QuoteHandoff } from "@/lib/quoteHandoff";
 import { trackVisit } from "@/app/actions/track";
@@ -167,10 +168,9 @@ export default function LeaseCalculator({
           </p>
         </div>
 
-        {!readOnly && <LeaseCard store={store} signedIn={Boolean(user)} config={config} />}
-
         <div className="mb-6">
           <VehicleCard
+            header={!readOnly && <LeaseBar store={store} signedIn={Boolean(user)} />}
             catalogue={catalogue}
             vehicleId={inputs.vehicleId}
             onVehicle={(v) =>
@@ -193,6 +193,8 @@ export default function LeaseCalculator({
             onState={(st) => setVehicle({ state: st })}
           />
         </div>
+
+        {!readOnly && <QuotesCard store={store} config={config} />}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
           {/* ── Inputs ─────────────────────────────────────────────── */}

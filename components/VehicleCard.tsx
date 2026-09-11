@@ -25,6 +25,10 @@ import type { FuelType } from "@/lib/au/novated";
  * The catalogue is passed in rather than imported, because it comes from the
  * database — an admin can add a car or fix a spec without a release, and this
  * has to show it.
+ *
+ * `header` is a slot for the lease strip. The lease lives at the top of this
+ * card rather than in one of its own: it is context for the car, not a peer
+ * of it. Kept as a slot so this component still knows nothing about the store.
  */
 
 const FUEL_TYPES: { key: FuelType; label: string; hint: string }[] = [
@@ -63,6 +67,8 @@ function Chip({
 }
 
 export interface VehicleCardProps {
+  /** Rendered as a strip across the top, above the artwork. */
+  header?: React.ReactNode;
   /** Every vehicle on offer, from the database. */
   catalogue: Vehicle[];
   vehicleId?: string;
@@ -110,8 +116,11 @@ export default function VehicleCard(p: VehicleCardProps) {
   );
 
   return (
-    <section className="rounded-xl border border-line bg-panel p-4 shadow-[var(--shadow-card)] sm:p-5">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
+    <section className="rounded-xl border border-line bg-panel shadow-[var(--shadow-card)]">
+      {p.header && (
+        <div className="border-b border-line px-4 py-3 sm:px-5">{p.header}</div>
+      )}
+      <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
         <div>
           <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg border border-line bg-panel-2 sm:h-44">
             {art}
