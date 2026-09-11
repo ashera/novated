@@ -212,9 +212,31 @@ declared category — so a config refactor cannot silently orphan a rate.
 
 ## Deploying
 
-Railway builds with Nixpacks and runs `npm run db:migrate` as a pre-deploy command, so
-the schema and seeds are applied before the new version serves traffic. A failed
-migration exits non-zero and aborts the deploy. `/api/health` is the healthcheck.
+Railway builds with Nixpacks. `npm run db:migrate` runs **as part of the start
+command**, not only as `preDeployCommand`:
+
+```json
+"startCommand": "npm run db:migrate && npm run start"
+```
+
+That belt-and-braces is deliberate. The pre-deploy step has twice shipped code
+without running — once leaving `vehicles` without its new columns (a 500 on
+`/admin/vehicles`), once leaving `providers` absent entirely — while the new build
+served happily, because a dashboard setting overrides `railway.json` and nothing says
+so. Running it from the start command puts the migration in the same process and the
+same environment as the app, where `DATABASE_URL` is definitely present. `tsx` is a
+first-class dependency, not a dev one, so it exists at runtime.
+
+The migration is idempotent, so running it twice (if the pre-deploy step ever does
+fire) costs a couple of seconds and nothing else. A failed migration exits non-zero,
+which now means the server does not start and the healthcheck fails the deploy —
+the same protection the pre-deploy step was meant to give. `/api/health` is the
+healthcheck.
+
+If a schema change ever does reach production without its migration, the symptom is a
+500 on whichever page first selects the new column, while everything else looks fine:
+`getCatalogue` and `listApprovedProviders` swallow their errors by design. Applying
+`DATABASE_URL=<prod> npm run db:migrate` locally fixes it.
 
 Set `NEXT_PUBLIC_SITE_URL` to the live domain; it drives canonicals, the sitemap and
 OG cards.
