@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import QuoteField from "./QuoteField";
 import VehicleArt from "./VehicleArt";
 import { findVehicle, vehicleMakes, vehiclesForMake, type Vehicle } from "@/lib/au/vehicles";
 import { AU_STATES, type AuState } from "@/lib/au/config";
+import { fmtCurrency } from "@/lib/au/format";
 import type { FuelType } from "@/lib/au/novated";
 
 /**
@@ -29,6 +31,13 @@ import type { FuelType } from "@/lib/au/novated";
  * `header` is a slot for the lease strip. The lease lives at the top of this
  * card rather than in one of its own: it is context for the car, not a peer
  * of it. Kept as a slot so this component still knows nothing about the store.
+ *
+ * `readOnlyVehicle` is for the decoder. The car belongs to the lease and was
+ * settled in the calculator; on a page for transcribing a provider's document
+ * it is something you check against the paperwork, not something you edit.
+ * Shown as values rather than disabled controls, because a greyed-out select
+ * invites a fight with the page instead of answering the question — so the
+ * readout says where to go and change it.
  */
 
 const FUEL_TYPES: { key: FuelType; label: string; hint: string }[] = [
@@ -69,6 +78,11 @@ function Chip({
 export interface VehicleCardProps {
   /** Rendered as a strip across the top, above the artwork. */
   header?: React.ReactNode;
+  /** Show the car as settled facts. Delivery stays editable — it belongs to
+   *  the quote, not the car, and part-year FBT turns on it. */
+  readOnlyVehicle?: boolean;
+  /** Where to send someone who wants to change the car. */
+  changeHref?: string;
   /** Every vehicle on offer, from the database. */
   catalogue: Vehicle[];
   vehicleId?: string;
@@ -91,6 +105,15 @@ export interface VehicleCardProps {
   /** Only meaningful where part-year FBT matters — i.e. a real quote. */
   firstHeldDate?: string;
   onFirstHeldDate?: (d: string | undefined) => void;
+}
+
+function Readout({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="text-sm font-medium text-ink">{label}</span>
+      <p className="mt-0.5 text-sm text-subtle">{value}</p>
+    </div>
+  );
 }
 
 export default function VehicleCard(p: VehicleCardProps) {
@@ -142,6 +165,58 @@ export default function VehicleCard(p: VehicleCardProps) {
           )}
         </div>
 
+        {p.readOnlyVehicle ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Readout label="Make" value={selected?.make ?? "Not set"} />
+              <Readout label="Model" value={selected?.model ?? "Not set"} />
+              <Readout
+                label="Price of the car"
+                value={p.price != null ? fmtCurrency(p.price) : "Not set"}
+              />
+              <Readout
+                label="Kilometres a year"
+                value={p.annualKm != null ? `${p.annualKm.toLocaleString("en-AU")} km` : "Not set"}
+              />
+              <Readout
+                label="Fuel type"
+                value={FUEL_TYPES.find((f) => f.key === p.fuelType)?.label ?? p.fuelType}
+              />
+              {p.onState && (
+                <Readout label="Registered in" value={p.state ?? "National average"} />
+              )}
+            </div>
+
+            <p className="text-[11px] text-muted">
+              The car comes from your lease.{" "}
+              {p.changeHref && (
+                <>
+                  <Link href={p.changeHref} className="font-medium text-accent hover:underline">
+                    Change it in the calculator
+                  </Link>{" "}
+                  and every quote on this lease follows.
+                </>
+              )}
+            </p>
+
+            {p.onFirstHeldDate && (
+              <label className="block max-w-xs">
+                <span className="text-sm font-medium text-ink">Expected delivery</span>
+                <input
+                  type="date"
+                  value={p.firstHeldDate ?? ""}
+                  onChange={(e) => p.onFirstHeldDate?.(e.target.value || undefined)}
+                  className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                />
+                <span className="mt-1 block text-[11px] leading-snug text-muted">
+                  Optional, and specific to this quote. The FBT year ends 31 March, so a car
+                  delivered late in it is a fringe benefit for only part of the year — and your
+                  first-year deductions differ from the quote.
+                </span>
+              </label>
+            )}
+          </div>
+        ) : (
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
@@ -257,6 +332,7 @@ export default function VehicleCard(p: VehicleCardProps) {
             </label>
           )}
         </div>
+        )}
       </div>
     </section>
   );

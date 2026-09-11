@@ -9,10 +9,11 @@ import {
   newQuoteSpec,
   quoteLabel,
   quoteStatus,
+  withLeaseVehicle,
   type Lease,
 } from "@/lib/au/lease";
 import { calculateLease } from "@/lib/au/novated";
-import { decodeQuote } from "@/lib/au/quote";
+import { decodeQuote, type Quote } from "@/lib/au/quote";
 import { VEHICLES, findVehicle } from "@/lib/au/vehicles";
 
 const config = DEFAULT_CONFIG;
@@ -274,5 +275,55 @@ describe("Renaming a quote", () => {
 
   it("shows the name as typed once it is finished", () => {
     expect(quoteLabel(renameTo("Maxxia offer"))).toBe("Maxxia offer");
+  });
+});
+
+describe("The decoder cannot redefine the car", () => {
+  // The bug this guards: the decoder's example quote is priced at $85,000 to
+  // make a point. Typing the first character turned it into a real quote and
+  // applyQuoteEdit wrote that price onto the lease as though the user had
+  // chosen it. Harmless while the car was editable there; not harmless once
+  // the decoder shows the car as settled and offers no way to correct it.
+  const example = (): Quote => ({
+    label: "Example quote",
+    frequency: "fortnightly",
+    vehiclePrice: 85_000,
+    fuelType: "petrol",
+    vehicleId: "ford-ranger",
+    annualKm: 30_000,
+    state: "QLD",
+    termMonths: 60,
+    lines: { finance: 700 },
+  });
+
+  it("keeps the lease's car when an edit arrives carrying a different one", () => {
+    const lease = leaseWithCar(); // Tesla Model Y at 55,000
+    const q = withLeaseVehicle(lease, example());
+    expect(q.vehiclePrice).toBe(lease.vehicle.price);
+    expect(q.vehicleId).toBe(lease.vehicle.vehicleId);
+    expect(q.fuelType).toBe(lease.vehicle.fuelType);
+    expect(q.annualKm).toBe(lease.vehicle.annualKm);
+    expect(q.state).toBe(lease.vehicle.state);
+  });
+
+  it("leaves everything that is genuinely the quote's alone", () => {
+    const q = withLeaseVehicle(leaseWithCar(), example());
+    expect(q.label).toBe("Example quote");
+    expect(q.lines.finance).toBe(700);
+    expect(q.termMonths).toBe(60);
+  });
+
+  it("does not overlay delivery — that belongs to the quote", () => {
+    const q = withLeaseVehicle(leaseWithCar(), { ...example(), firstHeldDate: "2027-02-01" });
+    expect(q.firstHeldDate).toBe("2027-02-01");
+  });
+
+  it("so applying that edit leaves the lease's car untouched", () => {
+    const spec = newQuoteSpec();
+    let lease: Lease = { ...leaseWithCar(), quotes: [spec] };
+    const before = { ...lease.vehicle };
+    lease = applyQuoteEdit(lease, spec.id, withLeaseVehicle(lease, example()));
+    expect(lease.vehicle).toEqual(before);
+    expect(lease.quotes[0].lines.finance).toBe(700);
   });
 });

@@ -195,6 +195,31 @@ export function leaseToQuote(lease: Lease, spec: QuoteSpec): Quote {
   };
 }
 
+/**
+ * Overlay the lease's car onto a quote, whatever car the quote was carrying.
+ *
+ * The decoder shows the car as settled — it belongs to the lease and is
+ * changed in the calculator — so an edit made there must never be able to
+ * redefine it. Without this, the first keystroke against the example quote
+ * copied its $85,000 demonstration price onto the lease as though the user
+ * had chosen it, and the page then offered no way to correct it.
+ *
+ * Delivery is deliberately not overlaid: it is stored on the vehicle but
+ * belongs to the quote, and part-year FBT turns on it.
+ */
+export function withLeaseVehicle(lease: Lease, q: Quote): Quote {
+  const v = lease.vehicle;
+  return {
+    ...q,
+    vehicleId: v.vehicleId,
+    vehiclePrice: v.price,
+    fuelType: v.fuelType,
+    annualKm: v.annualKm,
+    state: v.state,
+    consumptionPer100km: v.consumptionPer100km,
+  };
+}
+
 /** Split an edited Quote back apart: the car onto the lease, the rest onto the
  *  quote. Editing the vehicle from inside the decoder must update the lease,
  *  or the two tools drift apart again. */

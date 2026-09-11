@@ -16,16 +16,16 @@ import {
 } from "@/lib/au/quote";
 import { stashHandoff } from "@/lib/quoteHandoff";
 import type { EngineConfig } from "@/lib/au/config";
-import type { FuelType } from "@/lib/au/novated";
-import { AU_STATES } from "@/lib/au/config";
 import VehicleCard from "./VehicleCard";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { track } from "@/lib/analytics";
 import { useLease } from "./useLease";
 import LeaseBar from "./LeaseBar";
 import QuotesCard from "./QuotesCard";
+import QuoteIdentity from "./QuoteIdentity";
 import {
   applyQuoteEdit,
+  withLeaseVehicle,
   defaultVehicle,
   leaseToQuote,
   newQuoteSpec,
@@ -62,26 +62,6 @@ const EXAMPLE: Quote = {
   },
 };
 
-const EMPTY: Quote = {
-  frequency: "fortnightly",
-  fuelType: "electric",
-  termMonths: 60,
-  lines: {},
-};
-
-const FUEL_TYPES: { key: FuelType; label: string }[] = [
-  { key: "electric", label: "Electric" },
-  { key: "petrol", label: "Petrol" },
-  { key: "diesel", label: "Diesel" },
-  { key: "hybrid", label: "Hybrid" },
-  { key: "phev", label: "Plug-in hybrid" },
-];
-
-const FREQ_LABEL: Record<QuoteFrequency, string> = {
-  weekly: "Week",
-  fortnightly: "Fortnight",
-  monthly: "Month",
-};
 const FREQ_WORD: Record<QuoteFrequency, string> = {
   weekly: "week",
   fortnightly: "fortnight",
@@ -135,17 +115,25 @@ export default function QuoteDecoder({
       : leaseToQuote(lease, activeSpec!);
 
   /** Any edit writes back through the lease, splitting the car onto the parent
-   *  and the rest onto the quote — which is how the two tools stay in step. */
+   *  and the rest onto the quote — which is how the two tools stay in step.
+   *
+   *  The car itself always comes from the lease, never from what is on screen.
+   *  That matters for the example: it is priced at $85,000 to make a point,
+   *  and the first keystroke used to copy that price onto the lease as though
+   *  the user had chosen it. Harmless when the car was editable here; not
+   *  harmless now, when the page shows it as settled and offers no way to
+   *  correct it. Delivery is the exception — it belongs to the quote. */
   const setQuote = (fn: (q: Quote) => Quote) => {
     const next = fn(quote);
     store.update((l) => {
+      const fromLease = (q: Quote) => withLeaseVehicle(l, q);
       if (isExample || blankAgainstTheirCar) {
         const spec = newQuoteSpec(next.label ?? "My quote");
         const seeded: Lease = { ...l, quotes: [...l.quotes, spec] };
         setActiveQuoteId(spec.id);
-        return applyQuoteEdit(seeded, spec.id, next);
+        return applyQuoteEdit(seeded, spec.id, fromLease(next));
       }
-      return applyQuoteEdit(l, activeSpec!.id, next);
+      return applyQuoteEdit(l, activeSpec!.id, fromLease(next));
     });
   };
   const set = <K extends keyof Quote>(key: K, value: Quote[K]) =>
@@ -237,7 +225,21 @@ export default function QuoteDecoder({
 
         <div className="mb-6">
           <VehicleCard
-            header={<LeaseBar store={store} signedIn={Boolean(user)} />}
+            header={
+              <div className="space-y-3">
+                <LeaseBar store={store} signedIn={Boolean(user)} readOnly />
+                <div className="border-t border-line pt-3">
+                  <QuoteIdentity
+                    label={quote.label ?? ""}
+                    onLabel={(v) => set("label", v)}
+                    frequency={quote.frequency}
+                    onFrequency={(f) => set("frequency", f)}
+                  />
+                </div>
+              </div>
+            }
+            readOnlyVehicle
+            changeHref="/"
             catalogue={catalogue}
             vehicleId={quote.vehicleId}
             onVehicle={(v) =>
@@ -267,59 +269,6 @@ export default function QuoteDecoder({
           {/* ── The quote ──────────────────────────────────────────── */}
           <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <div className="flex items-baseline justify-between gap-3">
-                <h2 className="text-base font-semibold text-ink">Your quote</h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const spec = newQuoteSpec("My quote");
-                    store.update((l) => ({ ...l, quotes: [...l.quotes, spec] }));
-                    setActiveQuoteId(spec.id);
-                  }}
-                  className="text-xs font-medium text-accent hover:underline"
-                >
-                  Start a new quote
-                </button>
-              </div>
-
-              <label className="mt-4 block">
-                <span className="text-sm font-medium text-ink">Who quoted it</span>
-                <input
-                  type="text"
-                  value={quote.label ?? ""}
-                  placeholder="The provider's name"
-                  onChange={(e) => set("label", e.target.value)}
-                  className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                />
-              </label>
-
-              <div className="mt-4">
-                <span className="text-sm font-medium text-ink">Figures on your quote are per</span>
-                <div className="mt-2 flex gap-1.5">
-                  {(["weekly", "fortnightly", "monthly"] as QuoteFrequency[]).map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => set("frequency", f)}
-                      className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
-                        quote.frequency === f
-                          ? "border-accent bg-accent-subtle text-accent"
-                          : "border-line bg-panel-2 text-subtle hover:border-line-bold hover:text-ink"
-                      }`}
-                    >
-                      {FREQ_LABEL[f]}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-1.5 text-[11px] text-muted">
-                  Look for it in the heading above the figures &mdash; providers label it once and
-                  never repeat it. Get this wrong and every number below is out by two or four
-                  times.
-                </p>
-              </div>
-            </section>
-
-            <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h2 className="text-base font-semibold text-ink">The finance</h2>
               <p className="mt-1 text-xs text-muted">
                 These, plus the payment below, are what let us solve the interest rate.
@@ -339,8 +288,8 @@ export default function QuoteDecoder({
                   ) : (
                     <>
                       The financier claims the GST back on the car, so the amount financed is
-                      always <strong className="text-ink">less</strong> than the price. Enter the
-                      car&apos;s price in the card above and we&apos;ll show you what to expect.
+                      always <strong className="text-ink">less</strong> than the price. Set the
+                      car&apos;s price on the lease and we&apos;ll show you what to expect.
                     </>
                   )}
                 </div>

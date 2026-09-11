@@ -12,15 +12,39 @@ import type { UseLease } from "./useLease";
  * labelled "Lease" instead of on the car, which is the opposite of the point.
  * As a strip it stays available — you can rename, switch or start another —
  * without competing for the first look.
+ *
+ * `readOnly` is for the decoder, where the lease is settled: you got there by
+ * opening a quote on a particular lease, so renaming it or switching to
+ * another mid-transcription is a way to lose your place, not a feature. It
+ * shows which lease you are on and nothing else.
  */
 export default function LeaseBar({
   store,
   signedIn,
+  readOnly = false,
 }: {
   store: UseLease;
   signedIn: boolean;
+  /** Show which lease this is, without the means to change or leave it. */
+  readOnly?: boolean;
 }) {
   const { all, leaseId, lease, saving } = store;
+
+  const status = (
+    <span className="ml-auto text-xs text-muted">
+      {saving ? "Saving…" : signedIn ? "Saved to your account" : "Saved in this browser"}
+    </span>
+  );
+
+  if (readOnly) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted">Lease</span>
+        <span className="text-sm font-medium text-ink">{lease.name}</span>
+        {status}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -66,9 +90,7 @@ export default function LeaseBar({
         </button>
       )}
 
-      <span className="ml-auto text-xs text-muted">
-        {saving ? "Saving…" : signedIn ? "Saved to your account" : "Saved in this browser"}
-      </span>
+      {status}
     </div>
   );
 }
