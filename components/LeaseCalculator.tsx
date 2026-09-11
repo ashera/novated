@@ -10,6 +10,7 @@ import PayPacketSplit from "./PayPacketSplit";
 import CostComparisonChart from "./CostComparisonChart";
 import InfoBlastBanner from "./InfoBlastBanner";
 import VehicleCard from "./VehicleCard";
+import DeductionExplainer from "./DeductionExplainer";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import {
@@ -409,11 +410,23 @@ export default function LeaseCalculator({
 
             {/* Breakdown */}
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <h3 className="text-base font-semibold text-ink">What&apos;s in the deduction</h3>
-              <p className="mt-1 text-sm text-muted">
-                Everything the employer takes out of your pay each year, and which side of tax
-                it comes from.
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-ink">What&apos;s in the deduction</h3>
+                  <p className="mt-1 text-sm text-muted">
+                    Everything the employer takes out of your pay each year, and which side of
+                    tax it comes from.
+                  </p>
+                </div>
+                <DeductionExplainer
+                  inputs={inputs}
+                  config={config}
+                  finance={finance}
+                  running={running}
+                  fbt={fbt}
+                  adminFee={inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual}
+                />
+              </div>
 
               <table className="mt-4 w-full text-sm">
                 <thead>

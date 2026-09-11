@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 /**
  * Reusable "explain this number" affordance. Renders a small help icon that
@@ -17,19 +17,29 @@ export default function Explainer({
 }) {
   const [open, setOpen] = useState(false);
 
+  // Escape closes it. Without this the only ways out were the ✕ and the
+  // scrim, and a modal that ignores Escape reads as stuck — it also traps
+  // anyone driving the page from the keyboard.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
     <>
+      {/* A quiet affordance, not a beacon. This sits beside a section heading
+          on a page people read for a while; the original pulsing emerald glow
+          was both off-palette and impossible to stop noticing. */}
       <span className="group relative inline-flex">
-        {/* soft pulsing glow to draw the eye */}
-        <span
-          aria-hidden
-          className="absolute inset-0 rounded-full bg-accent/40 blur-[7px] motion-safe:animate-pulse"
-        />
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Explain this to me"
-          className="relative flex h-7 w-7 items-center justify-center rounded-full border border-accent/50 bg-accent/20 text-accent shadow-[0_0_10px_rgba(52,211,153,0.35)] transition hover:scale-110 hover:border-accent hover:bg-accent/30"
+          className="relative flex h-7 w-7 items-center justify-center rounded-full border border-line bg-panel-2 text-accent transition hover:border-accent hover:bg-accent-subtle"
         >
           <svg
             viewBox="0 0 24 24"

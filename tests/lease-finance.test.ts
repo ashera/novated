@@ -234,3 +234,91 @@ describe("Per-model consumption", () => {
     expect(thirsty.fuel).toBeGreaterThan(frugal.fuel * 1.5);
   });
 });
+
+/**
+ * The arithmetic the calculator's "Where these numbers come from" explainer
+ * spells out to the user, line by line.
+ *
+ * Prose cannot be type-checked, so this is the only thing standing between a
+ * changed formula and an explanation that quietly starts lying — which would
+ * be worse than no explanation at all, on a page whose entire argument is
+ * that it shows its working. If one of these fails, fix the wording in
+ * components/DeductionExplainer.tsx, not the expectation.
+ */
+describe("What the deduction explainer promises", () => {
+  const r = config.running;
+  const exGst = (x: number) => x / (1 + config.gst.rate);
+  const km = 15_000;
+
+  it("charging: km ÷ 100 × kWh/100km × price per kWh, less GST", () => {
+    const costs = buildRunningCosts(withInputs({ fuelType: "electric", annualKm: km }), config);
+    expect(costs.fuel).toBeCloseTo(
+      exGst((km / 100) * r.fuel.kwhPer100km * r.fuel.pricePerKwh),
+      6,
+    );
+  });
+
+  it("fuel: km ÷ 100 × L/100km × price per litre, less GST", () => {
+    const costs = buildRunningCosts(withInputs({ fuelType: "petrol", annualKm: km }), config);
+    expect(costs.fuel).toBeCloseTo(
+      exGst((km / 100) * r.fuel.litresPer100km * r.fuel.pricePerLitre),
+      6,
+    );
+  });
+
+  it("charging uses the model's own consumption when the catalogue knows it", () => {
+    const own = 14.9;
+    const costs = buildRunningCosts(
+      withInputs({ fuelType: "electric", annualKm: km, consumptionPer100km: own }),
+      config,
+    );
+    expect(costs.fuel).toBeCloseTo(exGst((km / 100) * own * r.fuel.pricePerKwh), 6);
+  });
+
+  it("servicing: annual base + km × per-km, less GST", () => {
+    const costs = buildRunningCosts(withInputs({ fuelType: "petrol", annualKm: km }), config);
+    expect(costs.servicing).toBeCloseTo(
+      exGst(r.servicing.annualBase + km * r.servicing.perKm),
+      6,
+    );
+  });
+
+  it("servicing: an EV takes the multiplier on top", () => {
+    const costs = buildRunningCosts(withInputs({ fuelType: "electric", annualKm: km }), config);
+    expect(costs.servicing).toBeCloseTo(
+      exGst((r.servicing.annualBase + km * r.servicing.perKm) * r.servicing.evMultiplier),
+      6,
+    );
+  });
+
+  it("tyres: km ÷ km-per-set × cost of a set, less GST", () => {
+    const costs = buildRunningCosts(withInputs({ annualKm: km }), config);
+    expect(costs.tyres).toBeCloseTo(exGst((km / r.tyres.kmPerSet) * r.tyres.setCost), 6);
+  });
+
+  it("insurance: a percentage of the price, with a floor, less GST", () => {
+    const dear = buildRunningCosts(withInputs({ vehiclePrice: 90_000 }), config);
+    expect(dear.insurance).toBeCloseTo(exGst(90_000 * (r.insurance.pctOfValue / 100)), 6);
+    const cheap = buildRunningCosts(withInputs({ vehiclePrice: 5_000 }), config);
+    expect(cheap.insurance).toBeCloseTo(exGst(r.insurance.minAnnual), 6);
+  });
+
+  it("roadside: a flat annual figure, less GST", () => {
+    expect(buildRunningCosts(withInputs({}), config).roadside).toBeCloseTo(
+      exGst(r.roadsideAnnual),
+      6,
+    );
+  });
+
+  // The one line the explainer says is NOT ex-GST, because registration
+  // itself is GST-free even though the CTP part of it isn't.
+  it("registration is carried at face value, not ex-GST", () => {
+    const costs = buildRunningCosts(withInputs({ state: undefined }), config);
+    expect(costs.registration).toBe(r.registrationAnnual);
+  });
+
+  it("registration uses the state's own figure when one is set", () => {
+    const nsw = buildRunningCosts(withInputs({ state: "NSW" }), config);
+    expect(nsw.registration).toBe(r.registrationByState?.NSW ?? r.registrationAnnual);
+  });
+});
