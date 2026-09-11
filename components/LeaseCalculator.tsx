@@ -11,6 +11,7 @@ import CostComparisonChart from "./CostComparisonChart";
 import InfoBlastBanner from "./InfoBlastBanner";
 import VehicleCard from "./VehicleCard";
 import DeductionExplainer from "./DeductionExplainer";
+import StatExplainer from "./StatExplainer";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import {
@@ -411,12 +412,14 @@ export default function LeaseCalculator({
                   value={fmtCurrency(result.perPayCycle.takeHomeReduction)}
                   highlight
                   sub={`${fmtCurrency(pkg.takeHomeReduction)} a year off your take-home pay`}
+                  explainer={<StatExplainer kind="cost" result={result} config={config} />}
                 />
                 <StatCard
                   label="Tax you don't pay"
                   value={fmtCurrency(pkg.taxSaved)}
                   unit="/yr"
                   sub={`Relieved at ${(pkg.effectiveReliefRate * 100).toFixed(1)}% on the pre-tax deduction`}
+                  explainer={<StatExplainer kind="taxSaved" result={result} config={config} />}
                 />
                 <StatCard
                   label={comparison.savingVsLoan >= 0 ? "Better than a car loan by" : "Worse than a car loan by"}
@@ -424,6 +427,7 @@ export default function LeaseCalculator({
                   sub={`Over the full ${term.years}-year term`}
                   tag={fbt.exempt ? "FBT exempt" : undefined}
                   tagTone="accent"
+                  explainer={<StatExplainer kind="vsLoan" result={result} config={config} />}
                 />
               </div>
 
@@ -536,16 +540,19 @@ export default function LeaseCalculator({
                   label="Residual to pay out"
                   value={fmtCurrency(finance.residual)}
                   sub={`${finance.residualPct.toFixed(2)}% of the amount financed — the ATO minimum for this term`}
+                  explainer={<StatExplainer kind="residual" result={result} config={config} />}
                 />
                 <StatCard
                   label="Total interest"
                   value={fmtCurrency(finance.totalInterest)}
                   sub={`At ${inputs.interestRatePct}% over ${term.years} years`}
+                  explainer={<StatExplainer kind="interest" result={result} config={config} />}
                 />
                 <StatCard
                   label="GST you avoid"
                   value={fmtCurrency(term.gstSaved)}
                   sub="On the car and on packaged running costs"
+                  explainer={<StatExplainer kind="gst" result={result} config={config} />}
                 />
               </div>
               <p className="mt-3 text-sm text-subtle">

@@ -8,7 +8,7 @@ import {
   type LeaseInputs,
   type PayCycle,
 } from "@/lib/au/novated";
-import { takeHome } from "@/lib/au/tax";
+import { takeHome, totalTax } from "@/lib/au/tax";
 
 const config = DEFAULT_CONFIG;
 const base = defaultInputs(config);
@@ -223,5 +223,93 @@ describe("How often you're paid", () => {
       lease: { ...config.lease, payCyclesPerYear: 12 },
     };
     expect(effectivePayCycle(undefined, monthlyConfig)).toBe("monthly");
+  });
+});
+
+/**
+ * The arithmetic each headline card's explainer shows the user.
+ *
+ * Same reasoning as the deduction explainer: the modal claims a figure can be
+ * reconstructed from the rows above it, and prose cannot be type-checked. If
+ * one of these fails, the wording in components/StatExplainer.tsx is what
+ * needs fixing.
+ */
+describe("What the stat explainers promise", () => {
+  it("cost: take-home before minus take-home after is the yearly cost", () => {
+    const r = run({ fuelType: "petrol", vehiclePrice: 50_000 });
+    expect(r.package.takeHomeBefore - r.package.takeHomeAfter).toBeCloseTo(
+      r.package.takeHomeReduction,
+      6,
+    );
+  });
+
+  it("tax saved: is the stated percentage of the pre-tax deduction", () => {
+    const r = run({ fuelType: "petrol", vehiclePrice: 50_000 });
+    expect(r.package.taxSaved / r.package.preTaxAnnual).toBeCloseTo(
+      r.package.effectiveReliefRate,
+      6,
+    );
+  });
+
+  it("tax saved: is the difference between two whole tax bills, not a headline rate", () => {
+    // Asserted on an FBT-exempt car with no study loan, so the packaged side
+    // carries nothing the unpackaged side doesn't and the two are comparable.
+    const r = run({ fuelType: "electric", vehiclePrice: 50_000, hasHelpDebt: false });
+    const before = takeHome(base.salary, config, { hasHelpDebt: false });
+    const after = takeHome(base.salary - r.package.preTaxAnnual, config, { hasHelpDebt: false });
+    expect(r.package.taxSaved).toBeCloseTo(totalTax(before) - totalTax(after), 6);
+
+    // And it is NOT the top marginal rate applied to the deduction, which is
+    // the shortcut the explainer exists to contradict.
+    const naive = r.package.preTaxAnnual * 0.47;
+    expect(r.package.taxSaved).toBeLessThan(naive);
+  });
+
+  it("versus a loan: the loan total less the lease total", () => {
+    const r = run();
+    expect(r.comparison.loan.totalCost - r.comparison.lease.totalCost).toBeCloseTo(
+      r.comparison.savingVsLoan,
+      6,
+    );
+  });
+
+  it("versus a loan: defaults the loan rate to the lease rate plus 1.5", () => {
+    const r = run({ interestRatePct: 7 });
+    const explicit = run({ interestRatePct: 7, comparisonLoanRatePct: 8.5 });
+    expect(r.comparison.loan.totalRepaid).toBeCloseTo(explicit.comparison.loan.totalRepaid, 6);
+  });
+
+  it("residual: is the stated percentage of the amount financed", () => {
+    const r = run({ vehiclePrice: 60_000 });
+    expect(r.finance.amountFinanced * (r.finance.residualPct / 100)).toBeCloseTo(
+      r.finance.residual,
+      6,
+    );
+  });
+
+  it("interest: payments plus the residual, less what was financed", () => {
+    const r = run({ vehiclePrice: 60_000 });
+    expect(
+      r.finance.totalPayments + r.finance.residual - r.finance.amountFinanced,
+    ).toBeCloseTo(r.finance.totalInterest, 6);
+  });
+
+  it("interest: counts the residual, so it is not just payments less principal", () => {
+    const r = run({ vehiclePrice: 60_000 });
+    expect(r.finance.totalInterest).toBeGreaterThan(
+      r.finance.totalPayments - r.finance.amountFinanced,
+    );
+  });
+
+  it("gst: the credit on the car plus the GST on packaged running costs", () => {
+    const r = run({ includeRunningCosts: true });
+    expect(
+      r.finance.gstCredit + r.running.total * config.gst.rate * r.term.years,
+    ).toBeCloseTo(r.term.gstSaved, 6);
+  });
+
+  it("gst: only the car when running costs aren't packaged", () => {
+    const r = run({ includeRunningCosts: false });
+    expect(r.term.gstSaved).toBeCloseTo(r.finance.gstCredit, 6);
   });
 });
