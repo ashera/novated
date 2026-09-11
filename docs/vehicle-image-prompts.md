@@ -1,11 +1,15 @@
 # Vehicle image prompts
 
-Generated from `lib/au/vehicles.ts` — 44 vehicles. Re-run `node scripts/gen-image-prompts.mjs` after adding to the catalogue.
+Generated from `lib/au/vehicles.ts` — 44 vehicles. Re-run `npx tsx scripts/gen-image-prompts.ts` after adding to the catalogue.
+
+Every vehicle's prompt is also shown in the editor at `/admin/vehicles` — open one and
+press **Prompt** next to Upload. That works for vehicles added through the admin too,
+which this file doesn't cover.
 
 ## How to use
 
 1. Generate each image with the prompt below.
-2. Export as **WebP** (or PNG), roughly **1200×800**, under 2MB.
+2. Export as **WebP (or PNG)**, roughly 1200×800, under 2MB.
 3. Upload at `/admin/vehicles` — the tile is labelled with the same `id` as the filename suggested here.
 
 Anything without an image falls back to a drawn silhouette, so the set can be filled in gradually.
@@ -33,7 +37,7 @@ A modern electric Tesla Model 3, a sedan, in silver-grey metallic paint. three-q
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Tesla Model Y, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Tesla Model Y, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### BYD Atto 3
@@ -42,7 +46,7 @@ A modern electric Tesla Model Y, a suv, in silver-grey metallic paint. three-qua
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric BYD Atto 3, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric BYD Atto 3, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### BYD Dolphin
@@ -51,7 +55,7 @@ A modern electric BYD Atto 3, a suv, in silver-grey metallic paint. three-quarte
 - **body**: Hatch · **fuel**: electric
 
 ```
-A modern electric BYD Dolphin, a hatch, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric BYD Dolphin, a hatchback, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### BYD Seal
@@ -69,7 +73,7 @@ A modern electric BYD Seal, a sedan, in silver-grey metallic paint. three-quarte
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric BYD Sealion 7, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric BYD Sealion 7, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Kia EV5
@@ -78,7 +82,7 @@ A modern electric BYD Sealion 7, a suv, in silver-grey metallic paint. three-qua
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Kia EV5, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Kia EV5, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Kia EV6
@@ -87,7 +91,7 @@ A modern electric Kia EV5, a suv, in silver-grey metallic paint. three-quarter f
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Kia EV6, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Kia EV6, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Kia Niro
@@ -96,7 +100,7 @@ A modern electric Kia EV6, a suv, in silver-grey metallic paint. three-quarter f
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Kia Niro, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Kia Niro, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Hyundai Ioniq 5
@@ -105,7 +109,7 @@ A modern electric Kia Niro, a suv, in silver-grey metallic paint. three-quarter 
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Hyundai Ioniq 5, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Hyundai Ioniq 5, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Hyundai Kona
@@ -114,7 +118,7 @@ A modern electric Hyundai Ioniq 5, a suv, in silver-grey metallic paint. three-q
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Hyundai Kona, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Hyundai Kona, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### MG MG4
@@ -123,7 +127,7 @@ A modern electric Hyundai Kona, a suv, in silver-grey metallic paint. three-quar
 - **body**: Hatch · **fuel**: electric
 
 ```
-A modern electric MG MG4, a hatch, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric MG MG4, a hatchback, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### MG ZS EV
@@ -132,7 +136,7 @@ A modern electric MG MG4, a hatch, in silver-grey metallic paint. three-quarter 
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric MG ZS EV, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric MG ZS EV, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Polestar 2
@@ -150,7 +154,7 @@ A modern electric Polestar 2, a sedan, in silver-grey metallic paint. three-quar
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Volvo EX30, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Volvo EX30, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Volvo EX40
@@ -159,7 +163,7 @@ A modern electric Volvo EX30, a suv, in silver-grey metallic paint. three-quarte
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Volvo EX40, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Volvo EX40, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Mercedes-Benz EQA
@@ -168,7 +172,7 @@ A modern electric Volvo EX40, a suv, in silver-grey metallic paint. three-quarte
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Mercedes-Benz EQA, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Mercedes-Benz EQA, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Mercedes-Benz EQB
@@ -177,7 +181,7 @@ A modern electric Mercedes-Benz EQA, a suv, in silver-grey metallic paint. three
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Mercedes-Benz EQB, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Mercedes-Benz EQB, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### BMW iX1
@@ -186,7 +190,7 @@ A modern electric Mercedes-Benz EQB, a suv, in silver-grey metallic paint. three
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric BMW iX1, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric BMW iX1, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### BMW i4
@@ -204,7 +208,7 @@ A modern electric BMW i4, a sedan, in silver-grey metallic paint. three-quarter 
 - **body**: Hatch · **fuel**: electric
 
 ```
-A modern electric Cupra Born, a hatch, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Cupra Born, a hatchback, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Nissan Leaf
@@ -213,7 +217,7 @@ A modern electric Cupra Born, a hatch, in silver-grey metallic paint. three-quar
 - **body**: Hatch · **fuel**: electric
 
 ```
-A modern electric Nissan Leaf, a hatch, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Nissan Leaf, a hatchback, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Peugeot e-2008
@@ -222,7 +226,7 @@ A modern electric Nissan Leaf, a hatch, in silver-grey metallic paint. three-qua
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Peugeot e-2008, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Peugeot e-2008, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Smart #3
@@ -231,7 +235,7 @@ A modern electric Peugeot e-2008, a suv, in silver-grey metallic paint. three-qu
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Smart #3, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Smart #3, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Zeekr X
@@ -240,7 +244,7 @@ A modern electric Smart #3, a suv, in silver-grey metallic paint. three-quarter 
 - **body**: SUV · **fuel**: electric
 
 ```
-A modern electric Zeekr X, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern electric Zeekr X, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### BYD Shark 6
@@ -249,7 +253,7 @@ A modern electric Zeekr X, a suv, in silver-grey metallic paint. three-quarter f
 - **body**: Ute · **fuel**: phev
 
 ```
-A modern BYD Shark 6, a ute, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern BYD Shark 6, a dual-cab ute, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Mitsubishi Outlander
@@ -258,7 +262,7 @@ A modern BYD Shark 6, a ute, in silver-grey metallic paint. three-quarter front 
 - **body**: SUV · **fuel**: phev
 
 ```
-A modern Mitsubishi Outlander, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Mitsubishi Outlander, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### BYD Sealion 6
@@ -267,7 +271,7 @@ A modern Mitsubishi Outlander, a suv, in silver-grey metallic paint. three-quart
 - **body**: SUV · **fuel**: phev
 
 ```
-A modern BYD Sealion 6, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern BYD Sealion 6, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### GWM Haval H6
@@ -276,7 +280,7 @@ A modern BYD Sealion 6, a suv, in silver-grey metallic paint. three-quarter fron
 - **body**: SUV · **fuel**: phev
 
 ```
-A modern GWM Haval H6, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern GWM Haval H6, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Toyota RAV4
@@ -285,7 +289,7 @@ A modern GWM Haval H6, a suv, in silver-grey metallic paint. three-quarter front
 - **body**: SUV · **fuel**: hybrid
 
 ```
-A modern Toyota RAV4, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Toyota RAV4, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Toyota Corolla
@@ -294,7 +298,7 @@ A modern Toyota RAV4, a suv, in silver-grey metallic paint. three-quarter front 
 - **body**: Hatch · **fuel**: hybrid
 
 ```
-A modern Toyota Corolla, a hatch, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Toyota Corolla, a hatchback, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Toyota Camry
@@ -312,7 +316,7 @@ A modern Toyota Camry, a sedan, in silver-grey metallic paint. three-quarter fro
 - **body**: SUV · **fuel**: hybrid
 
 ```
-A modern Toyota Kluger, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Toyota Kluger, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Honda CR-V
@@ -321,7 +325,7 @@ A modern Toyota Kluger, a suv, in silver-grey metallic paint. three-quarter fron
 - **body**: SUV · **fuel**: petrol
 
 ```
-A modern Honda CR-V, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Honda CR-V, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Mazda CX-5
@@ -330,7 +334,7 @@ A modern Honda CR-V, a suv, in silver-grey metallic paint. three-quarter front v
 - **body**: SUV · **fuel**: petrol
 
 ```
-A modern Mazda CX-5, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Mazda CX-5, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Mazda CX-30
@@ -339,7 +343,7 @@ A modern Mazda CX-5, a suv, in silver-grey metallic paint. three-quarter front v
 - **body**: SUV · **fuel**: petrol
 
 ```
-A modern Mazda CX-30, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Mazda CX-30, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Hyundai Tucson
@@ -348,7 +352,7 @@ A modern Mazda CX-30, a suv, in silver-grey metallic paint. three-quarter front 
 - **body**: SUV · **fuel**: petrol
 
 ```
-A modern Hyundai Tucson, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Hyundai Tucson, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Kia Sportage
@@ -357,7 +361,7 @@ A modern Hyundai Tucson, a suv, in silver-grey metallic paint. three-quarter fro
 - **body**: SUV · **fuel**: petrol
 
 ```
-A modern Kia Sportage, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Kia Sportage, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Subaru Forester
@@ -366,7 +370,7 @@ A modern Kia Sportage, a suv, in silver-grey metallic paint. three-quarter front
 - **body**: SUV · **fuel**: petrol
 
 ```
-A modern Subaru Forester, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Subaru Forester, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Volkswagen Golf
@@ -375,7 +379,7 @@ A modern Subaru Forester, a suv, in silver-grey metallic paint. three-quarter fr
 - **body**: Hatch · **fuel**: petrol
 
 ```
-A modern Volkswagen Golf, a hatch, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Volkswagen Golf, a hatchback, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Ford Ranger
@@ -384,7 +388,7 @@ A modern Volkswagen Golf, a hatch, in silver-grey metallic paint. three-quarter 
 - **body**: Ute · **fuel**: diesel
 
 ```
-A modern Ford Ranger, a ute, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Ford Ranger, a dual-cab ute, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Toyota HiLux
@@ -393,7 +397,7 @@ A modern Ford Ranger, a ute, in silver-grey metallic paint. three-quarter front 
 - **body**: Ute · **fuel**: diesel
 
 ```
-A modern Toyota HiLux, a ute, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Toyota HiLux, a dual-cab ute, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Isuzu D-Max
@@ -402,7 +406,7 @@ A modern Toyota HiLux, a ute, in silver-grey metallic paint. three-quarter front
 - **body**: Ute · **fuel**: diesel
 
 ```
-A modern Isuzu D-Max, a ute, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Isuzu D-Max, a dual-cab ute, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```
 
 ### Toyota Prado
@@ -411,5 +415,5 @@ A modern Isuzu D-Max, a ute, in silver-grey metallic paint. three-quarter front 
 - **body**: SUV · **fuel**: diesel
 
 ```
-A modern Toyota Prado, a suv, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
+A modern Toyota Prado, an SUV, in silver-grey metallic paint. three-quarter front view facing left, centred, entire vehicle in frame with a small margin, pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects.
 ```

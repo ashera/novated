@@ -9,6 +9,7 @@ import {
   vehicleSlug,
   vehiclesForMake,
 } from "@/lib/au/vehicles";
+import { IMAGE_STYLE, imageFilename, vehicleImagePrompt } from "@/lib/au/vehicleImagePrompt";
 
 describe("Vehicle catalogue", () => {
   it("gives every vehicle a unique id", () => {
@@ -131,5 +132,45 @@ describe("Editing the vehicle catalogue", () => {
 
   it("only offers body types the seed catalogue actually uses", () => {
     for (const v of VEHICLES) expect(BODY_TYPES, v.id).toContain(v.bodyType);
+  });
+});
+
+describe("Vehicle image prompts", () => {
+  it("names the car and its body in readable English", () => {
+    expect(vehicleImagePrompt({ make: "Tesla", model: "Model Y", fuelType: "electric", bodyType: "SUV" }))
+      .toContain("A modern electric Tesla Model Y, an SUV,");
+  });
+
+  // "a suv" was what the old template produced, and an image model does
+  // nothing useful with it.
+  it("gets the article right for every body type in the catalogue", () => {
+    for (const v of VEHICLES) {
+      const p = vehicleImagePrompt(v);
+      expect(p, v.id).not.toMatch(/a (SUV|suv)/);
+      expect(p, v.id).toMatch(/^A modern /);
+    }
+  });
+
+  it("calls out electric cars, and leaves everything else alone", () => {
+    const ev = vehicleImagePrompt({ make: "Kia", model: "EV6", fuelType: "electric", bodyType: "SUV" });
+    const petrol = vehicleImagePrompt({ make: "Mazda", model: "CX-5", fuelType: "petrol", bodyType: "SUV" });
+    expect(ev).toContain("modern electric Kia EV6");
+    expect(petrol).toContain("modern Mazda CX-5");
+    expect(petrol).not.toContain("electric");
+  });
+
+  // The whole set sits side by side in one picker, so the half of the prompt
+  // that fixes angle, lighting and crop has to be identical on all of them.
+  it("uses one style for every car", () => {
+    for (const v of VEHICLES) expect(vehicleImagePrompt(v), v.id).toContain(IMAGE_STYLE);
+  });
+
+  it("suggests a filename that matches the id the upload is keyed on", () => {
+    expect(imageFilename({ id: "byd-atto-3" })).toBe("byd-atto-3.webp");
+  });
+
+  it("survives a body type it has no phrase for", () => {
+    expect(vehicleImagePrompt({ make: "X", model: "Y", fuelType: "petrol", bodyType: "Coupe" }))
+      .toContain("a coupe");
   });
 });

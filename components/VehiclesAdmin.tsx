@@ -12,6 +12,7 @@ import {
   consumptionUnit,
   vehicleSlug,
 } from "@/lib/au/vehicles";
+import { IMAGE_SPEC, vehicleImagePrompt } from "@/lib/au/vehicleImagePrompt";
 import {
   clearVehicleImage,
   deleteVehicle,
@@ -504,6 +505,72 @@ export default function VehiclesAdmin({ vehicles }: { vehicles: VehicleRow[] }) 
   );
 }
 
+/**
+ * The generation prompt for this car.
+ *
+ * Built from the draft rather than the saved row, so changing the body type
+ * and reading the prompt back agree with each other. Shown on demand: it is a
+ * paragraph of boilerplate, and only useful at the moment you are about to
+ * generate something.
+ */
+function PromptPanel({ draft, onClose }: { draft: Draft; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const prompt = vehicleImagePrompt({
+    make: draft.make,
+    model: draft.model,
+    fuelType: draft.fuelType,
+    bodyType: draft.bodyType,
+  });
+  const filename = `${draft.originalId ?? (vehicleSlug(draft.make, draft.model) || "vehicle")}.webp`;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard blocked — the textarea below is selectable, so say so
+      // rather than pretending it worked.
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-line bg-panel-2 p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-ink">Generation prompt</h3>
+        <button type="button" onClick={onClose} className="text-xs text-muted hover:text-ink">
+          Hide
+        </button>
+      </div>
+      <p className="mt-1 text-[11px] text-muted">
+        The same template as every other car in the catalogue — they sit side by side in the
+        picker, so the angle, lighting and crop have to match.
+      </p>
+      <textarea
+        readOnly
+        value={prompt}
+        rows={5}
+        onFocus={(e) => e.currentTarget.select()}
+        className="mt-2 w-full resize-y rounded-md border border-line bg-panel px-2.5 py-2 font-mono text-[11px] leading-relaxed text-subtle outline-none focus:border-accent"
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={copy}
+          className="rounded border border-line bg-panel px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-panel-3"
+        >
+          {copied ? "Copied" : "Copy prompt"}
+        </button>
+        <span className="text-[11px] text-muted">
+          Save as <code className="text-subtle">{filename}</code> — {IMAGE_SPEC.format},{" "}
+          {IMAGE_SPEC.size}, {IMAGE_SPEC.maxBytes}. Then upload it above.
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ── The editor ──────────────────────────────────────────────────────────────
 
 function Editor({
@@ -532,6 +599,7 @@ function Editor({
   onUpload?: (f: File) => void;
 }) {
   const first = useRef<HTMLInputElement>(null);
+  const [showPrompt, setShowPrompt] = useState(false);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => onChange({ ...draft, [k]: v });
 
   useEffect(() => {
@@ -598,6 +666,13 @@ function Editor({
                       }}
                     />
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPrompt((v) => !v)}
+                    className="rounded border border-line bg-panel-2 px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-panel-3"
+                  >
+                    {showPrompt ? "Hide prompt" : "Prompt"}
+                  </button>
                   {onClearImage && (
                     <button
                       type="button"
@@ -615,9 +690,12 @@ function Editor({
             </div>
           ) : (
             <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11px] text-muted">
-              Add it first, then its artwork.
+              Add it first, then its artwork — the generation prompt is on the editor once it
+              exists.
             </p>
           )}
+
+          {row && showPrompt && <PromptPanel draft={draft} onClose={() => setShowPrompt(false)} />}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
