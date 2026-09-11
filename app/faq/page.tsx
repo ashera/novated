@@ -45,8 +45,8 @@ export default function FaqPage() {
             Start with how a novated lease works →
           </Link>{" "}
           — the whole mechanism in six steps. Already holding a quote?{" "}
-          <Link href="/decode" className="font-medium text-accent hover:underline">
-            Decode it →
+          <Link href="/" className="font-medium text-accent hover:underline">
+            Bring it to the calculator →
           </Link>{" "}
           — we&apos;ll find the interest rate it doesn&apos;t print.
         </p>
@@ -83,16 +83,10 @@ export default function FaqPage() {
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
-            href="/decode"
+            href="/"
             className="inline-flex rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
           >
-            Decode a quote
-          </Link>
-          <Link
-            href="/"
-            className="inline-flex rounded border border-line bg-panel px-4 py-2 text-sm font-medium text-ink transition hover:bg-panel-2"
-          >
-            Model a lease
+            Open the calculator
           </Link>
         </div>
       </div>

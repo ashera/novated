@@ -19,6 +19,7 @@ const EXCLUDED = new Set<string>([
   "/account", // per-user — noindex
   "/report", // per-user report — noindex
   "/compare", // per-user: your own kept quotes — noindex
+  "/decode", // one entry point: always launched from the calculator, never landed on
 ]);
 
 /** Every route that has a page.tsx, excluding /admin and dynamic ([param]) segments. */
@@ -58,5 +59,51 @@ describe("sitemap stays complete", () => {
   it("does not list any excluded (non-indexable) route", () => {
     const listed = [...EXCLUDED].filter((r) => sitemapPaths.has(r));
     expect(listed, `These routes are in EXCLUDED but also in the sitemap: ${listed.join(", ")}`).toEqual([]);
+  });
+});
+
+/**
+ * One entry point.
+ *
+ * The calculator is the only way into the site; the decoder is opened from it,
+ * with a lease and usually a car already defined. That is easy to undo by
+ * accident — a CTA on a marketing page, a nav item added back for symmetry —
+ * and the damage is silent: the page still works, it just starts collecting
+ * cold traffic that lands mid-journey.
+ *
+ * So: no indexed page and no part of the global shell may link to it. The
+ * calculator's own CTAs live in components/LeaseCalculator.tsx, and /compare
+ * is itself reached from the calculator, so both are deliberately not scanned.
+ */
+describe("the decoder is never an entry point", () => {
+  const indexedPages = sitemap()
+    .map((e) => new URL(e.url).pathname.replace(/\/+$/, ""))
+    .map((r) => path.join(APP_DIR, r, "page.tsx"))
+    .filter((f) => fs.existsSync(f));
+
+  const shell = ["TopBar.tsx", "FooterNav.tsx"].map((f) =>
+    path.join(__dirname, "..", "components", f),
+  );
+
+  it("scans the pages it thinks it is scanning", () => {
+    // A silent zero-file scan would pass forever.
+    expect(indexedPages.length).toBeGreaterThan(3);
+    expect(shell.every((f) => fs.existsSync(f))).toBe(true);
+  });
+
+  it("is not linked from any indexed page or from the global nav", () => {
+    const offenders = [...indexedPages, ...shell].filter((f) =>
+      // Both shapes: a JSX href="/decode" and a nav array's href: "/decode".
+      /["'`]\/decode(?:[?/]|["'`])/.test(fs.readFileSync(f, "utf8")),
+    );
+    expect(
+      offenders.map((f) => path.relative(path.join(__dirname, ".."), f)),
+      "These link straight to /decode. The calculator is the only way in.",
+    ).toEqual([]);
+  });
+
+  it("stays out of the sitemap", () => {
+    const paths = sitemap().map((e) => new URL(e.url).pathname.replace(/\/+$/, "") || "/");
+    expect(paths).not.toContain("/decode");
   });
 });

@@ -111,11 +111,12 @@ export default async function HowItWorksPage() {
           </li>
         </ol>
         <p className="mt-3 text-sm text-subtle">
-          If you already have a quote,{" "}
-          <Link href="/decode" className="font-medium text-accent hover:underline">
-            our decoder answers the first one for you
+          If you already have a quote, our decoder answers the first one for you — the rate is
+          recoverable from the figures on the page, even when it isn&apos;t printed.{" "}
+          <Link href="/" className="font-medium text-accent hover:underline">
+            Start in the calculator
           </Link>{" "}
-          — the rate is recoverable from the figures on the page, even when it isn&apos;t printed.
+          and open it from there.
         </p>
       </section>
 
@@ -136,14 +137,8 @@ export default async function HowItWorksPage() {
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Link
-          href="/decode"
-          className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
-        >
-          Decode a quote you&apos;ve been sent
-        </Link>
-        <Link
           href="/"
-          className="rounded border border-line bg-panel px-4 py-2 text-sm font-medium text-ink transition hover:bg-panel-2"
+          className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
         >
           Model your own lease
         </Link>

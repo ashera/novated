@@ -6,13 +6,22 @@ import { getCurrentUser } from "@/lib/auth";
 import { countryFromIp } from "@/lib/geo";
 import { buildReviewData, getActiveConfig } from "@/lib/refdata";
 import { getCatalogue } from "@/lib/catalogue";
-import { breadcrumbLd } from "@/lib/seo";
 
+/**
+ * The decoder is a step in the journey, not a door into it.
+ *
+ * The site has one entry point — the calculator — and this page is opened from
+ * there, with a lease and usually a car already defined. So it is noindex: a
+ * search result landing someone here cold would drop them into the middle of a
+ * flow, holding a form for a quote they may not have. Links out are still
+ * followed, and the page stays perfectly reachable by URL, because the
+ * calculator links to it and people refresh and bookmark.
+ */
 export const metadata: Metadata = {
   title: "Decode your novated lease quote",
   description:
     "Paste the figures from a novated lease quote and see the interest rate the provider didn't print, whether the running-cost budgets are padded, how the fees compare with the market, and whether their own numbers add up.",
-  alternates: { canonical: "/decode" },
+  robots: { index: false, follow: true },
 };
 
 export default async function DecodePage() {
@@ -30,17 +39,6 @@ export default async function DecodePage() {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
-            breadcrumbLd([
-              { name: "Home", path: "/" },
-              { name: "Decode your quote", path: "/decode" },
-            ]),
-          ),
-        }}
-      />
       {!user && <VisitorActivity />}
       <QuoteDecoder
         catalogue={catalogue}
