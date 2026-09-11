@@ -135,7 +135,7 @@ export default function QuoteDecoder({
     const next = fn(quote);
     store.update((l) => {
       if (isExample || blankAgainstTheirCar) {
-        const spec = newQuoteSpec(next.label?.trim() || "My quote");
+        const spec = newQuoteSpec(next.label ?? "My quote");
         const seeded: Lease = { ...l, quotes: [...l.quotes, spec] };
         setActiveQuoteId(spec.id);
         return applyQuoteEdit(seeded, spec.id, next);

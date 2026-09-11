@@ -110,6 +110,12 @@ export interface Lease {
   notes?: string;
 }
 
+/** What to call a quote on screen. Names are stored as typed, so a blank or
+ *  whitespace-only one needs something to show. */
+export function quoteLabel(spec: { label?: string }, fallback = "Untitled quote"): string {
+  return spec.label?.trim() || fallback;
+}
+
 export function defaultVehicle(): VehicleSpec {
   return { fuelType: "electric", price: 55_000, annualKm: 15_000 };
 }
@@ -208,7 +214,14 @@ export function applyQuoteEdit(lease: Lease, quoteId: string, q: Quote): Lease {
       ? s
       : {
           ...s,
-          label: q.label?.trim() || s.label,
+          // Stored exactly as typed. Trimming here looked harmless but the
+          // name field reads its value back out of the lease, so a trailing
+          // space vanished on the keystroke that made it and the next letter
+          // landed against the trimmed text: "Maxxia offer" came out
+          // "Maxxiaoffer". Falling back to the old name on an empty field was
+          // worse still — clearing it looked like the edit hadn't saved.
+          // Tidying belongs at the point of display: see quoteLabel.
+          label: q.label ?? s.label,
           frequency: q.frequency,
           amountFinanced: q.amountFinanced,
           residualIncGst: q.residualIncGst,

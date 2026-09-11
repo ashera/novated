@@ -8,7 +8,7 @@ import { fmtCurrency } from "@/lib/au/format";
 import { compareQuotes } from "@/lib/au/quote";
 import type { EngineConfig } from "@/lib/au/config";
 import { useLease } from "./useLease";
-import { leaseToQuote } from "@/lib/au/lease";
+import { leaseToQuote, quoteLabel } from "@/lib/au/lease";
 
 /** A row of the comparison table. `best` marks the winning column, where one
  *  can honestly be named. */
@@ -206,7 +206,7 @@ export default function QuoteComparison({
                     {cols.map((c, i) => (
                       <th key={i} className="px-4 py-3 text-right">
                         <span className="block text-sm font-semibold text-ink">
-                          {c.quote.label || `Quote ${i + 1}`}
+                          {quoteLabel(c.quote, `Quote ${i + 1}`)}
                         </span>
                         {comparison.bestRate === i && (
                           <span className="mt-1 inline-block rounded bg-success-subtle px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-success-text">
@@ -262,7 +262,7 @@ export default function QuoteComparison({
                     className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]"
                   >
                     <h3 className="text-base font-semibold text-ink">
-                      {c.quote.label || `Quote ${i + 1}`}
+                      {quoteLabel(c.quote, `Quote ${i + 1}`)}
                     </h3>
                     {worst.length === 0 ? (
                       <p className="mt-2 text-sm text-success-text">

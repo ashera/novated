@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { newQuoteSpec, quoteStatus, type QuoteStatus } from "@/lib/au/lease";
+import { newQuoteSpec, quoteLabel, quoteStatus, type QuoteStatus } from "@/lib/au/lease";
 import type { EngineConfig } from "@/lib/au/config";
 import { fmtDate } from "@/lib/au/format";
 import type { UseLease } from "./useLease";
@@ -130,7 +130,7 @@ export default function LeaseCard({
                     href={`/decode?quote=${encodeURIComponent(q.id)}`}
                     className="text-sm font-medium text-accent hover:underline"
                   >
-                    {q.label}
+                    {quoteLabel(q)}
                   </Link>
                   <span className="text-xs text-muted">
                     {q.createdAt ? `Processed ${fmtDate(q.createdAt)}` : "Not yet processed"}

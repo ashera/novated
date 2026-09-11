@@ -7,6 +7,7 @@ import {
   migrateLease,
   newLease,
   newQuoteSpec,
+  quoteLabel,
   quoteStatus,
   type Lease,
 } from "@/lib/au/lease";
@@ -233,5 +234,45 @@ describe("The car survives a round trip through storage", () => {
     });
     expect(lease.vehicle.vehicleId).toBe("tesla-model-y");
     expect(findVehicle(lease.vehicle.vehicleId)?.make).toBe("Tesla");
+  });
+});
+
+describe("Renaming a quote", () => {
+  // The bug this guards: applyQuoteEdit trimmed the label on every edit, and
+  // the name field reads its value back out of the lease. So the space in
+  // "Maxxia offer" was stripped the instant it was typed and the next letter
+  // landed against the trimmed text — the field produced "Maxxiaoffer" and
+  // there was no way to type a two-word name at all.
+  const renameTo = (name: string) => {
+    const spec = newQuoteSpec("Quote 1");
+    let lease: Lease = { ...newLease(), quotes: [spec] };
+    // One keystroke at a time, exactly as the field does it.
+    for (let i = 1; i <= name.length; i++) {
+      lease = applyQuoteEdit(lease, spec.id, {
+        ...leaseToQuote(lease, lease.quotes[0]),
+        label: name.slice(0, i),
+      });
+    }
+    return lease.quotes[0];
+  };
+
+  it("keeps the spaces someone types", () => {
+    expect(renameTo("Maxxia offer").label).toBe("Maxxia offer");
+  });
+
+  it("lets the field be cleared, rather than restoring the old name", () => {
+    const spec = newQuoteSpec("Quote 1");
+    let lease: Lease = { ...newLease(), quotes: [spec] };
+    lease = applyQuoteEdit(lease, spec.id, {
+      ...leaseToQuote(lease, spec),
+      label: "",
+    });
+    expect(lease.quotes[0].label).toBe("");
+    // ...and something sensible still shows in the list.
+    expect(quoteLabel(lease.quotes[0])).toBe("Untitled quote");
+  });
+
+  it("shows the name as typed once it is finished", () => {
+    expect(quoteLabel(renameTo("Maxxia offer"))).toBe("Maxxia offer");
   });
 });
