@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { countryFromIp } from "@/lib/geo";
 import { buildReviewData, getActiveConfig } from "@/lib/refdata";
 import { getCatalogue } from "@/lib/catalogue";
+import { listApprovedProviders } from "@/app/actions/providers";
 
 /**
  * The decoder is a step in the journey, not a door into it.
@@ -28,6 +29,7 @@ export default async function DecodePage() {
   const user = await getCurrentUser();
   const config = await getActiveConfig();
   const catalogue = await getCatalogue();
+  const providers = await listApprovedProviders();
   const reviewDue = user?.is_admin ? (await buildReviewData()).dueTotal : 0;
 
   let country = user?.country ?? null;
@@ -42,6 +44,7 @@ export default async function DecodePage() {
       {!user && <VisitorActivity />}
       <QuoteDecoder
         catalogue={catalogue}
+        providers={providers}
         user={
           user
             ? { email: user.email, isAdmin: user.is_admin, name: user.name, avatarUrl: user.avatar_url }

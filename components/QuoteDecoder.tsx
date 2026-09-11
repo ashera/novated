@@ -18,6 +18,7 @@ import { stashHandoff } from "@/lib/quoteHandoff";
 import type { EngineConfig } from "@/lib/au/config";
 import VehicleCard from "./VehicleCard";
 import type { Vehicle } from "@/lib/au/vehicles";
+import type { Provider } from "@/lib/au/providers";
 import { track } from "@/lib/analytics";
 import { useLease } from "./useLease";
 import LeaseBar from "./LeaseBar";
@@ -78,6 +79,7 @@ export default function QuoteDecoder({
   country,
   config,
   catalogue,
+  providers,
   reviewDue = 0,
 }: {
   user: TopBarUser | null;
@@ -85,6 +87,8 @@ export default function QuoteDecoder({
   config: EngineConfig;
   /** The vehicle picker's options, read from the database by the page. */
   catalogue: Vehicle[];
+  /** Approved lease providers, for the "who quoted it" suggestions. */
+  providers: Provider[];
   reviewDue?: number;
 }) {
   const store = useLease(Boolean(user));
@@ -245,6 +249,7 @@ export default function QuoteDecoder({
                     onLabel={(v) => set("label", v)}
                     frequency={quote.frequency}
                     onFrequency={(f) => set("frequency", f)}
+                    providers={providers}
                   />
                 </div>
               </div>

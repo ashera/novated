@@ -158,6 +158,31 @@ seed's control.
 - A vehicle a saved lease names is **hidden, never deleted** — the id lives in that
   lease, and the car at the top of someone's page should not vanish.
 
+## Lease providers
+
+A directory, not reference data — nothing in the engine reads it. It exists so the
+same company is not typed fourteen different ways in the decoder's "who quoted it"
+box, which is a combobox over `providers` rather than a plain text field.
+
+- **Anyone can add one.** The person holding a quote from a provider we have never
+  heard of is exactly who we want to hear from. What they add lands as `pending` and
+  is suggested to nobody until an admin approves it at `/admin/providers`, so an open
+  write cannot put text in front of other users.
+- **`slug` is the dedupe key** ([`lib/au/providers.ts`](lib/au/providers.ts)): case,
+  punctuation, accents, initialisms and the usual corporate tail are normalised away,
+  so "Maxxia", "maxxia" and "Maxxia Pty Ltd" are one row. It is unique, which makes a
+  resubmission an upsert rather than a duplicate — and means a rejected name cannot be
+  resurrected by typing it again.
+- **A quote stores the name its owner typed**, as free text. The directory only
+  supplies suggestions, so moderating it — approving, renaming, merging, deleting —
+  never changes anyone's saved work.
+- Merging is for the duplicates the slug cannot catch: "Smart Leasing" and
+  "Smartleasing" are two keys but one company, and only a person can tell.
+
+`PROVIDER_SEEDS` is a starting point, not a claim to be complete or current. Trading
+names change and companies rebrand; the list is editable at `/admin/providers` and is
+expected to be reviewed there.
+
 ## Layout
 
 ```

@@ -1,6 +1,8 @@
 "use client";
 
 import type { QuoteFrequency } from "@/lib/au/quote";
+import type { Provider } from "@/lib/au/providers";
+import ProviderPicker from "./ProviderPicker";
 
 /**
  * Which quote you are transcribing, and what period its figures are in.
@@ -24,24 +26,18 @@ export default function QuoteIdentity({
   onLabel,
   frequency,
   onFrequency,
+  providers,
 }: {
   label: string;
   onLabel: (v: string) => void;
   frequency: QuoteFrequency;
   onFrequency: (f: QuoteFrequency) => void;
+  /** The provider directory, for the name suggestions. */
+  providers: Provider[];
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-      <label className="block">
-        <span className="text-sm font-medium text-ink">Who quoted it</span>
-        <input
-          type="text"
-          value={label}
-          placeholder="The provider's name"
-          onChange={(e) => onLabel(e.target.value)}
-          className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-        />
-      </label>
+      <ProviderPicker value={label} onChange={onLabel} providers={providers} />
 
       <div>
         <span className="text-sm font-medium text-ink">Figures on your quote are per</span>

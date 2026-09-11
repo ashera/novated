@@ -6,6 +6,7 @@ import { DEFAULT_CONFIG, type EngineConfig } from "./au/config";
 import { PARAM_DESCRIPTORS, getByPath, setByPath } from "./au/params";
 import { SOURCE_SEEDS } from "./au/sources";
 import { VEHICLES } from "./au/vehicles";
+import { PROVIDER_SEEDS, providerSlug } from "./au/providers";
 import { RELEASE_HISTORY } from "./releaseHistory";
 import { APP_VERSION, BUILD, GIT_SHA, BUILD_DATE, COMMITS } from "./version";
 
@@ -164,6 +165,38 @@ alter table vehicles add column if not exists source text not null default 'seed
 alter table vehicles add column if not exists edited boolean not null default false;
 alter table vehicles add column if not exists notes text;
 create index if not exists vehicles_make_idx on vehicles (active, make, model);
+
+-- The novated lease providers people get quotes from.
+--
+-- A directory, not reference data: nothing in the engine reads it. It exists
+-- so the same company is not typed fourteen different ways in the decoder's
+-- "who quoted it" box.
+--
+-- Anyone can add one, because the person holding a quote from a provider we
+-- have never heard of is exactly who we want to hear from. What they add
+-- lands as "pending" and is suggested to nobody until an admin approves it,
+-- so the public write cannot put text in front of other users.
+--
+-- "slug" is the dedupe key: case, punctuation and the usual corporate tail
+-- are normalised away (lib/au/providers.ts), so "Maxxia Pty Ltd" cannot
+-- become a second Maxxia. Unique, which makes a duplicate submission an
+-- upsert rather than a new row.
+create table if not exists providers (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  status text not null default 'pending',
+  website text,
+  notes text,
+  -- Who suggested it, when they were signed in. Kept if the account goes.
+  created_by uuid references users(id) on delete set null,
+  -- How many times it has been typed, so moderation can start with the ones
+  -- that actually matter.
+  suggested_count integer not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists providers_status_idx on providers (status, name);
 
 -- Free-form user feedback from the floating widget. user_id is kept if they were
 -- signed in (set null if the account is later deleted); email is an optional
@@ -482,6 +515,38 @@ export async function seedVehicles(c: Client): Promise<void> {
   );
 }
 
+/**
+ * Fill the provider directory from code.
+ *
+ * Seeded rows land approved, because they are well-known companies rather
+ * than user submissions. Existing rows are left entirely alone: an admin may
+ * have renamed, rejected or deleted one deliberately, and a deploy must not
+ * undo that — same rule as the vehicles and the reference data.
+ */
+export async function seedProviders(c: Client): Promise<void> {
+  let added = 0;
+  for (const name of PROVIDER_SEEDS) {
+    const r = await c.query(
+      `insert into providers (name, slug, status, suggested_count)
+       values ($1, $2, 'approved', 0)
+       on conflict (slug) do nothing`,
+      [name, providerSlug(name)],
+    );
+    added += r.rowCount ?? 0;
+  }
+  const stats = await c.query<{ approved: number; pending: number; rejected: number }>(
+    `select count(*) filter (where status = 'approved')::int as approved,
+            count(*) filter (where status = 'pending')::int as pending,
+            count(*) filter (where status = 'rejected')::int as rejected
+       from providers`,
+  );
+  const st = stats.rows[0];
+  console.log(
+    `  providers: ${added} new this deploy; ${st?.approved ?? 0} approved, ` +
+      `${st?.pending ?? 0} awaiting moderation, ${st?.rejected ?? 0} rejected.`,
+  );
+}
+
 /** Backfill the hand-written release history. Idempotent on the version index. */
 export async function seedReleases(c: Client): Promise<void> {
   let added = 0;
@@ -727,6 +792,7 @@ export async function migrate(c: Client): Promise<void> {
   await applyReferenceDataCorrections(c);
   await seedSources(c);
   await seedVehicles(c);
+  await seedProviders(c);
   await migrateToLeases(c);
   await seedReleases(c);
   await autoDraftRelease(c);
