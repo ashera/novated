@@ -18,6 +18,12 @@ import type { UseLease } from "./useLease";
  * looking at it: someone modelling in the calculator can see what they have
  * collected without leaving the page, and tell at a glance which are still
  * half-typed.
+ *
+ * One of them may be ACTIVE — the one whose rate, budgets and fees the figures
+ * below are modelled on. A lease has a single scenario, so handing a second
+ * quote to the calculator replaces the first, and without saying which is in
+ * force the numbers look like something the user chose rather than something a
+ * provider quoted.
  */
 
 const STATUS_STYLE: Record<QuoteStatus, { label: string; className: string }> = {
@@ -35,6 +41,7 @@ export default function QuotesCard({
 }) {
   const { lease } = store;
   const router = useRouter();
+  const activeId = lease.scenario.fromQuoteId;
 
   const addQuote = () => {
     const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`);
@@ -65,6 +72,13 @@ export default function QuotesCard({
         </div>
       </div>
 
+      {activeId && lease.quotes.some((q) => q.id === activeId) && (
+        <p className="mt-1 text-xs text-muted">
+          The figures below are modelled on the quote marked active. Open another and choose
+          &ldquo;See what this lease saves you&rdquo; to switch.
+        </p>
+      )}
+
       {lease.quotes.length === 0 ? (
         <p className="mt-2 text-sm text-muted">
           None yet. When a provider sends you one, add it here and we&apos;ll work out the
@@ -75,14 +89,28 @@ export default function QuotesCard({
           {lease.quotes.map((q) => {
             const status = quoteStatus(lease, q, config);
             const style = STATUS_STYLE[status];
+            const active = q.id === activeId;
             return (
-              <li key={q.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+              <li
+                key={q.id}
+                className={`flex flex-wrap items-center gap-x-3 gap-y-1 py-2 ${
+                  active ? "-mx-2 rounded-md bg-accent-subtle px-2" : ""
+                }`}
+              >
                 <Link
                   href={`/decode?quote=${encodeURIComponent(q.id)}`}
                   className="text-sm font-medium text-accent hover:underline"
                 >
                   {quoteLabel(q)}
                 </Link>
+                {active && (
+                  <span
+                    title="The figures below are modelled on this quote"
+                    className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+                  >
+                    Active
+                  </span>
+                )}
                 <span className="text-xs text-muted">
                   {q.createdAt ? `Processed ${fmtDate(q.createdAt)}` : "Not yet processed"}
                 </span>

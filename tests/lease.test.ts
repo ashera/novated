@@ -327,3 +327,50 @@ describe("The decoder cannot redefine the car", () => {
     expect(lease.quotes[0].lines.finance).toBe(700);
   });
 });
+
+describe("Which quote the calculator is showing", () => {
+  // The scenario is a single set of values, so only one quote can be in force
+  // at a time and handing over a second replaces the first. What must not
+  // happen is the figures outliving the attribution: a rate sitting there
+  // unlabelled looks like something the user chose rather than something a
+  // provider quoted.
+  const withQuotes = () => {
+    const a = newQuoteSpec("Maxxia");
+    const b = newQuoteSpec("Smartleasing");
+    const lease: Lease = { ...newLease(), quotes: [a, b] };
+    return { lease, a, b };
+  };
+
+  it("remembers which quote the scenario came from, across storage", () => {
+    const { lease, b } = withQuotes();
+    const stored: Lease = { ...lease, scenario: { ...lease.scenario, fromQuoteId: b.id } };
+    const back = migrateLease(JSON.parse(JSON.stringify(stored)));
+    expect(back.scenario.fromQuoteId).toBe(b.id);
+    expect(back.quotes.find((q) => q.id === back.scenario.fromQuoteId)?.label).toBe(
+      "Smartleasing",
+    );
+  });
+
+  it("stores the id, not the label or the rate — so editing the quote updates both", () => {
+    const { lease, a } = withQuotes();
+    let next: Lease = { ...lease, scenario: { ...lease.scenario, fromQuoteId: a.id } };
+    next = applyQuoteEdit(next, a.id, { ...leaseToQuote(next, a), label: "Maxxia (revised)" });
+    expect(next.scenario.fromQuoteId).toBe(a.id);
+    expect(next.quotes.find((q) => q.id === next.scenario.fromQuoteId)?.label).toBe(
+      "Maxxia (revised)",
+    );
+  });
+
+  it("is simply absent on a lease nobody has handed a quote to", () => {
+    expect(newLease().scenario.fromQuoteId).toBeUndefined();
+    expect(migrateLease(JSON.parse(JSON.stringify(newLease()))).scenario.fromQuoteId).toBeUndefined();
+  });
+
+  it("survives a quote being deleted, pointing at nothing rather than the wrong one", () => {
+    const { lease, a, b } = withQuotes();
+    const pinned: Lease = { ...lease, scenario: { ...lease.scenario, fromQuoteId: a.id } };
+    const afterDelete: Lease = { ...pinned, quotes: pinned.quotes.filter((q) => q.id !== a.id) };
+    expect(afterDelete.quotes.find((q) => q.id === afterDelete.scenario.fromQuoteId)).toBeUndefined();
+    expect(afterDelete.quotes[0].id).toBe(b.id);
+  });
+});

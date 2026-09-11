@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import Field from "./Field";
 import InfoTip from "./InfoTip";
@@ -24,12 +24,13 @@ import {
   type PayCycle,
 } from "@/lib/au/novated";
 import type { EngineConfig } from "@/lib/au/config";
-import { leaseToInputs, type Lease } from "@/lib/au/lease";
+import { leaseToInputs, leaseToQuote, quoteLabel, type Lease } from "@/lib/au/lease";
 import { useLease } from "./useLease";
 import LeaseBar from "./LeaseBar";
 import QuotesCard from "./QuotesCard";
 import { track, trackLeasePricedConversion } from "@/lib/analytics";
-import { takeHandoff, type QuoteHandoff } from "@/lib/quoteHandoff";
+import { takeHandoff } from "@/lib/quoteHandoff";
+import { decodeQuote } from "@/lib/au/quote";
 import { trackVisit } from "@/app/actions/track";
 
 const STORAGE_KEY = "leasewiz-scenario";
@@ -55,17 +56,26 @@ export default function LeaseCalculator({
   const store = useLease(Boolean(user) && !sharedLease);
   const lease = sharedLease ?? store.lease;
   const readOnly = Boolean(sharedLease);
-  const [fromQuote, setFromQuote] = useState<QuoteHandoff | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const applied = useRef(false);
 
   // A quote handed over from the decoder carries the rate we solved and that
   // quote's own running-cost budgets. The CAR no longer needs carrying — both
   // tools read it off the same lease.
+  //
+  // Deliberately waits for the store to finish loading. Applying it on mount
+  // raced the load: the patch went onto whatever lease was in hand, the load
+  // then replaced that lease, and the only reason the figures survived at all
+  // was the debounced save having already written them. The attribution did
+  // not survive, so the calculator showed a quote's rate with nothing saying
+  // where it came from. `applied` guards the one-shot, since this now runs
+  // again whenever loading flips.
   useEffect(() => {
     if (sharedLease) return setHydrated(true);
+    if (store.loading || applied.current) return;
+    applied.current = true;
     const handed = takeHandoff();
     if (handed) {
-      setFromQuote(handed);
       store.update((l) => ({
         ...l,
         scenario: {
@@ -76,15 +86,37 @@ export default function LeaseCalculator({
           runningCostOverrides: handed.inputs.runningCostOverrides,
           adminFeeAnnual: handed.inputs.adminFeeAnnual,
           termYears: handed.inputs.termYears,
+          fromQuoteId: handed.quoteId,
         },
       }));
     }
     setHydrated(true);
-    // Runs once: the handoff is consumed on read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [store.loading, sharedLease]);
 
   const inputs = useMemo(() => leaseToInputs(lease), [lease]);
+
+  /**
+   * The quote the scenario currently comes from.
+   *
+   * Read off the lease rather than the handoff, so it survives a reload — the
+   * handoff is consumed on read, and the figures it left behind used to sit
+   * there unattributed, looking like a rate the user had chosen themselves.
+   * The label and the rate are derived from the quote each time, so editing
+   * it updates this rather than leaving a stale copy.
+   */
+  const activeQuote = useMemo(() => {
+    const id = lease.scenario.fromQuoteId;
+    const spec = id ? lease.quotes.find((q) => q.id === id) : undefined;
+    if (!spec) return null;
+    const decoded = decodeQuote(leaseToQuote(lease, spec), config);
+    // If they have since moved the rate by hand, say so rather than claiming
+    // the figures are still the quote's.
+    const rate = decoded.impliedRatePct;
+    const edited =
+      rate != null && Math.abs(rate - lease.scenario.interestRatePct) > 0.01;
+    return { label: quoteLabel(spec), rate, edited };
+  }, [lease, config]);
 
   const setVehicle = (patch: Partial<Lease["vehicle"]>) => {
     if (readOnly) return;
@@ -136,16 +168,24 @@ export default function LeaseCalculator({
             pitch here any more: the quotes card below owns that, and a banner
             above the fold competed with the car for the first look while
             offering the same thing twice. */}
-        {fromQuote && (
+        {activeQuote && (
           <div className="mb-5 rounded-xl border border-accent-border bg-accent-subtle px-4 py-3">
             <p className="text-sm text-ink">
-              <strong>Filled in from {fromQuote.label}.</strong>{" "}
-              {fromQuote.impliedRatePct != null && (
-                <>
-                  Modelled at the {fromQuote.impliedRatePct.toFixed(2)}% we solved from that
-                  quote, with its own running-cost budgets.{" "}
-                </>
-              )}
+              <strong>
+                {activeQuote.edited ? "Started from" : "Filled in from"} {activeQuote.label}.
+              </strong>{" "}
+              {activeQuote.rate != null &&
+                (activeQuote.edited ? (
+                  <>
+                    That quote works out at {activeQuote.rate.toFixed(2)}%; you&apos;ve since
+                    changed the rate to {inputs.interestRatePct.toFixed(2)}%.{" "}
+                  </>
+                ) : (
+                  <>
+                    Modelled at the {activeQuote.rate.toFixed(2)}% we solved from that quote,
+                    with its own running-cost budgets.{" "}
+                  </>
+                ))}
               Change anything below to see what would have to be different.
             </p>
             <Link

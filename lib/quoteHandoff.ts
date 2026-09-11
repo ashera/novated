@@ -19,6 +19,10 @@ export interface QuoteHandoff {
   label: string;
   /** The rate we solved, so the calculator can say where its rate came from. */
   impliedRatePct: number | null;
+  /** Which of the lease's quotes this came from, when it is a saved one.
+   *  Stored on the scenario so the attribution outlives the handoff — which
+   *  is consumed on read and gone by the next page load. */
+  quoteId?: string;
 }
 
 export function stashHandoff(h: QuoteHandoff): void {

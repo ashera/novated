@@ -58,6 +58,15 @@ export interface ScenarioSpec {
   comparisonLoanRatePct?: number;
   /** How often this person is paid. Display only. */
   payCycle?: PayCycle;
+  /**
+   * The quote these figures were taken from, if any.
+   *
+   * The id and not the numbers: the label and the solved rate are derived
+   * from the quote when they are shown, so editing the quote updates what
+   * the calculator says about it rather than leaving a stale copy behind.
+   * Store inputs, never results.
+   */
+  fromQuoteId?: string;
 }
 
 /** Everything a decoded quote holds that ISN'T about the car. */

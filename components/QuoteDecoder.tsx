@@ -166,6 +166,8 @@ export default function QuoteDecoder({
       inputs: quoteToLeaseInputs(quote, decode, config),
       label: quote.label?.trim() || "your quote",
       impliedRatePct: decode.impliedRatePct,
+      // Absent for the worked example, which is nobody's saved quote.
+      quoteId: activeSpec?.id,
     });
     track("Quote handed to calculator", {
       rate: decode.impliedRatePct == null ? "unsolved" : decode.impliedRatePct.toFixed(2),
