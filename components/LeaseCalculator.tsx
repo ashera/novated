@@ -121,7 +121,11 @@ export default function LeaseCalculator({
       <TopBar user={user} country={country} reviewDue={reviewDue} />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        {fromQuote ? (
+        {/* Only when arriving from a decoded quote. There is no "decode a quote"
+            pitch here any more: the quotes card below owns that, and a banner
+            above the fold competed with the car for the first look while
+            offering the same thing twice. */}
+        {fromQuote && (
           <div className="mb-5 rounded-xl border border-accent-border bg-accent-subtle px-4 py-3">
             <p className="text-sm text-ink">
               <strong>Filled in from {fromQuote.label}.</strong>{" "}
@@ -138,19 +142,6 @@ export default function LeaseCalculator({
               className="mt-1 inline-block text-sm font-medium text-accent hover:underline"
             >
               ← Back to the quote
-            </Link>
-          </div>
-        ) : (
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 shadow-[var(--shadow-card)]">
-            <p className="text-sm text-subtle">
-              <strong className="text-ink">Already been sent a quote?</strong> We&apos;ll work out
-              the interest rate it doesn&apos;t print, and what the numbers really mean.
-            </p>
-            <Link
-              href="/decode"
-              className="rounded bg-accent px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-accent-soft"
-            >
-              Decode a quote
             </Link>
           </div>
         )}
