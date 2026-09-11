@@ -219,19 +219,30 @@ command**, not only as `preDeployCommand`:
 "startCommand": "npm run db:migrate && npm run start"
 ```
 
-That belt-and-braces is deliberate. The pre-deploy step has twice shipped code
-without running — once leaving `vehicles` without its new columns (a 500 on
+**Not** as `preDeployCommand`, which does not work on this service. It shipped code
+without its schema twice — once leaving `vehicles` short of its new columns (a 500 on
 `/admin/vehicles`), once leaving `providers` absent entirely — while the new build
-served happily, because a dashboard setting overrides `railway.json` and nothing says
-so. Running it from the start command puts the migration in the same process and the
-same environment as the app, where `DATABASE_URL` is definitely present. `tsx` is a
-first-class dependency, not a dev one, so it exists at runtime.
+served happily, because only one page touched the new schema.
 
-The migration is idempotent, so running it twice (if the pre-deploy step ever does
-fire) costs a couple of seconds and nothing else. A failed migration exits non-zero,
-which now means the server does not start and the healthcheck fails the deploy —
-the same protection the pre-deploy step was meant to give. `/api/health` is the
-healthcheck.
+That was investigated properly rather than guessed at, and it is not a mistake in this
+repo. `railway.json` is read and applied: the deploy logs show the Nixpacks builder,
+`nixpacks.toml`'s `npm ci --include=dev`, and the start command below all taking
+effect. Only `preDeployCommand` never executes. It was tried as a bare string (valid
+per Railway's own JSON schema), as the documented `["npm run db:migrate"]` array, and
+set directly on the service instance through Railway's API rather than the file. All
+three produced deploy logs with no pre-deploy step at all. The property is therefore
+left out of this file, so nothing here looks like it is running when it isn't.
+
+Running the migration from the start command puts it in the same container and
+environment as the app, where `DATABASE_URL` is certainly present. `tsx` is a
+first-class dependency rather than a dev one, so it exists at runtime — worth
+checking before making startup depend on it. A failed migration exits non-zero, the
+`&&` short-circuits, the container never starts, and the deploy fails with the
+previous version still serving. `/api/health` is the healthcheck.
+
+The trade is that the migration runs on every container start, not once per release.
+It is idempotent and takes a couple of seconds, and it means a restart against a
+restored or reset database self-heals.
 
 If a schema change ever does reach production without its migration, the symptom is a
 500 on whichever page first selects the new column, while everything else looks fine:
