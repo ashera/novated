@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import QuoteField from "./QuoteField";
-import CarProfile, { BODY_SHAPES } from "./CarProfile";
+import VehicleArt from "./VehicleArt";
 import { findVehicle, vehicleMakes, vehiclesForMake, type Vehicle } from "@/lib/au/vehicles";
 import { AU_STATES, type AuState } from "@/lib/au/config";
 import type { FuelType } from "@/lib/au/novated";
@@ -96,29 +96,18 @@ export default function VehicleCard(p: VehicleCardProps) {
   // Local state only covers the gap between choosing a make and a model.
   const [pendingMake, setPendingMake] = useState("");
   const make = selected?.make ?? pendingMake;
-  const [imageFailed, setImageFailed] = useState(false);
 
   const models = make ? vehiclesForMake(p.catalogue, make) : [];
 
-  const art =
-    selected && !imageFailed ? (
-      // Artwork lives in the database, uploaded per vehicle; until one exists
-      // this 404s and we fall back to the drawing.
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={`/api/vehicle-image/${encodeURIComponent(selected.id)}`}
-        alt={`${selected.make} ${selected.model}`}
-        className="h-full w-full object-contain"
-        onError={() => setImageFailed(true)}
-      />
-    ) : (
-      <CarProfile
-        shape={BODY_SHAPES[selected?.bodyType ?? "SUV"]}
-        colour={selected ? "#5b6b7f" : "#b3b9c4"}
-        title={selected ? `${selected.make} ${selected.model}` : undefined}
-        className="h-full w-full text-ink"
-      />
-    );
+  // Artwork lives in the database, uploaded per vehicle. Until one exists the
+  // request 404s and VehicleArt drops to the covered-car placeholder.
+  const art = (
+    <VehicleArt
+      src={selected ? `/api/vehicle-image/${encodeURIComponent(selected.id)}` : null}
+      alt={selected ? `${selected.make} ${selected.model}` : "Your car"}
+      bodyType={selected?.bodyType}
+    />
+  );
 
   return (
     <section className="rounded-xl border border-line bg-panel p-4 shadow-[var(--shadow-card)] sm:p-5">
@@ -152,7 +141,6 @@ export default function VehicleCard(p: VehicleCardProps) {
                 value={make}
                 onChange={(e) => {
                   setPendingMake(e.target.value);
-                  setImageFailed(false);
                   p.onVehicle(null); // a new make invalidates the model
                 }}
                 className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
@@ -171,10 +159,7 @@ export default function VehicleCard(p: VehicleCardProps) {
               <select
                 value={selected?.id ?? ""}
                 disabled={!make}
-                onChange={(e) => {
-                  setImageFailed(false);
-                  p.onVehicle(findVehicle(p.catalogue, e.target.value));
-                }}
+                onChange={(e) => p.onVehicle(findVehicle(p.catalogue, e.target.value))}
                 className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent disabled:opacity-50"
               >
                 <option value="">{make ? "Choose…" : "Pick a make first"}</option>

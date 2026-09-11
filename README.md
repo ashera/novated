@@ -146,8 +146,15 @@ seed's control.
   L/100km for everything else. It drives the fuel budget, so `validateVehicle` refuses
   a figure outside the plausible range for the fuel type: a petrol car's 7.4 entered
   against "electric" would otherwise halve the budget with nothing looking wrong.
-- Artwork is bytes in the same row, served by `/api/vehicle-image/[id]`, and falls back
-  to a drawn silhouette. It is never seeded, so a revert leaves it alone.
+- Artwork is bytes in the same row, served by `/api/vehicle-image/[id]`. It is never
+  seeded, so a revert leaves it alone. Anything without one shows
+  `public/vehicle-placeholder.jpg` — a car under a cover, which reads as a real car
+  awaiting reveal rather than as a missing asset. If that file is absent the display
+  drops again to a drawn silhouette (`components/CarProfile.tsx`), so the catalogue
+  never shows a broken frame.
+- Generation prompts come from [`lib/au/vehicleImagePrompt.ts`](lib/au/vehicleImagePrompt.ts):
+  one template for the whole set, shown per-vehicle in the editor and written out for
+  the code catalogue by `npx tsx scripts/gen-image-prompts.ts`.
 - A vehicle a saved lease names is **hidden, never deleted** — the id lives in that
   lease, and the car at the top of someone's page should not vanish.
 

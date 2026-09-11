@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AdminTabs from "./AdminTabs";
+import VehicleArt from "./VehicleArt";
 import { fmtDate } from "@/lib/au/format";
 import {
   BODY_TYPES,
@@ -361,23 +362,29 @@ export default function VehiclesAdmin({ vehicles }: { vehicles: VehicleRow[] }) 
             {rows.map((v) => (
               <tr key={v.id} className={`align-middle ${v.active ? "" : "opacity-60"}`}>
                 <td className="px-3 py-2">
-                  {/* The thumbnail is the upload control: 44 images to fit is
-                      a lot of clicking otherwise. */}
+                  {/* The thumbnail is the upload control: 44 images to fit is a
+                      lot of clicking otherwise. Every car shows a picture now —
+                      its own or the placeholder — so the affordance has to come
+                      from the hover state rather than from empty space. */}
                   <label
                     title={v.has_image ? "Replace the artwork" : "Upload artwork"}
-                    className="flex h-12 w-20 cursor-pointer items-center justify-center overflow-hidden rounded border border-line bg-panel-2 transition hover:border-accent"
+                    className="group relative flex h-12 w-20 cursor-pointer items-center justify-center overflow-hidden rounded border border-line bg-panel-2 transition hover:border-accent"
                   >
+                    <span className="pointer-events-none absolute inset-0 z-10 hidden items-center justify-center bg-[#091e42]/54 text-[10px] font-semibold text-white group-hover:flex">
+                      {v.has_image ? "Replace" : "Upload"}
+                    </span>
                     {busy === v.id ? (
                       <span className="text-[10px] text-muted">Working…</span>
-                    ) : v.has_image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={`/api/vehicle-image/${v.id}?v=${encodeURIComponent(v.image_updated_at ?? "")}`}
-                        alt={`${v.make} ${v.model}`}
-                        className="h-full w-full object-contain"
-                      />
                     ) : (
-                      <span className="text-[10px] text-muted">+ Image</span>
+                      <VehicleArt
+                        src={
+                          v.has_image
+                            ? `/api/vehicle-image/${v.id}?v=${encodeURIComponent(v.image_updated_at ?? "")}`
+                            : null
+                        }
+                        alt={`${v.make} ${v.model}`}
+                        bodyType={v.body_type}
+                      />
                     )}
                     <input
                       type="file"
@@ -640,16 +647,15 @@ function Editor({
           {row ? (
             <div className="flex items-center gap-4">
               <div className="flex h-24 w-36 items-center justify-center overflow-hidden rounded-lg border border-line bg-panel-2">
-                {row.has_image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={`/api/vehicle-image/${row.id}?v=${encodeURIComponent(row.image_updated_at ?? "")}`}
-                    alt={`${row.make} ${row.model}`}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <span className="text-xs text-muted">No image yet</span>
-                )}
+                <VehicleArt
+                  src={
+                    row.has_image
+                      ? `/api/vehicle-image/${row.id}?v=${encodeURIComponent(row.image_updated_at ?? "")}`
+                      : null
+                  }
+                  alt={`${row.make} ${row.model}`}
+                  bodyType={row.body_type}
+                />
               </div>
               <div className="text-sm">
                 <div className="flex gap-2">
