@@ -13,6 +13,7 @@ import VehicleCard from "./VehicleCard";
 import DeductionExplainer from "./DeductionExplainer";
 import StatExplainer from "./StatExplainer";
 import PayslipImpact from "./PayslipImpact";
+import LockedSummary from "./LockedSummary";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import {
@@ -30,6 +31,7 @@ import {
   applyScenarioFromQuote,
   leaseToInputs,
   lockedQuote,
+  unlockQuote,
   leaseToQuote,
   quoteLabel,
   type Lease,
@@ -102,7 +104,10 @@ export default function LeaseCalculator({
    * The label and the rate are derived from the quote each time, so editing
    * it updates this rather than leaving a stale copy.
    */
-  const locked = lockedQuote(lease);
+  // A shared lease is somebody else's, and read-only already. Giving it the
+  // locked layout would put an "unlock" button on a page whose store belongs
+  // to the viewer, not the owner — it would silently edit their own lease.
+  const locked = readOnly ? null : lockedQuote(lease);
 
   const activeQuote = useMemo(() => {
     const id = lease.scenario.fromQuoteId;
@@ -240,8 +245,32 @@ export default function LeaseCalculator({
 
         {!readOnly && <QuotesCard store={store} config={config} />}
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+        {/* Locked, the inputs are no longer inputs: they are the terms of a
+            decision. The column goes rather than being greyed out — a wall of
+            disabled sliders reads as a page fighting you — and the same facts
+            come back as a summary below, with the payslip under it. */}
+        <div
+          className={
+            locked
+              ? "space-y-6"
+              : "grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]"
+          }
+        >
+          {locked && (
+            <>
+              <LockedSummary
+                inputs={inputs}
+                result={result}
+                config={config}
+                quoteLabel={quoteLabel(locked)}
+                onUnlock={() => store.update(unlockQuote)}
+              />
+              <PayslipImpact result={result} config={config} quoteLabel={quoteLabel(locked)} />
+            </>
+          )}
+
           {/* ── Inputs ─────────────────────────────────────────────── */}
+          {!locked && (
           <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h2 className="text-base font-semibold text-ink">You and the term</h2>
@@ -400,6 +429,7 @@ export default function LeaseCalculator({
               </div>
             </section>
           </div>
+          )}
 
           {/* ── Results ────────────────────────────────────────────── */}
           <div className="space-y-6">
@@ -529,10 +559,6 @@ export default function LeaseCalculator({
             </section>
 
             {/* The residual */}
-            {locked && (
-              <PayslipImpact result={result} config={config} quoteLabel={quoteLabel(locked)} />
-            )}
-
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h3 className="text-base font-semibold text-ink">
                 At the end of the {term.years} years
