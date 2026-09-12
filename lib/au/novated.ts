@@ -202,6 +202,16 @@ export interface LeaseResult {
   fbt: FbtOutcome;
   package: PackageBreakdown;
   perPayCycle: { preTax: number; postTax: number; takeHomeReduction: number };
+  /**
+   * The two whole tax positions the relief was measured between.
+   *
+   * Surfaced so a payslip can be laid out from what the engine actually did
+   * rather than recomputed alongside it — the "after" side carries the
+   * reportable fringe benefit in its HELP repayment income, which a second
+   * calculation would be unlikely to reproduce. `after.net` is before the
+   * post-tax contribution comes out; that is the next line on the payslip.
+   */
+  payslip: { before: TakeHome; after: TakeHome };
   comparison: OwnershipComparison;
   /** Whole-of-term totals, residual excluded (it's a separate decision). */
   term: {
@@ -564,6 +574,7 @@ export function calculateLease(
       postTax: postTaxAnnual / cycles,
       takeHomeReduction: pkg.takeHomeReduction / cycles,
     },
+    payslip: { before, after },
     comparison,
     term: {
       years: inputs.termYears,

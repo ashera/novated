@@ -126,6 +126,15 @@ export interface Lease {
   scenario: ScenarioSpec;
   quotes: QuoteSpec[];
   notes?: string;
+  /**
+   * The quote the user has settled on.
+   *
+   * Different from scenario.fromQuoteId, which only says what the figures are
+   * modelled on — you can try several. This is a decision: "this is the one",
+   * and it is what turns the page from a what-if into a payslip they can
+   * expect. Always the active quote or absent, so the two can never disagree.
+   */
+  lockedQuoteId?: string;
 }
 
 /** What to call a quote on screen. Names are stored as typed, so a blank or
@@ -281,7 +290,31 @@ export function activateQuote(lease: Lease, quoteId: string, config: EngineConfi
   const quote = leaseToQuote(lease, spec);
   const decoded = decodeQuote(quote, config);
   if (decoded.impliedRatePct == null) return lease;
-  return applyScenarioFromQuote(lease, quoteToLeaseInputs(quote, decoded, config), quoteId);
+  const next = applyScenarioFromQuote(lease, quoteToLeaseInputs(quote, decoded, config), quoteId);
+  // Modelling a different quote means you are weighing them up again, so a
+  // lock on the old one is stale. Leaving it would show a payslip built on
+  // figures the page is no longer displaying.
+  return next.lockedQuoteId && next.lockedQuoteId !== quoteId
+    ? { ...next, lockedQuoteId: undefined }
+    : next;
+}
+
+/** Settle on the quote currently being modelled. */
+export function lockQuote(lease: Lease, quoteId: string): Lease {
+  if (lease.scenario.fromQuoteId !== quoteId) return lease;
+  if (!lease.quotes.some((q) => q.id === quoteId)) return lease;
+  return { ...lease, lockedQuoteId: quoteId };
+}
+
+export function unlockQuote(lease: Lease): Lease {
+  return { ...lease, lockedQuoteId: undefined };
+}
+
+/** The locked quote, if the lock is still meaningful. */
+export function lockedQuote(lease: Lease): QuoteSpec | null {
+  const id = lease.lockedQuoteId;
+  if (!id || id !== lease.scenario.fromQuoteId) return null;
+  return lease.quotes.find((q) => q.id === id) ?? null;
 }
 
 /** Split an edited Quote back apart: the car onto the lease, the rest onto the
@@ -347,5 +380,9 @@ export function migrateLease(raw: unknown): Lease {
           .map((q) => ({ ...q, createdAt: q.createdAt ?? q.updatedAt }))
       : [],
     notes: l.notes,
+    // Only meaningful while it still points at a quote that exists and is the
+    // one being modelled — a lock left on a deleted or superseded quote would
+    // claim a decision the user did not make.
+    lockedQuoteId: l.lockedQuoteId,
   };
 }

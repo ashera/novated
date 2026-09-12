@@ -4,9 +4,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   activateQuote,
+  lockQuote,
   newQuoteSpec,
   quoteLabel,
   quoteStatus,
+  unlockQuote,
   type QuoteStatus,
 } from "@/lib/au/lease";
 import type { EngineConfig } from "@/lib/au/config";
@@ -52,6 +54,7 @@ export default function QuotesCard({
   /** Model this quote in the figures below, without a trip to the decoder.
    *  Only offered where the quote solves — see activateQuote. */
   const activate = (id: string) => store.update((l) => activateQuote(l, id, config));
+  const lockedId = lease.lockedQuoteId;
 
   const addQuote = () => {
     const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`);
@@ -100,6 +103,7 @@ export default function QuotesCard({
             const status = quoteStatus(lease, q, config);
             const style = STATUS_STYLE[status];
             const active = q.id === activeId;
+            const locked = active && q.id === lockedId;
             return (
               <li
                 key={q.id}
@@ -115,11 +119,33 @@ export default function QuotesCard({
                 </Link>
                 {active && (
                   <span
-                    title="The figures below are modelled on this quote"
-                    className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+                    title={
+                      locked
+                        ? "The one you've settled on"
+                        : "The figures below are modelled on this quote"
+                    }
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white ${
+                      locked ? "bg-success" : "bg-accent"
+                    }`}
                   >
-                    Active
+                    {locked ? "Locked in" : "Active"}
                   </span>
+                )}
+                {active && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      store.update((l) => (locked ? unlockQuote(l) : lockQuote(l, q.id)))
+                    }
+                    title={
+                      locked
+                        ? "Go back to comparing"
+                        : "Settle on this one and see what your payslip will look like"
+                    }
+                    className="rounded border border-line bg-panel-2 px-2 py-0.5 text-[11px] font-medium text-ink transition hover:border-accent hover:text-accent"
+                  >
+                    {locked ? "Unlock" : "Lock it in"}
+                  </button>
                 )}
                 {!active && status === "complete" && (
                   <button

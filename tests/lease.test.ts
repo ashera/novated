@@ -8,6 +8,9 @@ import {
   newLease,
   activateQuote,
   applyScenarioFromQuote,
+  lockQuote,
+  lockedQuote,
+  unlockQuote,
   newQuoteSpec,
   quoteLabel,
   quoteStatus,
@@ -452,5 +455,82 @@ describe("Activating a quote from the lease page", () => {
     for (const k of ["interestRatePct", "residualPct", "termYears", "adminFeeAnnual"] as const) {
       expect(viaHandoff.scenario[k], k).toEqual(viaActivate.scenario[k]);
     }
+  });
+});
+
+describe("Locking in a quote", () => {
+  const solvable = (label: string, finance: number) => ({
+    ...newQuoteSpec(label),
+    frequency: "monthly" as const,
+    termMonths: 60,
+    amountFinanced: 50_000,
+    residualIncGst: 14_065,
+    lines: { finance, insurance: 120 },
+  });
+
+  const twoQuotes = () => {
+    const a = solvable("Maxxia", 900);
+    const b = solvable("Smartleasing", 1_100);
+    return { a, b, lease: { ...leaseWithCar(), quotes: [a, b] } as Lease };
+  };
+
+  it("locks the quote being modelled", () => {
+    const { a, lease } = twoQuotes();
+    const active = activateQuote(lease, a.id, DEFAULT_CONFIG);
+    const locked = lockQuote(active, a.id);
+    expect(locked.lockedQuoteId).toBe(a.id);
+    expect(lockedQuote(locked)?.label).toBe("Maxxia");
+  });
+
+  // A lock is a decision about what the page is showing. Letting it point at
+  // a quote the figures are NOT modelled on would put a payslip on screen
+  // built from a different quote's numbers.
+  it("refuses to lock a quote that isn't the active one", () => {
+    const { a, b, lease } = twoQuotes();
+    const active = activateQuote(lease, a.id, DEFAULT_CONFIG);
+    expect(lockQuote(active, b.id).lockedQuoteId).toBeUndefined();
+  });
+
+  it("refuses an id that isn't on the lease", () => {
+    const { a, lease } = twoQuotes();
+    const active = activateQuote(lease, a.id, DEFAULT_CONFIG);
+    expect(lockQuote(active, "nope").lockedQuoteId).toBeUndefined();
+  });
+
+  it("unlocks", () => {
+    const { a, lease } = twoQuotes();
+    const locked = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
+    expect(unlockQuote(locked).lockedQuoteId).toBeUndefined();
+    expect(lockedQuote(unlockQuote(locked))).toBeNull();
+  });
+
+  it("clears the lock when a different quote is modelled instead", () => {
+    const { a, b, lease } = twoQuotes();
+    const locked = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
+    const moved = activateQuote(locked, b.id, DEFAULT_CONFIG);
+    expect(moved.scenario.fromQuoteId).toBe(b.id);
+    expect(moved.lockedQuoteId).toBeUndefined();
+    expect(lockedQuote(moved)).toBeNull();
+  });
+
+  it("keeps the lock when the same quote is re-applied", () => {
+    const { a, lease } = twoQuotes();
+    const locked = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
+    expect(activateQuote(locked, a.id, DEFAULT_CONFIG).lockedQuoteId).toBe(a.id);
+  });
+
+  it("survives storage", () => {
+    const { a, lease } = twoQuotes();
+    const locked = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
+    const back = migrateLease(JSON.parse(JSON.stringify(locked)));
+    expect(back.lockedQuoteId).toBe(a.id);
+    expect(lockedQuote(back)?.label).toBe("Maxxia");
+  });
+
+  it("goes quiet if the locked quote is deleted", () => {
+    const { a, lease } = twoQuotes();
+    const locked = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
+    const gone: Lease = { ...locked, quotes: locked.quotes.filter((q) => q.id !== a.id) };
+    expect(lockedQuote(gone)).toBeNull();
   });
 });

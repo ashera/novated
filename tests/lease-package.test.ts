@@ -313,3 +313,52 @@ describe("What the stat explainers promise", () => {
     expect(r.term.gstSaved).toBeCloseTo(r.finance.gstCredit, 6);
   });
 });
+
+describe("The payslip the locked quote produces", () => {
+  // Every row on screen has to come from the engine, and the columns have to
+  // add up the way a real payslip does — otherwise someone takes it to
+  // payroll and it doesn't match.
+  it("taxable pay is gross less the pre-tax deduction", () => {
+    const r = run({ fuelType: "petrol", vehiclePrice: 50_000 });
+    expect(r.payslip.before.gross).toBeCloseTo(base.salary, 6);
+    expect(r.payslip.after.gross).toBeCloseTo(base.salary - r.package.preTaxAnnual, 6);
+  });
+
+  it("each column's rows add down to the net it shows", () => {
+    const r = run({ fuelType: "petrol", vehiclePrice: 50_000, hasHelpDebt: true });
+    for (const side of [r.payslip.before, r.payslip.after]) {
+      expect(side.gross - side.incomeTax - side.medicare - side.help).toBeCloseTo(side.net, 6);
+    }
+  });
+
+  it("what lands in the account is the after-tax net less the post-tax contribution", () => {
+    const r = run({ fuelType: "petrol", vehiclePrice: 50_000 });
+    expect(r.payslip.after.net - r.package.postTaxAnnual).toBeCloseTo(r.package.takeHomeAfter, 6);
+    expect(r.payslip.before.net).toBeCloseTo(r.package.takeHomeBefore, 6);
+  });
+
+  it("the tax the payslip stops paying is the saving reported above it", () => {
+    const r = run({ fuelType: "electric", vehiclePrice: 50_000, hasHelpDebt: false });
+    const taxBefore = r.payslip.before.incomeTax + r.payslip.before.medicare + r.payslip.before.help;
+    const taxAfter = r.payslip.after.incomeTax + r.payslip.after.medicare + r.payslip.after.help;
+    expect(taxBefore - taxAfter).toBeCloseTo(r.package.taxSaved, 6);
+  });
+
+  // The uncomfortable one the payslip has to be honest about: a study loan
+  // repayment can RISE, because the reportable fringe benefit counts towards
+  // repayment income even though taxable income fell.
+  it("shows a study-loan repayment that rises rather than hiding it", () => {
+    // An exempt EV is the case where this bites: no FBT to pay, and no
+    // employee contribution, but the benefit is still REPORTABLE — so
+    // repayment income goes up while taxable income goes down. (A petrol car
+    // on the employee contribution method has a nil taxable value, so nothing
+    // is reportable at all.)
+    const r = run({ fuelType: "electric", vehiclePrice: 55_000, hasHelpDebt: true, salary: 110_000 });
+    expect(r.fbt.exempt).toBe(true);
+    expect(r.fbt.reportableFringeBenefit).toBeGreaterThan(0);
+    // The engine applies it to the packaged side only — which is exactly what
+    // the payslip's "rises" hint is reporting.
+    const plain = takeHome(110_000 - r.package.preTaxAnnual, config, { hasHelpDebt: true });
+    expect(r.payslip.after.help).toBeGreaterThan(plain.help);
+  });
+});

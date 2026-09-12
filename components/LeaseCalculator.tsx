@@ -12,6 +12,7 @@ import InfoBlastBanner from "./InfoBlastBanner";
 import VehicleCard from "./VehicleCard";
 import DeductionExplainer from "./DeductionExplainer";
 import StatExplainer from "./StatExplainer";
+import PayslipImpact from "./PayslipImpact";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import {
@@ -28,6 +29,7 @@ import type { EngineConfig } from "@/lib/au/config";
 import {
   applyScenarioFromQuote,
   leaseToInputs,
+  lockedQuote,
   leaseToQuote,
   quoteLabel,
   type Lease,
@@ -100,6 +102,8 @@ export default function LeaseCalculator({
    * The label and the rate are derived from the quote each time, so editing
    * it updates this rather than leaving a stale copy.
    */
+  const locked = lockedQuote(lease);
+
   const activeQuote = useMemo(() => {
     const id = lease.scenario.fromQuoteId;
     const spec = id ? lease.quotes.find((q) => q.id === id) : undefined;
@@ -525,6 +529,10 @@ export default function LeaseCalculator({
             </section>
 
             {/* The residual */}
+            {locked && (
+              <PayslipImpact result={result} config={config} quoteLabel={quoteLabel(locked)} />
+            )}
+
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h3 className="text-base font-semibold text-ink">
                 At the end of the {term.years} years
