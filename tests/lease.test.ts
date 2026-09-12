@@ -52,6 +52,29 @@ describe("Lease as the shared parent", () => {
     expect(i.consumptionPer100km).toBe(14.9);
   });
 
+  // A quote is a quote FOR this lease, so the fields the lease already knows
+  // the shape of should open at the lease's own answer rather than at a market
+  // default nobody chose. Still a default: the whole point of holding several
+  // quotes is that providers differ on exactly these.
+  it("starts a new quote at the lease's term, not a hard-coded five years", () => {
+    expect(newQuoteSpec("Provider A", 36).termMonths).toBe(36);
+    expect(newQuoteSpec("Provider A", 48).termMonths).toBe(48);
+  });
+
+  it("still falls back to five years when no term is given", () => {
+    expect(newQuoteSpec().termMonths).toBe(60);
+    expect(newQuoteSpec("Unnamed").termMonths).toBe(60);
+  });
+
+  it("leaves the term editable once the quote exists", () => {
+    // The default must not become a constraint: a provider quoting 48 months
+    // against a 60-month lease is a real comparison, not a mistake.
+    const lease = leaseWithCar();
+    const spec = { ...newQuoteSpec("Provider B", 60), termMonths: 48 };
+    const q = leaseToQuote({ ...lease, quotes: [spec] }, spec);
+    expect(q.termMonths).toBe(48);
+  });
+
   it("gives the decoder the same car, without it being entered twice", () => {
     const lease = leaseWithCar();
     const spec = newQuoteSpec("Provider A");

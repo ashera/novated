@@ -257,12 +257,21 @@ export function newLease(name = "My lease"): Lease {
   };
 }
 
-export function newQuoteSpec(label = "Untitled quote"): QuoteSpec {
+/**
+ * A blank quote to start typing into.
+ *
+ * The term defaults to the lease's own rather than to five years, because a
+ * quote is a quote FOR this lease: on a three-year lease, starting every new
+ * quote at 60 months means correcting the same field every time. It is still
+ * only a default — providers quote 48 against 60 on the same car, and telling
+ * them apart is most of the reason for holding two quotes at once.
+ */
+export function newQuoteSpec(label = "Untitled quote", termMonths = 60): QuoteSpec {
   return {
     id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     label,
     frequency: "fortnightly",
-    termMonths: 60,
+    termMonths,
     lines: {},
     createdAt: new Date().toISOString(),
   };

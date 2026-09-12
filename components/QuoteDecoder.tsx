@@ -119,11 +119,14 @@ export default function QuoteDecoder({
     !lease.vehicle.vehicleId && lease.vehicle.price === defaultVehicle().price;
   const isExample = lease.quotes.length === 0 && untouched;
   const blankAgainstTheirCar = lease.quotes.length === 0 && !untouched;
+  // The term a new quote starts at. A quote is a quote for THIS lease, so five
+  // years is the wrong opening guess on a three-year one.
+  const leaseTermMonths = lease.scenario.termYears * 12;
 
   const quote: Quote = isExample
     ? EXAMPLE
     : blankAgainstTheirCar
-      ? leaseToQuote(lease, newQuoteSpec("Your quote"))
+      ? leaseToQuote(lease, newQuoteSpec("Your quote", leaseTermMonths))
       : leaseToQuote(lease, activeSpec!);
 
   /** Any edit writes back through the lease, splitting the car onto the parent
@@ -140,7 +143,7 @@ export default function QuoteDecoder({
     store.update((l) => {
       const fromLease = (q: Quote) => withLeaseVehicle(l, q);
       if (isExample || blankAgainstTheirCar) {
-        const spec = newQuoteSpec(next.label ?? "My quote");
+        const spec = newQuoteSpec(next.label ?? "My quote", leaseTermMonths);
         const seeded: Lease = { ...l, quotes: [...l.quotes, spec] };
         setActiveQuoteId(spec.id);
         return applyQuoteEdit(seeded, spec.id, fromLease(next));
@@ -163,9 +166,32 @@ export default function QuoteDecoder({
     const creditable = Math.min(quote.vehiclePrice, config.gst.carLimit);
     return quote.vehiclePrice - (creditable - creditable / (1 + config.gst.rate));
   }, [quote.vehiclePrice, config]);
+  /**
+   * What the residual would be at the ATO minimum for this quote's term.
+   *
+   * Guidance, not a fallback. The amount financed can be derived when a quote
+   * omits it, because the GST relationship is arithmetic — the residual can't,
+   * because providers choose it, and setting it above the minimum to flatter
+   * the payment is one of the things this page exists to catch. Assuming the
+   * minimum and then measuring the quote against our own assumption would just
+   * be the page agreeing with itself.
+   *
+   * The lease's own percentage only carries across when the terms match: a
+   * residual chosen for five years says nothing about a three-year quote.
+   */
+  const derivedResidual = useMemo(() => {
+    if (derivedFinanced == null || !quote.termMonths) return null;
+    const years = String(Math.round(quote.termMonths / 12));
+    const pct =
+      quote.termMonths === leaseTermMonths && lease.scenario.residualPct != null
+        ? lease.scenario.residualPct
+        : config.lease.residualMinPct[years];
+    if (pct == null) return null;
+    // Quoted GST-inclusive, which is how the field asks for it.
+    return derivedFinanced * (pct / 100) * (1 + config.gst.rate);
+  }, [derivedFinanced, quote.termMonths, leaseTermMonths, lease.scenario.residualPct, config]);
+
   const freqWord = FREQ_WORD[quote.frequency];
-
-
 
 
   /** Hand this quote to the calculator, so "is it worth it at all?" costs a
@@ -378,8 +404,16 @@ export default function QuoteDecoder({
                   alsoCalled={["Residual Value", "Balloon"]}
                   value={quote.residualIncGst}
                   onChange={(v) => set("residualIncGst", v)}
-                  placeholder="24,342"
-                  hint="GST included — that's how it's normally quoted."
+                  placeholder={
+                    derivedResidual != null
+                      ? Math.round(derivedResidual).toLocaleString("en-AU")
+                      : "24,342"
+                  }
+                  hint={
+                    derivedResidual != null
+                      ? `GST included — that's how it's normally quoted. Enter what the quote says: the ATO minimum over ${Math.round(quote.termMonths / 12)} years is about ${fmtCurrency(derivedResidual)}, and a provider setting it higher lowers the payment now and leaves more owing at the end.`
+                      : "GST included — that's how it's normally quoted."
+                  }
                 />
                 <QuoteField
                   readOnly={readOnly}
@@ -387,8 +421,13 @@ export default function QuoteDecoder({
                   prefix={null}
                   suffix="months"
                   value={quote.termMonths}
-                  onChange={(v) => set("termMonths", v ?? 60)}
-                  placeholder="60"
+                  onChange={(v) => set("termMonths", v ?? leaseTermMonths)}
+                  placeholder={String(leaseTermMonths)}
+                  hint={
+                    quote.termMonths !== leaseTermMonths
+                      ? `Your lease is set to ${leaseTermMonths / 12} years. Quotes over a different term aren't wrong — just not like-for-like.`
+                      : undefined
+                  }
                 />
               </div>
             </section>

@@ -46,7 +46,7 @@ export default function QuoteComparison({
   /** Same as the quotes card: a new quote, then straight to typing it in.
    *  Linking to a bare /decode opened the FIRST existing quote instead. */
   const addQuote = () => {
-    const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`);
+    const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`, lease.scenario.termYears * 12);
     store.update((l) => ({ ...l, quotes: [...l.quotes, spec] }));
     router.push(`/decode?quote=${encodeURIComponent(spec.id)}`);
   };

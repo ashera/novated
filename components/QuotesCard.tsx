@@ -62,7 +62,7 @@ export default function QuotesCard({
   const activate = (id: string) => store.update((l) => activateQuote(l, id, config));
 
   const addQuote = () => {
-    const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`);
+    const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`, lease.scenario.termYears * 12);
     store.update((l) => ({ ...l, quotes: [...l.quotes, spec] }));
     // Adding a quote means going and typing it in, so take them there.
     router.push(`/decode?quote=${encodeURIComponent(spec.id)}`);
