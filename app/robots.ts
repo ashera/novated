@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { headers } from "next/headers";
 import { SITE_URL } from "@/lib/site";
 
 // Private surfaces kept out of every crawler: the admin backoffice, per-user
@@ -25,12 +26,7 @@ const AI_BOTS = [
 ];
 
 /**
- * True when we're serving from a temporary host rather than the real site.
- *
- * A preview deploy must never be indexed. It would compete with the real domain
- * for the same content, and every page on it carries a canonical pointing at
- * whatever NEXT_PUBLIC_SITE_URL says — so a crawler either indexes a throwaway
- * address or follows a canonical to a domain that may not exist yet.
+ * True when the CONFIGURED site URL is a temporary host rather than a real one.
  *
  * Deliberately keyed off the configured site URL rather than a separate flag:
  * not yet having a real domain IS the signal that this isn't the live site, so
@@ -54,10 +50,46 @@ export function isPreviewHost(url: string): boolean {
   );
 }
 
+/**
+ * Whether the request that asked for robots.txt should be told to index.
+ *
+ * Two conditions, and the second is the one that took a live domain to expose.
+ * Checking only the configured site URL answers "do we have a real domain
+ * yet" — which was the whole question while we didn't. The moment one is set,
+ * that check passes for EVERY host the app answers on, including the platform
+ * URL it is still reachable at and every future preview deploy. Each of those
+ * then serves a cheerful "Allow: /" for a full copy of the site.
+ *
+ * So the real test is whether this request arrived at the canonical host. It
+ * is also self-maintaining in a way the suffix list isn't: a host nobody
+ * thought to add to the list still fails it, because the list of addresses
+ * that are the real site has exactly one entry.
+ *
+ * Fails closed on anything it can't read. A day of not being indexed costs
+ * nothing; a duplicate origin in the index costs weeks.
+ */
+export function shouldIndex(requestHost: string | null | undefined, siteUrl: string): boolean {
+  if (isPreviewHost(siteUrl)) return false;
+  let canonical: string;
+  try {
+    canonical = new URL(siteUrl).host.toLowerCase();
+  } catch {
+    return false;
+  }
+  const host = (requestHost ?? "").trim().toLowerCase();
+  return host !== "" && host === canonical;
+}
+
 // Crawlers may index the marketing/entry/knowledge pages but not the private app
-// tools — unless we're on a preview host, in which case nothing is indexable.
-export default function robots(): MetadataRoute.Robots {
-  if (isPreviewHost(SITE_URL)) {
+// tools — unless this isn't the canonical host, in which case nothing is.
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  // Behind Railway's proxy the original host arrives as x-forwarded-host; the
+  // Host header is the fallback for a direct hit. Spoofing either can only
+  // produce a stricter robots.txt in the spoofer's own response, never a
+  // laxer one — asking as the canonical host is the same as asking the
+  // canonical host.
+  const h = await headers();
+  if (!shouldIndex(h.get("x-forwarded-host") ?? h.get("host"), SITE_URL)) {
     return { rules: [{ userAgent: "*", disallow: "/" }] };
   }
   return {
