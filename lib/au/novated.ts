@@ -33,6 +33,29 @@ export type FbtMethod = "ecm" | "employer-pays";
 export type FuelType = "petrol" | "diesel" | "electric" | "phev" | "hybrid";
 
 /**
+ * How old the car is when the lease starts.
+ *
+ * Not cosmetic: it decides whether the FBT exemption can apply at all (the
+ * car must have been first held and used on or after the start date), which
+ * threshold its price is tested against, and whether the running-cost
+ * benchmarks — modelled on a car in warranty — are the right ones.
+ *
+ * "demo" is its own answer rather than a flavour of used, because a
+ * demonstrator has been registered, which is what the date test cares about,
+ * but is usually months rather than years old.
+ */
+export type CarCondition = "new" | "demo" | "used";
+
+/** Who sells the car to the financier. A licensed dealer's price includes GST
+ *  the financier reclaims; a private seller's does not. */
+export type PurchaseChannel = "dealer" | "private";
+
+/** True where the car has been registered to somebody before this lease. */
+export function isPreOwned(condition: CarCondition | undefined): boolean {
+  return condition === "used" || condition === "demo";
+}
+
+/**
  * How often someone is paid.
  *
  * Presentation, not arithmetic: every figure the engine computes is annual,
@@ -129,6 +152,29 @@ export interface LeaseInputs {
   /** This car's combined-cycle consumption, overriding the class default:
    *  litres per 100km, or kWh per 100km when electric. */
   consumptionPer100km?: number;
+
+  /**
+   * New, ex-demo, or second-hand. Absent means new — which is what every
+   * lease saved before we asked was implicitly modelled as, so the default
+   * has to keep those figures exactly where they were.
+   */
+  condition?: CarCondition;
+  /**
+   * When the car was first registered, as an ISO date.
+   *
+   * The exemption turns on when the car was first held and used by ANYBODY,
+   * not on when this driver gets it — a car first used before the start date
+   * can never become exempt, however many times it changes hands. Only
+   * meaningful when the car isn't new.
+   */
+  firstRegisteredDate?: string;
+  /** What it sold for when it was new, where the buyer of a used car knows.
+   *  The exemption's price cap is tested at the first retail sale, not at
+   *  this sale, so without it that half of the test can't be run. */
+  firstRetailPrice?: number;
+  /** Who the financier buys it from. A private seller charges no GST, so
+   *  there is no credit to claim and the whole price is financed. */
+  purchasedFrom?: PurchaseChannel;
 }
 
 export interface AnnualRunningCosts {
@@ -410,7 +456,13 @@ export function buildFinance(
   // car limit — GST on value above that is not recoverable and stays in the
   // amount financed. Measured on the CAR, not the drive-away total: the car
   // limit is a limit on the car.
-  const gstCredit = carGstCredit(price, config);
+  //
+  // Unless there is no GST to claim. A private seller isn't registered and
+  // doesn't charge it, so nothing comes off the price and the financier writes
+  // the lease over the whole thing — about a ninth more than the same car from
+  // a dealer, on every payment.
+  const gstCredit =
+    inputs.purchasedFrom === "private" ? 0 : carGstCredit(price, config);
   // On-roads are financed alongside the car and repaid with it. No GST credit
   // is taken on them here: registration and stamp duty carry no GST, and the
   // CTP component that does is small enough that claiming it would be a
@@ -504,29 +556,151 @@ export function buildRunningCosts(
 // --- FBT -------------------------------------------------------------------
 
 /**
+ * The Australian financial year a date falls in, as "2024-25".
+ *
+ * Not the FBT year (see fbtYear.ts) — the LCT thresholds are published per
+ * financial year, and this is only ever used to look one of them up.
+ */
+export function financialYearOf(date: Date): string {
+  const y = date.getUTCFullYear();
+  const start = date.getUTCMonth() >= 6 ? y : y - 1; // July onwards is the new year
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+
+/**
+ * The fuel-efficient LCT threshold that applied when a car was first sold.
+ *
+ * Returns null where we hold no figure for that year, which the caller has to
+ * treat as "couldn't check" rather than as a pass — quietly falling back to
+ * today's threshold would exempt a car that was over the line when it was new,
+ * and today's is the highest it has ever been.
+ */
+export function fuelEfficientThresholdFor(
+  firstRetailDate: string | Date,
+  config: EngineConfig,
+): number | null {
+  const d = firstRetailDate instanceof Date
+    ? firstRetailDate
+    : new Date(`${firstRetailDate}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  return config.lct.thresholdFuelEfficientByYear[financialYearOf(d)] ?? null;
+}
+
+/** Just enough about a car to settle the exemption — a subset of LeaseInputs,
+ *  so the vehicle card can ask without assembling a whole scenario. */
+export interface ExemptionFacts {
+  fuelType: FuelType;
+  /** The car's cost price to this buyer. For a new car this IS the first
+   *  retail sale, which is what the price cap is tested on. */
+  vehiclePrice: number;
+  condition?: CarCondition;
+  firstRegisteredDate?: string;
+  firstRetailPrice?: number;
+}
+
+export interface FbtExemptionCheck {
+  exempt: boolean;
+  /** Why not, in a sentence — null when it is exempt. */
+  blockedBy: string | null;
+  /**
+   * Exempt on everything we could check, but something we couldn't.
+   *
+   * Its own state rather than a quiet pass, because the honest answer to "was
+   * this car under the threshold when it was new" is often "we don't know",
+   * and a green badge that means "probably" has to say so.
+   */
+  unverified: string | null;
+}
+
+/**
  * Whether the car itself is exempt from FBT.
  *
- * Pulled out of {@link assessFbt} because the exemption is a fact about the
- * car, not about a particular salary or term, and the interface needs to say
- * so next to the car — a whole assessment is a lot of machinery to run just to
- * put a badge on a picture, and running it twice is how the badge and the
- * numbers end up disagreeing.
+ * Kept out of {@link assessFbt} because the exemption is a fact about the car,
+ * not about a particular salary or term, and the interface needs to say so
+ * next to the car — a whole assessment is a lot of machinery to run to put a
+ * badge on a picture, and running it twice is how the badge and the numbers
+ * end up disagreeing.
  *
- * Two conditions, and both bite: battery-electric only (a plug-in hybrid lost
- * eligibility on 1 April 2025), and at or under the luxury car tax threshold
- * for fuel-efficient vehicles — measured on the car's cost, which is why the
- * price has to be the car alone and not a drive-away figure.
+ * Three conditions, and all of them bite:
+ *
+ *   - battery-electric only. A plug-in hybrid lost eligibility on 1 April 2025
+ *     and a conventional hybrid never had it.
+ *   - first held and used on or after 1 July 2022. This is about the CAR, not
+ *     about this driver: a car somebody was driving in 2021 can never become
+ *     exempt, however many times it is sold afterwards. It is the condition
+ *     second-hand buyers are caught by, and the reason the app has to ask
+ *     whether the car is new.
+ *   - at or under the luxury car tax threshold for fuel-efficient vehicles at
+ *     its FIRST retail sale — the threshold of that year, not this one. For a
+ *     used car both halves of that test are historical, so it needs what the
+ *     car sold for new, which the buyer may simply not know.
  */
-export function isFbtExemptVehicle(
-  fuelType: FuelType,
-  vehiclePrice: number,
-  config: EngineConfig,
-): boolean {
-  return (
-    config.fbt.evExemption.enabled &&
-    fuelType === "electric" &&
-    vehiclePrice <= config.lct.thresholdFuelEfficient
-  );
+export function checkFbtExemption(f: ExemptionFacts, config: EngineConfig): FbtExemptionCheck {
+  const no = (blockedBy: string): FbtExemptionCheck => ({
+    exempt: false,
+    blockedBy,
+    unverified: null,
+  });
+  const ev = config.fbt.evExemption;
+  if (!ev.enabled) return no("The electric vehicle exemption isn't in force.");
+  if (f.fuelType === "phev") {
+    return no(
+      `Plug-in hybrids stopped qualifying on ${ev.phevEligibleUntil}, unless the commitment was already binding.`,
+    );
+  }
+  if (f.fuelType !== "electric") return no("Only battery-electric cars are exempt.");
+
+  const preOwned = isPreOwned(f.condition);
+
+  if (!preOwned) {
+    // A new car is being first retailed now, so today's price and today's
+    // threshold are the right two numbers.
+    return f.vehiclePrice > config.lct.thresholdFuelEfficient
+      ? no(
+          `Its price is above the ${config.lct.thresholdFuelEfficient.toLocaleString("en-AU")} luxury car tax threshold for fuel-efficient vehicles.`,
+        )
+      : { exempt: true, blockedBy: null, unverified: null };
+  }
+
+  if (!f.firstRegisteredDate) {
+    return no(
+      "We need the date it was first registered: the exemption only covers cars first held and used from " +
+        `${ev.firstHeldFrom}, and that is about the car rather than about you.`,
+    );
+  }
+  const registered = new Date(`${f.firstRegisteredDate}T00:00:00Z`);
+  if (Number.isNaN(registered.getTime())) {
+    return no("We couldn't read the date it was first registered.");
+  }
+  if (registered < new Date(`${ev.firstHeldFrom}T00:00:00Z`)) {
+    return no(
+      `It was first registered on ${f.firstRegisteredDate}, before the exemption started on ${ev.firstHeldFrom}. That is fixed to the car, so no later owner can claim it.`,
+    );
+  }
+
+  // Both halves of the price test are historical for a used car.
+  const threshold = fuelEfficientThresholdFor(registered, config);
+  if (f.firstRetailPrice == null || threshold == null) {
+    return {
+      exempt: true,
+      blockedBy: null,
+      unverified:
+        f.firstRetailPrice == null
+          ? "The price cap is measured on what the car sold for new, which we don't have. Everything else about it qualifies."
+          : `We don't hold the fuel-efficient threshold for ${financialYearOf(registered)}, so we couldn't check the price cap.`,
+    };
+  }
+  if (f.firstRetailPrice > threshold) {
+    return no(
+      `It sold for more than the ${threshold.toLocaleString("en-AU")} fuel-efficient threshold that applied when it was new, which is the test — not today's price.`,
+    );
+  }
+  return { exempt: true, blockedBy: null, unverified: null };
+}
+
+/** The exemption as a plain yes/no, for callers that only branch on it. */
+export function isFbtExemptVehicle(f: ExemptionFacts, config: EngineConfig): boolean {
+  return checkFbtExemption(f, config).exempt;
 }
 
 export function assessFbt(
@@ -539,13 +713,14 @@ export function assessFbt(
   const baseValue = finance.priceInclGst;
   const taxableValue = baseValue * config.fbt.statutoryRate;
 
-  const evExempt = isFbtExemptVehicle(inputs.fuelType, inputs.vehiclePrice, config);
+  const check = checkFbtExemption(inputs, config);
 
-  if (evExempt) {
+  if (check.exempt) {
     return {
       exempt: true,
-      exemptReason:
-        "Battery-electric vehicle under the luxury car tax threshold for fuel-efficient vehicles — exempt from FBT.",
+      exemptReason: isPreOwned(inputs.condition)
+        ? `Battery-electric vehicle first registered on ${inputs.firstRegisteredDate}, after the exemption started, and under the luxury car tax threshold for fuel-efficient vehicles — exempt from FBT.`
+        : "Battery-electric vehicle under the luxury car tax threshold for fuel-efficient vehicles — exempt from FBT.",
       baseValue,
       taxableValue,
       employeeContribution: 0,
@@ -664,9 +839,27 @@ export function calculateLease(
       "Plug-in hybrids stopped qualifying for the FBT exemption on 1 April 2025 unless a binding commitment was already in place.",
     );
   }
-  if (inputs.fuelType === "electric" && inputs.vehiclePrice > config.lct.thresholdFuelEfficient) {
+  // Said from the engine's own conclusion rather than re-derived, so the
+  // reason a car misses out is the reason it actually missed out — the price
+  // cap on a new car, but just as often a used one's registration date.
+  if (inputs.fuelType === "electric" && config.fbt.evExemption.enabled) {
+    const exemption = checkFbtExemption(inputs, config);
+    if (!exemption.exempt) {
+      warnings.push(`The FBT exemption does not apply to this car. ${exemption.blockedBy}`);
+    } else if (exemption.unverified) {
+      warnings.push(
+        `We've treated this car as FBT exempt, but there's one condition we couldn't check. ${exemption.unverified} Worth confirming before you rely on it — if it turns out not to qualify, that's ${fmt(finance.priceInclGst * config.fbt.statutoryRate)} of taxable value a year.`,
+      );
+    }
+  }
+  if (inputs.purchasedFrom === "private") {
     warnings.push(
-      "This EV is above the luxury car tax threshold for fuel-efficient vehicles, so the FBT exemption does not apply.",
+      `A private seller doesn't charge GST, so there's no credit for the financier to claim: the lease is written over the whole ${fmt(finance.priceInclGst)} rather than ${fmt(carGstCredit(finance.priceInclGst, config))} less. Check your provider will fund a private sale at all — many want a licensed dealer or an inspection first.`,
+    );
+  }
+  if (isPreOwned(inputs.condition)) {
+    warnings.push(
+      "Servicing, tyres and repairs here are benchmarks for a car under warranty. On an older car budget for more, and check what warranty is left before you set the running-cost allowance.",
     );
   }
   if (pkg.takeHomeAfter < 0) {

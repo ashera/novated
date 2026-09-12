@@ -82,13 +82,17 @@ describe("What the builder says will be financed", () => {
   const config = DEFAULT_CONFIG;
   const base = defaultInputs(config);
 
-  const agrees = (b: Parameters<typeof financedAfterGstCredit>[0]) => {
-    const preview = financedAfterGstCredit(b, config);
+  const agrees = (
+    b: Parameters<typeof financedAfterGstCredit>[0],
+    claimsGstCredit = true,
+  ) => {
+    const preview = financedAfterGstCredit(b, config, claimsGstCredit);
     const engine = buildFinance(
       {
         ...base,
         vehiclePrice: carCost(b),
         onRoadCosts: b.financeOnRoads === false ? 0 : onRoadCosts(b),
+        purchasedFrom: claimsGstCredit ? "dealer" : "private",
       },
       config,
     ).amountFinanced;
@@ -114,5 +118,17 @@ describe("What the builder says will be financed", () => {
 
   it("is less than the invoice, always — that is the whole point", () => {
     expect(financedAfterGstCredit(full, config)).toBeLessThan(driveAwayTotal(full));
+  });
+
+  // A private seller isn't registered, so there is nothing to reclaim. If the
+  // modal kept taking a ninth off, it would be the last place on the site
+  // still promising a credit that doesn't exist.
+  it("agrees with the engine on a private sale, where there is no credit", () => {
+    agrees({ vehicle: 55_000 }, false);
+    agrees({ ...full }, false);
+  });
+
+  it("finances the whole invoice on a private sale", () => {
+    expect(financedAfterGstCredit(full, config, false)).toBeCloseTo(driveAwayTotal(full), 6);
   });
 });

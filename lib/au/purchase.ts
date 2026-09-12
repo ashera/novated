@@ -94,8 +94,15 @@ export function amountToFinance(b: PurchaseBreakdown): number {
  * builder cannot be the one place that quietly calls the drive-away total
  * "financed".
  */
-export function financedAfterGstCredit(b: PurchaseBreakdown, config: EngineConfig): number {
-  return amountToFinance(b) - carGstCredit(carCost(b), config);
+export function financedAfterGstCredit(
+  b: PurchaseBreakdown,
+  config: EngineConfig,
+  /** False for a private sale: an unregistered seller charges no GST, so
+   *  there is nothing for the financier to reclaim and the whole price is
+   *  financed. Defaults to true, which is a dealer purchase. */
+  claimsGstCredit = true,
+): number {
+  return amountToFinance(b) - (claimsGstCredit ? carGstCredit(carCost(b), config) : 0);
 }
 
 /** True once there is enough to work with — the car itself is the only part

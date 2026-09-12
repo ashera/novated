@@ -99,6 +99,20 @@ export interface LctConfig {
   rate: number;
   thresholdFuelEfficient: number;
   thresholdOther: number;
+  /**
+   * The fuel-efficient threshold as it stood in earlier years, keyed by
+   * financial year.
+   *
+   * Needed because the FBT exemption tests a car's value at its FIRST RETAIL
+   * SALE, against the threshold in force then — so for a second-hand electric
+   * car both sides of the test are historical. Today's figure would wrongly
+   * exempt a car that was over the line when it was new.
+   *
+   * Only years we hold a figure for are listed; anything older falls back to
+   * the current threshold, and the engine says so rather than pretending it
+   * checked.
+   */
+  thresholdFuelEfficientByYear: Record<string, number>;
 }
 
 export const AU_STATES = ["NSW", "VIC", "QLD", "SA", "WA", "TAS", "NT", "ACT"] as const;
@@ -201,7 +215,23 @@ export const DEFAULT_CONFIG: EngineConfig = {
   // thresholdFuelEfficient doubles as the FBT-exemption price cap for EVs, so a
   // stale value silently denies the exemption to cars that qualify. Both figures
   // are indexed annually and remain flagged for verification against the ATO.
-  lct: { rate: 0.33, thresholdFuelEfficient: 91_661, thresholdOther: 80_567 },
+  lct: {
+    rate: 0.33,
+    thresholdFuelEfficient: 91_661,
+    thresholdOther: 80_567,
+    // Back to the year the EV exemption started — earlier years can't qualify
+    // on the date test anyway, so there is nothing to look up. FLAGGED FOR
+    // VERIFICATION against the ATO's published series: these decide whether a
+    // second-hand EV is exempt, and being generous by a few hundred dollars
+    // would hand someone an exemption they don't have.
+    thresholdFuelEfficientByYear: {
+      "2022-23": 84_916,
+      "2023-24": 89_332,
+      "2024-25": 91_387,
+      "2025-26": 91_387,
+      "2026-27": 91_661,
+    },
+  },
 
   lease: {
     // ATO IT 2509 minimum residuals, by term.
@@ -282,6 +312,15 @@ export function withDefaults(data: EngineConfig): EngineConfig {
   }
   if (out.fbt.evExemption == null) {
     out = { ...out, fbt: { ...out.fbt, evExemption: DEFAULT_CONFIG.fbt.evExemption } };
+  }
+  if (out.lct.thresholdFuelEfficientByYear == null) {
+    out = {
+      ...out,
+      lct: {
+        ...out.lct,
+        thresholdFuelEfficientByYear: DEFAULT_CONFIG.lct.thresholdFuelEfficientByYear,
+      },
+    };
   }
   if (out.lease.luxuryCarAdjustmentPct == null) {
     out = {

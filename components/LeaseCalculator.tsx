@@ -184,6 +184,14 @@ export default function LeaseCalculator({
             onPurchase={(b) => setVehicle(b)}
             config={config}
             priceNeedsBreakdown={!readOnly && priceNeedsBreakdown(lease.vehicle)}
+            condition={lease.vehicle.condition}
+            firstRegisteredDate={lease.vehicle.firstRegisteredDate}
+            firstRetailPrice={lease.vehicle.firstRetailPrice}
+            purchasedFrom={lease.vehicle.purchasedFrom}
+            onCarHistory={(patch) => {
+              setVehicle(patch);
+              if (patch.condition) track("Car condition set", { condition: patch.condition });
+            }}
             annualKm={inputs.annualKm}
             onAnnualKm={(v) => setVehicle({ annualKm: v })}
             state={inputs.state}

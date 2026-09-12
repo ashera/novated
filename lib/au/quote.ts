@@ -23,8 +23,10 @@ import {
   defaultInputs,
   PAY_CYCLES_PER_YEAR,
   type AnnualRunningCosts,
+  type CarCondition,
   type FuelType,
   type LeaseInputs,
+  type PurchaseChannel,
 } from "./novated";
 
 /** The pay cycle a quote's figures are expressed in. Providers publish exactly
@@ -96,6 +98,16 @@ export interface Quote {
   /** When the car is first held — delivery, in practice. ISO date. Quotes are
    *  written on a full-FBT-year assumption; this is what tests that. */
   firstHeldDate?: string;
+
+  /** New, ex-demo or second-hand, and what follows from it: whether the FBT
+   *  exemption can reach the car at all, and whether there is GST to claim.
+   *  Carried from the lease, like every other fact about the car. */
+  condition?: CarCondition;
+  /** When the CAR was first registered — not when this lease takes delivery,
+   *  which is firstHeldDate. */
+  firstRegisteredDate?: string;
+  firstRetailPrice?: number;
+  purchasedFrom?: PurchaseChannel;
 }
 
 export type FindingSeverity = "critical" | "warn" | "ok";
@@ -728,6 +740,10 @@ export function quoteToLeaseInputs(
     vehiclePrice: quote.vehiclePrice ?? base.vehiclePrice,
     onRoadCosts: quote.onRoadCosts,
     fuelType: quote.fuelType,
+    condition: quote.condition,
+    firstRegisteredDate: quote.firstRegisteredDate,
+    firstRetailPrice: quote.firstRetailPrice,
+    purchasedFrom: quote.purchasedFrom,
     termYears: years,
     annualKm: quote.annualKm ?? base.annualKm,
     state: quote.state,

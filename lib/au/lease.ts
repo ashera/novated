@@ -20,10 +20,12 @@ import type { PurchaseBreakdown } from "./purchase";
 import type { BodyType, Vehicle } from "./vehicles";
 import type {
   AnnualRunningCosts,
+  CarCondition,
   FbtMethod,
   FuelType,
   LeaseInputs,
   PayCycle,
+  PurchaseChannel,
 } from "./novated";
 import { defaultInputs } from "./novated";
 import {
@@ -72,6 +74,21 @@ export interface VehicleSpec {
   consumptionPer100km?: number;
   /** Delivery. Only the decoder asks; part-year FBT depends on it. */
   firstHeldDate?: string;
+  /**
+   * New, ex-demo or second-hand, and the facts that follow from it.
+   *
+   * Absent means new, which is what every lease saved before we asked was
+   * modelled as — so an existing lease's figures do not move when this ships.
+   * `firstRegisteredDate` is about the CAR's history, not this driver's: it is
+   * what decides whether a second-hand EV can be exempt at all, and is not to
+   * be confused with `firstHeldDate`, which is the day this lease takes
+   * delivery.
+   */
+  condition?: CarCondition;
+  firstRegisteredDate?: string;
+  /** What it sold for new — the price the exemption's cap is measured on. */
+  firstRetailPrice?: number;
+  purchasedFrom?: PurchaseChannel;
 }
 
 /** Everything the calculator needs that ISN'T about the car. */
@@ -267,6 +284,10 @@ export function leaseToInputs(lease: Lease): LeaseInputs {
     annualKm: v.annualKm ?? base.annualKm,
     state: v.state,
     consumptionPer100km: v.consumptionPer100km,
+    condition: v.condition,
+    firstRegisteredDate: v.firstRegisteredDate,
+    firstRetailPrice: v.firstRetailPrice,
+    purchasedFrom: v.purchasedFrom,
   };
 }
 
@@ -285,6 +306,10 @@ export function leaseToQuote(lease: Lease, spec: QuoteSpec): Quote {
     state: v.state,
     annualKm: v.annualKm,
     firstHeldDate: v.firstHeldDate,
+    condition: v.condition,
+    firstRegisteredDate: v.firstRegisteredDate,
+    firstRetailPrice: v.firstRetailPrice,
+    purchasedFrom: v.purchasedFrom,
     amountFinanced: spec.amountFinanced,
     residualIncGst: spec.residualIncGst,
     termMonths: spec.termMonths,
@@ -318,6 +343,10 @@ export function withLeaseVehicle(lease: Lease, q: Quote): Quote {
     annualKm: v.annualKm,
     state: v.state,
     consumptionPer100km: v.consumptionPer100km,
+    condition: v.condition,
+    firstRegisteredDate: v.firstRegisteredDate,
+    firstRetailPrice: v.firstRetailPrice,
+    purchasedFrom: v.purchasedFrom,
   };
 }
 

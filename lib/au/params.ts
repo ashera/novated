@@ -93,6 +93,26 @@ function residualDescriptors(): ParamDescriptor[] {
   }));
 }
 
+/**
+ * The fuel-efficient LCT threshold for each earlier year.
+ *
+ * Editable for the same reason the current one is: a second-hand electric car
+ * is tested against the threshold of the year it was first sold, so a wrong
+ * figure here grants or denies an exemption worth thousands a year — and it is
+ * a figure we transcribed from a historical table rather than one anybody on
+ * this site can check by looking at their own paperwork.
+ */
+function historicLctDescriptors(): ParamDescriptor[] {
+  return Object.keys(DEFAULT_CONFIG.lct.thresholdFuelEfficientByYear).map((fy) => ({
+    key: `lct_threshold_fe_${fy.replace("-", "_")}`,
+    label: `LCT threshold — fuel-efficient, ${fy}`,
+    category: "GST & luxury car tax",
+    path: `lct.thresholdFuelEfficientByYear.${fy}`,
+    unit: "aud" as const,
+    sourceKey: "ato-lct",
+  }));
+}
+
 export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   ...taxBracketDescriptors(),
 
@@ -121,6 +141,8 @@ export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   { key: "lct_rate", label: "Luxury car tax rate", category: "GST & luxury car tax", path: "lct.rate", unit: "percent", sourceKey: "ato-lct" },
   { key: "lct_threshold_fe", label: "LCT threshold — fuel-efficient vehicles", category: "GST & luxury car tax", path: "lct.thresholdFuelEfficient", unit: "aud", sourceKey: "ato-lct" },
   { key: "lct_threshold_other", label: "LCT threshold — other vehicles", category: "GST & luxury car tax", path: "lct.thresholdOther", unit: "aud", sourceKey: "ato-lct" },
+
+  ...historicLctDescriptors(),
 
   ...residualDescriptors(),
 

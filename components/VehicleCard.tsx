@@ -23,7 +23,13 @@ import {
   onRoadCosts,
   type PurchaseBreakdown,
 } from "@/lib/au/purchase";
-import { isFbtExemptVehicle, type FuelType } from "@/lib/au/novated";
+import {
+  checkFbtExemption,
+  isPreOwned,
+  type CarCondition,
+  type FuelType,
+  type PurchaseChannel,
+} from "@/lib/au/novated";
 
 /**
  * Everything about the car, in one card at the top of the page.
@@ -62,6 +68,17 @@ const FUEL_TYPES: { key: FuelType; label: string; hint: string }[] = [
   { key: "diesel", label: "Diesel", hint: "FBT applies — offset by an employee contribution" },
   { key: "hybrid", label: "Hybrid", hint: "Conventional hybrid — FBT applies" },
   { key: "phev", label: "Plug-in hybrid", hint: "No longer eligible for the FBT exemption" },
+];
+
+const CONDITIONS: { key: CarCondition; label: string; hint: string }[] = [
+  { key: "new", label: "New", hint: "First registered to you" },
+  { key: "demo", label: "Ex-demo", hint: "Registered to the dealer first — the date still matters" },
+  { key: "used", label: "Used", hint: "Somebody has owned it before" },
+];
+
+const CHANNELS: { key: PurchaseChannel; label: string }[] = [
+  { key: "dealer", label: "A dealer" },
+  { key: "private", label: "A private seller" },
 ];
 
 function Chip({
@@ -123,6 +140,21 @@ export interface VehicleCardProps {
 
   annualKm: number | undefined;
   onAnnualKm: (v: number | undefined) => void;
+
+  /** New, ex-demo or second-hand. Omit `onCarHistory` to skip the control —
+   *  the decoder shows it as a readout instead. */
+  condition?: CarCondition;
+  firstRegisteredDate?: string;
+  firstRetailPrice?: number;
+  purchasedFrom?: PurchaseChannel;
+  /** One callback, because these are one decision: saying "used" is what
+   *  makes the rest of them mean anything. */
+  onCarHistory?: (patch: {
+    condition?: CarCondition;
+    firstRegisteredDate?: string;
+    firstRetailPrice?: number;
+    purchasedFrom?: PurchaseChannel;
+  }) => void;
 
   /** A car the catalogue doesn't have. Only read when no vehicleId is set. */
   customMake?: string;
@@ -191,8 +223,23 @@ export default function VehicleCard(p: VehicleCardProps) {
   //
   // Only once there is a price: the threshold is a price test, so with nothing
   // entered we would be claiming an exemption we haven't checked.
-  const fbtExempt =
-    p.config != null && p.price != null && isFbtExemptVehicle(p.fuelType, p.price, p.config);
+  const exemption =
+    p.config != null && p.price != null
+      ? checkFbtExemption(
+          {
+            fuelType: p.fuelType,
+            vehiclePrice: p.price,
+            condition: p.condition,
+            firstRegisteredDate: p.firstRegisteredDate,
+            firstRetailPrice: p.firstRetailPrice,
+          },
+          p.config,
+        )
+      : null;
+  const preOwned = isPreOwned(p.condition);
+  // A private seller isn't registered for GST, so there is no credit anywhere
+  // on this card — not in the hint under the price, and not in the builder.
+  const claimsGstCredit = p.purchasedFrom !== "private";
 
   return (
     <section className="rounded-xl border border-line bg-panel shadow-[var(--shadow-card)]">
@@ -201,19 +248,45 @@ export default function VehicleCard(p: VehicleCardProps) {
       )}
       <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
         <div>
-          {fbtExempt && (
-            <div className="mb-2 flex items-start gap-2 rounded-lg border border-success/40 bg-success-subtle px-3 py-2">
+          {exemption?.exempt && (
+            <div
+              className={`mb-2 flex items-start gap-2 rounded-lg border px-3 py-2 ${
+                exemption.unverified
+                  ? "border-warning/40 bg-warning-subtle"
+                  : "border-success/40 bg-success-subtle"
+              }`}
+            >
               <svg
                 viewBox="0 0 20 20"
                 aria-hidden="true"
-                className="mt-0.5 h-4 w-4 shrink-0 fill-success"
+                className={`mt-0.5 h-4 w-4 shrink-0 ${
+                  exemption.unverified ? "fill-warning" : "fill-success"
+                }`}
               >
                 <path d="M10 1.6a8.4 8.4 0 1 0 0 16.8 8.4 8.4 0 0 0 0-16.8Zm4.03 6.2-4.9 5.2a.95.95 0 0 1-1.38 0L5.97 10.8a.95.95 0 0 1 1.38-1.3l1.09 1.16 4.21-4.47a.95.95 0 1 1 1.38 1.3Z" />
               </svg>
-              <p className="text-[12px] leading-snug text-success-text">
-                <strong className="font-semibold">No FBT on this car.</strong> Battery-electric
-                and under the {fmtCurrency(p.config!.lct.thresholdFuelEfficient)} threshold, so
-                the whole package comes out of pre-tax pay with nothing to contribute back.
+              {/* A qualified yes is still a yes, but it can't wear the same
+                  colour as a settled one — the whole point of the badge is
+                  that it is trusted at a glance. */}
+              <p
+                className={`text-[12px] leading-snug ${
+                  exemption.unverified ? "text-warning-text" : "text-success-text"
+                }`}
+              >
+                {exemption.unverified ? (
+                  <>
+                    <strong className="font-semibold">Probably no FBT on this car.</strong>{" "}
+                    {exemption.unverified}
+                  </>
+                ) : (
+                  <>
+                    <strong className="font-semibold">No FBT on this car.</strong>{" "}
+                    {preOwned
+                      ? "Battery-electric, first registered after the exemption started, and under the threshold it was measured against — so"
+                      : `Battery-electric and under the ${fmtCurrency(p.config!.lct.thresholdFuelEfficient)} threshold, so`}{" "}
+                    the whole package comes out of pre-tax pay with nothing to contribute back.
+                  </>
+                )}
               </p>
             </div>
           )}
@@ -271,6 +344,26 @@ export default function VehicleCard(p: VehicleCardProps) {
               />
               {p.onState && (
                 <Readout label="Registered in" value={p.state ?? "National average"} />
+              )}
+              {preOwned && (
+                <>
+                  <Readout
+                    label="Condition"
+                    value={CONDITIONS.find((c) => c.key === p.condition)?.label ?? "Used"}
+                    note={
+                      p.firstRegisteredDate
+                        ? `First registered ${p.firstRegisteredDate}`
+                        : "First registered: not set"
+                    }
+                  />
+                  <Readout
+                    label="Bought from"
+                    value={p.purchasedFrom === "private" ? "A private seller" : "A dealer"}
+                    note={
+                      p.purchasedFrom === "private" ? "No GST credit to claim" : undefined
+                    }
+                  />
+                </>
               )}
             </div>
 
@@ -493,10 +586,13 @@ export default function VehicleCard(p: VehicleCardProps) {
                               stampDuty: p.onRoadCosts,
                             },
                             p.config,
+                            claimsGstCredit,
                           ),
                         )}
                       </strong>{" "}
-                      once the financier claims the GST back.
+                      {claimsGstCredit
+                        ? "once the financier claims the GST back."
+                        : "— a private seller charges no GST, so there's none to claim back."}
                     </>
                   ) : (
                     (p.priceHint ??
@@ -542,6 +638,85 @@ export default function VehicleCard(p: VehicleCardProps) {
               ))}
             </div>
           </div>
+
+          {/* Asked here and not buried in an "advanced" drawer, because the
+              answer changes whether the biggest number on the page exists.
+              New is the default and needs nothing else; the follow-ups only
+              appear once someone says otherwise. */}
+          {p.onCarHistory && (
+            <div>
+              <span className="text-sm font-medium text-ink">Condition</span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {CONDITIONS.map((c) => (
+                  <Chip
+                    key={c.key}
+                    active={(p.condition ?? "new") === c.key}
+                    title={c.hint}
+                    onClick={() => p.onCarHistory?.({ condition: c.key })}
+                  >
+                    {c.label}
+                  </Chip>
+                ))}
+              </div>
+              {!preOwned && (
+                <p className="mt-1.5 text-[11px] text-muted">
+                  A second-hand electric car has to clear one more test before it&apos;s FBT
+                  exempt, so it&apos;s worth saying if yours isn&apos;t new.
+                </p>
+              )}
+
+              {preOwned && (
+                <div className="mt-3 space-y-3 rounded-lg border border-line bg-panel-2 p-3">
+                  <label className="block max-w-xs">
+                    <span className="text-sm font-medium text-ink">First registered</span>
+                    <input
+                      type="date"
+                      value={p.firstRegisteredDate ?? ""}
+                      onChange={(e) =>
+                        p.onCarHistory?.({ firstRegisteredDate: e.target.value || undefined })
+                      }
+                      className="mt-1 w-full rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                    />
+                    <span className="mt-1 block text-[11px] leading-snug text-muted">
+                      When the car first went on the road — not when you take delivery. The FBT
+                      exemption only reaches cars first held and used from{" "}
+                      {p.config?.fbt.evExemption.firstHeldFrom ?? "1 July 2022"}, and that&apos;s
+                      fixed to the car, so no later owner can claim it.
+                    </span>
+                  </label>
+
+                  {p.fuelType === "electric" && (
+                    <QuoteField
+                      label="Price when new"
+                      value={p.firstRetailPrice}
+                      onChange={(v) => p.onCarHistory?.({ firstRetailPrice: v })}
+                      placeholder="72,000"
+                      hint="Optional, but it's the number the exemption's price cap is measured on — what it sold for new, against that year's threshold, not what you're paying now."
+                    />
+                  )}
+
+                  <div>
+                    <span className="text-sm font-medium text-ink">Bought from</span>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {CHANNELS.map((c) => (
+                        <Chip
+                          key={c.key}
+                          active={(p.purchasedFrom ?? "dealer") === c.key}
+                          onClick={() => p.onCarHistory?.({ purchasedFrom: c.key })}
+                        >
+                          {c.label}
+                        </Chip>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[11px] leading-snug text-muted">
+                      A private seller charges no GST, so there&apos;s no credit for the financier
+                      to claim and the lease is written over the whole price.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {p.onState && (
             <div>
@@ -621,6 +796,7 @@ export default function VehicleCard(p: VehicleCardProps) {
       {building && p.onPurchase && p.config && (
         <PriceBuilder
           config={p.config!}
+          claimsGstCredit={claimsGstCredit}
           initial={p.purchase ?? (p.price != null ? { vehicle: p.price } : {})}
           onCancel={() => setBuilding(false)}
           onApply={(b) => {

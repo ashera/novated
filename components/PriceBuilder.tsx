@@ -150,11 +150,16 @@ function Total({
 export default function PriceBuilder({
   initial,
   config,
+  claimsGstCredit = true,
   onCancel,
   onApply,
 }: {
   initial: PurchaseBreakdown;
   config: EngineConfig;
+  /** False on a private sale, where no GST was charged for the financier to
+   *  reclaim. The chain has to reflect that or the modal is the one place on
+   *  the site still quietly taking a ninth off the price. */
+  claimsGstCredit?: boolean;
   onCancel: () => void;
   onApply: (b: PurchaseBreakdown) => void;
 }) {
@@ -253,19 +258,25 @@ export default function PriceBuilder({
             value={amountToFinance(b)}
           />
           <Total
-            label="Less the GST the financier claims back"
-            note={
-              car > config.gst.carLimit
-                ? `Capped at one eleventh of the ${fmtCurrency(config.gst.carLimit)} car limit`
-                : undefined
+            label={
+              claimsGstCredit
+                ? "Less the GST the financier claims back"
+                : "No GST credit — a private seller doesn't charge it"
             }
-            value={-carGstCredit(car, config)}
+            note={
+              !claimsGstCredit
+                ? "Which is why a private sale finances more than the same car from a dealer"
+                : car > config.gst.carLimit
+                  ? `Capped at one eleventh of the ${fmtCurrency(config.gst.carLimit)} car limit`
+                  : undefined
+            }
+            value={claimsGstCredit ? -carGstCredit(car, config) : 0}
           />
           <div className="border-t border-line pt-1.5">
             <Total
               label="Financed"
               note="What the lease is written over, and what the repayments are calculated on"
-              value={financedAfterGstCredit(b, config)}
+              value={financedAfterGstCredit(b, config, claimsGstCredit)}
               strong
             />
           </div>

@@ -7,6 +7,7 @@ import {
   amortisationSchedule,
   calculateLease,
   effectivePayCycle,
+  isPreOwned,
   PAY_CYCLES_PER_YEAR,
   PAY_CYCLE_NOUN,
   type LeaseInputs,
@@ -121,8 +122,23 @@ export default function LeaseReport({
       <Section title="The car and the lease">
         <Table
           rows={[
+            ...(isPreOwned(inputs.condition)
+              ? ([
+                  [
+                    inputs.condition === "demo" ? "Condition — ex-demonstrator" : "Condition — second-hand",
+                    inputs.firstRegisteredDate
+                      ? `First registered ${inputs.firstRegisteredDate}`
+                      : "First registration date not given",
+                  ],
+                ] as [string, string][])
+              : []),
             ["Vehicle price (drive-away, GST included)", fmtCurrency(finance.priceInclGst)],
-            ["GST credit claimed by the financier", `− ${fmtCurrency(finance.gstCredit)}`],
+            [
+              inputs.purchasedFrom === "private"
+                ? "GST credit — none, private sale"
+                : "GST credit claimed by the financier",
+              finance.gstCredit > 0 ? `− ${fmtCurrency(finance.gstCredit)}` : "—",
+            ],
             ["Amount financed", fmtCurrency(finance.amountFinanced)],
             ...(finance.luxuryCarTax > 0
               ? ([["Luxury car tax included in the price", fmtCurrency(finance.luxuryCarTax)]] as [string, string][])
