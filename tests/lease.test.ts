@@ -534,3 +534,36 @@ describe("Locking in a quote", () => {
     expect(lockedQuote(gone)).toBeNull();
   });
 });
+
+describe("A lock can never point at a quote that isn't being modelled", () => {
+  // The invariant the payslip depends on. Both ways of changing what the
+  // figures are modelled on have to honour it, not just the one on the hub.
+  const solvable = (label: string, finance: number) => ({
+    ...newQuoteSpec(label),
+    frequency: "monthly" as const,
+    termMonths: 60,
+    amountFinanced: 50_000,
+    residualIncGst: 14_065,
+    lines: { finance },
+  });
+
+  it("the decoder's hand-off clears a lock on a different quote", () => {
+    const a = solvable("Maxxia", 900);
+    const b = solvable("Smartleasing", 1_100);
+    let lease: Lease = { ...leaseWithCar(), quotes: [a, b] };
+    lease = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
+    expect(lease.lockedQuoteId).toBe(a.id);
+
+    // Straight through applyScenarioFromQuote, as the hand-off does.
+    const handed = applyScenarioFromQuote(lease, leaseToInputs(lease), b.id);
+    expect(handed.scenario.fromQuoteId).toBe(b.id);
+    expect(handed.lockedQuoteId).toBeUndefined();
+  });
+
+  it("but keeps it when the same quote is re-applied", () => {
+    const a = solvable("Maxxia", 900);
+    let lease: Lease = { ...leaseWithCar(), quotes: [a] };
+    lease = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
+    expect(applyScenarioFromQuote(lease, leaseToInputs(lease), a.id).lockedQuoteId).toBe(a.id);
+  });
+});

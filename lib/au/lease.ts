@@ -273,6 +273,12 @@ export function applyScenarioFromQuote(
       termYears: inputs.termYears,
       fromQuoteId: quoteId,
     },
+    // Modelling a different quote means the decision is being reconsidered, so
+    // a lock on the old one is stale. Enforced here rather than at each call
+    // site, because there are two ways in — this page's list and the decoder's
+    // hand-off — and a lock left pointing at a quote the figures are no longer
+    // modelled on would put a payslip on screen built from something else.
+    lockedQuoteId: lease.lockedQuoteId === quoteId ? lease.lockedQuoteId : undefined,
   };
 }
 
@@ -290,13 +296,7 @@ export function activateQuote(lease: Lease, quoteId: string, config: EngineConfi
   const quote = leaseToQuote(lease, spec);
   const decoded = decodeQuote(quote, config);
   if (decoded.impliedRatePct == null) return lease;
-  const next = applyScenarioFromQuote(lease, quoteToLeaseInputs(quote, decoded, config), quoteId);
-  // Modelling a different quote means you are weighing them up again, so a
-  // lock on the old one is stale. Leaving it would show a payslip built on
-  // figures the page is no longer displaying.
-  return next.lockedQuoteId && next.lockedQuoteId !== quoteId
-    ? { ...next, lockedQuoteId: undefined }
-    : next;
+  return applyScenarioFromQuote(lease, quoteToLeaseInputs(quote, decoded, config), quoteId);
 }
 
 /** Settle on the quote currently being modelled. */

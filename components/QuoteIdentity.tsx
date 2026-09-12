@@ -27,6 +27,7 @@ export default function QuoteIdentity({
   frequency,
   onFrequency,
   providers,
+  readOnly = false,
 }: {
   label: string;
   onLabel: (v: string) => void;
@@ -34,10 +35,11 @@ export default function QuoteIdentity({
   onFrequency: (f: QuoteFrequency) => void;
   /** The provider directory, for the name suggestions. */
   providers: Provider[];
+  readOnly?: boolean;
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-      <ProviderPicker value={label} onChange={onLabel} providers={providers} />
+      <ProviderPicker value={label} onChange={onLabel} providers={providers} readOnly={readOnly} />
 
       <div>
         <span className="text-sm font-medium text-ink">Figures on your quote are per</span>
@@ -46,21 +48,24 @@ export default function QuoteIdentity({
             <button
               key={f}
               type="button"
+              disabled={readOnly}
               onClick={() => onFrequency(f)}
               className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
                 frequency === f
                   ? "border-accent bg-accent-subtle text-accent"
-                  : "border-line bg-panel-2 text-subtle hover:border-line-bold hover:text-ink"
-              }`}
+                  : "border-line bg-panel-2 text-subtle"
+              } ${readOnly ? "cursor-default opacity-70" : "hover:border-line-bold hover:text-ink"}`}
             >
               {FREQ_LABEL[f]}
             </button>
           ))}
         </div>
-        <p className="mt-1.5 text-[11px] text-muted">
-          Look for it in the heading above the figures &mdash; providers label it once and never
-          repeat it. Get this wrong and every number below is out by two or four times.
-        </p>
+        {!readOnly && (
+          <p className="mt-1.5 text-[11px] text-muted">
+            Look for it in the heading above the figures &mdash; providers label it once and never
+            repeat it. Get this wrong and every number below is out by two or four times.
+          </p>
+        )}
       </div>
     </div>
   );

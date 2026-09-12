@@ -27,10 +27,12 @@ export default function ProviderPicker({
   value,
   onChange,
   providers,
+  readOnly = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   providers: Provider[];
+  readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // -1 = nothing highlighted. Deliberate: with the first row pre-selected,
@@ -133,21 +135,25 @@ export default function ProviderPicker({
           aria-autocomplete="list"
           autoComplete="off"
           value={value}
-          placeholder="Start typing the provider's name"
+          placeholder={readOnly ? "" : "Start typing the provider's name"}
+          readOnly={readOnly}
           onChange={(e) => {
+            if (readOnly) return;
             onChange(e.target.value);
             setOpen(true);
             setActive(-1);
             setAdded(null);
             setError(null);
           }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={onKey}
-          className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          onFocus={() => !readOnly && setOpen(true)}
+          onKeyDown={readOnly ? undefined : onKey}
+          className={`mt-1 w-full rounded-md border border-line px-2 py-1.5 text-sm text-ink outline-none ${
+            readOnly ? "bg-panel-3" : "bg-panel-2 focus:border-accent"
+          }`}
         />
       </label>
 
-      {open && rows > 0 && (
+      {!readOnly && open && rows > 0 && (
         <ul
           id={listId}
           role="listbox"

@@ -102,6 +102,15 @@ export default function QuoteDecoder({
   // Which quote are we decoding? The lease's first, unless one was chosen.
   const activeSpec =
     lease.quotes.find((q) => q.id === activeQuoteId) ?? lease.quotes[0] ?? null;
+  /**
+   * A locked quote is a decision, not a draft.
+   *
+   * It is the record of what a provider actually sent and what the user chose
+   * on that basis, and the payslip on the lease page is built from it — so
+   * editing it here would quietly move the ground under a decision made
+   * somewhere else. Read-only until they unlock it where they locked it.
+   */
+  const readOnly = Boolean(activeSpec && lease.lockedQuoteId === activeSpec.id);
   // A worked example is only right for someone who has told us nothing yet.
   // Once they have described a car, showing the example's car instead would
   // hide the very thing the lease exists to share — and showing the example's
@@ -219,10 +228,20 @@ export default function QuoteDecoder({
               Decode your novated lease quote
             </h1>
             <p className="mt-1.5 text-sm text-subtle">
-              Type in the figures from the quote a provider sent you. We&apos;ll work out the
-              interest rate they didn&apos;t print, check every line against the market, and give
-              you the questions to send back. Keep more than one and you can put them side by
-              side.
+              {readOnly ? (
+                <>
+                  The figures from this quote as they were transcribed, and what we found in
+                  them — the interest rate it doesn&apos;t print, every line against the market,
+                  and the questions worth sending back.
+                </>
+              ) : (
+                <>
+                  Type in the figures from the quote a provider sent you. We&apos;ll work out the
+                  interest rate they didn&apos;t print, check every line against the market, and
+                  give you the questions to send back. Keep more than one and you can put them
+                  side by side.
+                </>
+              )}
             </p>
           </div>
           <Link
@@ -232,6 +251,25 @@ export default function QuoteDecoder({
             ← Your leases
           </Link>
         </div>
+
+        {/* Said before anything else, because every field below is frozen and a
+            page that simply refuses to type is a page that looks broken. It
+            also has to say where to undo it: the lock was made somewhere else,
+            so this page cannot be the one to release it. */}
+        {readOnly && (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-success/40 bg-success-subtle px-4 py-3">
+            <p className="text-sm text-success-text">
+              <strong>This quote is locked in.</strong> It&apos;s the one you&apos;ve settled on,
+              so it&apos;s shown as it was — to change anything, unlock it on Your leases first.
+            </p>
+            <Link
+              href="/"
+              className="shrink-0 whitespace-nowrap rounded bg-success px-3 py-1.5 text-sm font-semibold text-white transition hover:opacity-90"
+            >
+              Unlock on Your leases
+            </Link>
+          </div>
+        )}
 
         {store.adopted > 0 && (
           <p className="mb-5 rounded-lg border border-success/40 bg-success-subtle px-4 py-2.5 text-sm text-success-text">
@@ -252,6 +290,7 @@ export default function QuoteDecoder({
                     frequency={quote.frequency}
                     onFrequency={(f) => set("frequency", f)}
                     providers={providers}
+                    readOnly={readOnly}
                   />
                 </div>
               </div>
@@ -277,7 +316,7 @@ export default function QuoteDecoder({
             state={quote.state}
             onState={(st) => set("state", st)}
             firstHeldDate={quote.firstHeldDate}
-            onFirstHeldDate={(d) => set("firstHeldDate", d)}
+            onFirstHeldDate={readOnly ? undefined : (d) => set("firstHeldDate", d)}
           />
         </div>
 
@@ -311,6 +350,7 @@ export default function QuoteDecoder({
                 </div>
 
                 <QuoteField
+                  readOnly={readOnly}
                   label="Amount financed"
                   alsoCalled={["Vehicle Amount Financed", "Financed Amount"]}
                   value={quote.amountFinanced}
@@ -323,6 +363,7 @@ export default function QuoteDecoder({
                   }
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Residual"
                   alsoCalled={["Residual Value", "Balloon"]}
                   value={quote.residualIncGst}
@@ -331,6 +372,7 @@ export default function QuoteDecoder({
                   hint="GST included — that's how it's normally quoted."
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Term"
                   prefix={null}
                   suffix="months"
@@ -349,6 +391,7 @@ export default function QuoteDecoder({
               </p>
               <div className="mt-4 space-y-4">
                 <QuoteField
+                  readOnly={readOnly}
                   label="Finance payment"
                   alsoCalled={["Lease Payment", "Repayments", "Lease Rental"]}
                   value={quote.lines.finance}
@@ -356,6 +399,7 @@ export default function QuoteDecoder({
                   placeholder="650.19"
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Fuel or charging"
                   alsoCalled={["Power", "Electricity", "Fuel/Charging"]}
                   value={quote.lines.energy}
@@ -363,6 +407,7 @@ export default function QuoteDecoder({
                   placeholder="24.23"
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Servicing"
                   alsoCalled={["Maintenance"]}
                   value={quote.lines.maintenance}
@@ -370,12 +415,14 @@ export default function QuoteDecoder({
                   placeholder="22.00"
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Tyres"
                   value={quote.lines.tyres}
                   onChange={(v) => setLine("tyres", v)}
                   placeholder="16.50"
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Registration"
                   alsoCalled={["Registration + CTP"]}
                   value={quote.lines.registration}
@@ -383,6 +430,7 @@ export default function QuoteDecoder({
                   placeholder="32.00"
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Insurance"
                   alsoCalled={["Comprehensive Insurance"]}
                   value={quote.lines.insurance}
@@ -390,12 +438,14 @@ export default function QuoteDecoder({
                   placeholder="115.00"
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Roadside assistance"
                   value={quote.lines.roadside}
                   onChange={(v) => setLine("roadside", v)}
                   placeholder="0.00"
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Management fee"
                   alsoCalled={["Lease Management", "Admin Fee"]}
                   value={quote.lines.managementFee}
@@ -403,6 +453,7 @@ export default function QuoteDecoder({
                   placeholder="19.00"
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Luxury car charge"
                   alsoCalled={["Luxury Car Adjustment"]}
                   value={quote.lines.luxuryCarAdjustment}
@@ -420,6 +471,7 @@ export default function QuoteDecoder({
               </p>
               <div className="mt-4 space-y-4">
                 <QuoteField
+                  readOnly={readOnly}
                   label="Pre-tax deduction"
                   alsoCalled={["Pre Tax Salary Contribution"]}
                   value={quote.statedPreTax}
@@ -427,6 +479,7 @@ export default function QuoteDecoder({
                   placeholder="900.19"
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Post-tax deduction"
                   alsoCalled={["Employee Contribution", "ECM"]}
                   value={quote.statedPostTax}
@@ -435,6 +488,7 @@ export default function QuoteDecoder({
                   hint="Nil on an FBT-exempt electric vehicle."
                 />
                 <QuoteField
+                  readOnly={readOnly}
                   label="Your gross salary"
                   prefix="$"
                   value={quote.salary}

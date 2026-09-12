@@ -21,6 +21,7 @@ export default function QuoteField({
   suffix,
   placeholder,
   hint,
+  readOnly = false,
 }: {
   label: string;
   alsoCalled?: string[];
@@ -30,6 +31,8 @@ export default function QuoteField({
   suffix?: string;
   placeholder?: string;
   hint?: string;
+  /** Shown, not edited — a locked quote is a record of what a provider sent. */
+  readOnly?: boolean;
 }) {
   return (
     <label className="block">
@@ -41,15 +44,21 @@ export default function QuoteField({
           </span>
         )}
       </span>
-      <span className="mt-1 flex items-center gap-1 rounded-md border border-line bg-panel-2 px-2 py-1.5 focus-within:border-accent">
+      <span
+        className={`mt-1 flex items-center gap-1 rounded-md border border-line px-2 py-1.5 ${
+          readOnly ? "bg-panel-3" : "bg-panel-2 focus-within:border-accent"
+        }`}
+      >
         {prefix && <span className="text-xs text-muted">{prefix}</span>}
         <input
           type="number"
           inputMode="decimal"
           step="any"
           value={value ?? ""}
-          placeholder={placeholder}
+          placeholder={readOnly ? "" : placeholder}
+          readOnly={readOnly}
           onChange={(e) => {
+            if (readOnly) return;
             const raw = e.target.value;
             if (raw === "") return onChange(undefined);
             const n = parseFloat(raw);
