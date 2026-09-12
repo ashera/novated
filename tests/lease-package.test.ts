@@ -362,3 +362,49 @@ describe("The payslip the locked quote produces", () => {
     expect(r.payslip.after.help).toBeGreaterThan(plain.help);
   });
 });
+
+describe("What the pre-tax deduction explainer itemises", () => {
+  // The modal lists the parts and then claims a total. If the engine ever
+  // packages something the list doesn't mention, the total stops matching the
+  // parts and the explanation quietly becomes wrong — so the list is asserted
+  // here rather than trusted.
+  const parts = (r: ReturnType<typeof run>) =>
+    r.finance.annualPayment +
+    (r.inputs.includeRunningCosts ? r.running.total : 0) +
+    (r.inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual) +
+    r.finance.luxuryCarAdjustment +
+    r.fbt.fbtPayable;
+
+  it("adds up to everything packaged, on an exempt EV", () => {
+    const r = run({ fuelType: "electric", vehiclePrice: 55_000 });
+    expect(parts(r)).toBeCloseTo(r.package.preTaxAnnual + r.package.postTaxAnnual, 6);
+  });
+
+  it("adds up with an employee contribution in play", () => {
+    const r = run({ fuelType: "petrol", vehiclePrice: 55_000, fbtMethod: "ecm" });
+    expect(r.package.postTaxAnnual).toBeGreaterThan(0);
+    expect(parts(r)).toBeCloseTo(r.package.preTaxAnnual + r.package.postTaxAnnual, 6);
+  });
+
+  it("adds up when the employer pays the FBT instead", () => {
+    const r = run({ fuelType: "petrol", vehiclePrice: 55_000, fbtMethod: "employer-pays" });
+    expect(r.fbt.fbtPayable).toBeGreaterThan(0);
+    expect(parts(r)).toBeCloseTo(r.package.preTaxAnnual + r.package.postTaxAnnual, 6);
+  });
+
+  it("adds up above the car limit, where the luxury charge appears", () => {
+    const r = run({ fuelType: "petrol", vehiclePrice: 120_000 });
+    expect(r.finance.luxuryCarAdjustment).toBeGreaterThan(0);
+    expect(parts(r)).toBeCloseTo(r.package.preTaxAnnual + r.package.postTaxAnnual, 6);
+  });
+
+  it("adds up with running costs left out of the package", () => {
+    const r = run({ includeRunningCosts: false });
+    expect(parts(r)).toBeCloseTo(r.package.preTaxAnnual + r.package.postTaxAnnual, 6);
+  });
+
+  it("and the pre-tax side is what the payslip taxes you on", () => {
+    const r = run({ fuelType: "petrol", vehiclePrice: 55_000 });
+    expect(r.payslip.after.gross).toBeCloseTo(r.inputs.salary - r.package.preTaxAnnual, 6);
+  });
+});

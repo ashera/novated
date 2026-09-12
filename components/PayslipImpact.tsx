@@ -1,5 +1,7 @@
 "use client";
 
+import Explainer from "./Explainer";
+import InlineExplainer from "./InlineExplainer";
 import { fmtCurrency } from "@/lib/au/format";
 import type { EngineConfig } from "@/lib/au/config";
 import {
@@ -31,6 +33,7 @@ function Row({
   hint,
   negative,
   strong,
+  explainer,
 }: {
   label: string;
   before?: number;
@@ -38,6 +41,7 @@ function Row({
   hint?: string;
   negative?: boolean;
   strong?: boolean;
+  explainer?: React.ReactNode;
 }) {
   const cell = (v: number | undefined) =>
     v == null ? (
@@ -51,7 +55,10 @@ function Row({
   return (
     <tr className={strong ? "font-semibold text-ink" : undefined}>
       <td className={`py-2 ${strong ? "" : "text-subtle"}`}>
-        {label}
+        <span className="flex items-center gap-2">
+          {label}
+          {explainer}
+        </span>
         {hint && <span className="block text-[11px] font-normal text-muted">{hint}</span>}
       </td>
       <td className="py-2 text-right tabular-nums">{cell(before)}</td>
@@ -71,7 +78,22 @@ export default function PayslipImpact({
   config: EngineConfig;
   quoteLabel: string;
 }) {
-  const { inputs, package: pkg, fbt, payslip } = result;
+  const { inputs, finance, running, package: pkg, fbt, payslip } = result;
+  const adminFee = inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual;
+  // The explainer lists the parts and then totals them, all to the nearest
+  // dollar — so the total is the sum of what is SHOWN, not the rounded sum of
+  // the exact values. Otherwise $18,200 + $4,539 + $420 displays a total of
+  // $23,160 and a reader adding up the column is a dollar out.
+  const r0 = (v: number) => Math.round(v);
+  const parts = [
+    r0(finance.annualPayment),
+    inputs.includeRunningCosts ? r0(running.total) : 0,
+    r0(adminFee),
+    r0(finance.luxuryCarAdjustment),
+    r0(fbt.fbtPayable),
+  ];
+  const packagedShown = parts.reduce((a, b) => a + b, 0);
+  const preTaxShown = packagedShown - r0(pkg.postTaxAnnual);
   const cycle = effectivePayCycle(inputs.payCycle, config);
   const n = PAY_CYCLES_PER_YEAR[cycle];
   const noun = PAY_CYCLE_NOUN[cycle];
@@ -118,6 +140,94 @@ export default function PayslipImpact({
               hint="Shown as salary sacrifice"
               after={per(pkg.preTaxAnnual)}
               negative
+              explainer={
+                <Explainer title="How the pre-tax deduction is worked out">
+                  <p>
+                    Your employer pays the whole lease — the car, everything packaged with it
+                    and the fees — and deducts it from your pay. This is the part taken{" "}
+                    <em>before</em> tax.
+                  </p>
+                  <div>
+                    <InlineExplainer
+                      label="Lease payments"
+                      value={fmtCurrency(r0(finance.annualPayment))}
+                    >
+                      {fmtCurrency(finance.monthlyPayment)} a month × 12, at{" "}
+                      {inputs.interestRatePct.toFixed(2)}% over {inputs.termYears} years.
+                    </InlineExplainer>
+
+                    {inputs.includeRunningCosts && (
+                      <InlineExplainer
+                        label="Running costs"
+                        value={fmtCurrency(r0(running.total))}
+                      >
+                        Fuel or charging, servicing, tyres, registration, insurance and roadside
+                        — budgeted for the year, without GST, because your employer claims that
+                        back.
+                      </InlineExplainer>
+                    )}
+
+                    <InlineExplainer label="Management fee" value={fmtCurrency(r0(adminFee))}>
+                      What the provider charges to run the package.
+                    </InlineExplainer>
+
+                    {finance.luxuryCarAdjustment > 0 && (
+                      <InlineExplainer
+                        label="Luxury car charge"
+                        value={fmtCurrency(r0(finance.luxuryCarAdjustment))}
+                      >
+                        The car is financed above the {fmtCurrency(config.gst.carLimit)} car
+                        limit, so the financier loses deductions on the excess and passes the
+                        cost on.
+                      </InlineExplainer>
+                    )}
+
+                    {fbt.fbtPayable > 0 && (
+                      <InlineExplainer
+                        label="Fringe benefits tax"
+                        value={fmtCurrency(r0(fbt.fbtPayable))}
+                      >
+                        Your employer owes it and passes it on. Paying the employee
+                        contribution instead would cancel it.
+                      </InlineExplainer>
+                    )}
+
+                    <InlineExplainer
+                      label="Everything packaged"
+                      value={fmtCurrency(packagedShown)}
+                    >
+                      The whole year&apos;s cost of running this lease, before it is split
+                      across the two sides of tax.
+                    </InlineExplainer>
+
+                    {pkg.postTaxAnnual > 0 && (
+                      <InlineExplainer
+                        label="Less the post-tax part"
+                        value={`− ${fmtCurrency(r0(pkg.postTaxAnnual))}`}
+                      >
+                        The employee contribution comes out <em>after</em> tax instead — that is
+                        what cancels the FBT — so it is not part of the pre-tax figure. It is
+                        its own line further down this payslip.
+                      </InlineExplainer>
+                    )}
+
+                    <InlineExplainer
+                      label="Pre-tax, for the year"
+                      value={fmtCurrency(preTaxShown)}
+                    >
+                      {fmtCurrency(packagedShown)}
+                      {pkg.postTaxAnnual > 0 ? ` − ${fmtCurrency(r0(pkg.postTaxAnnual))}` : ""}.
+                      Split across {n} pays, that is {fmtCurrency(shown(pkg.preTaxAnnual))} each
+                      time — the figure on this row.
+                    </InlineExplainer>
+                  </div>
+                  <p className="text-xs text-muted">
+                    This is the line that does the work: it comes off before tax is calculated,
+                    so you are taxed on {fmtCurrency(inputs.salary - pkg.preTaxAnnual)} instead of{" "}
+                    {fmtCurrency(inputs.salary)}.
+                  </p>
+                </Explainer>
+              }
             />
             <Row
               label="Taxable pay"
