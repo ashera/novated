@@ -5,11 +5,13 @@ import { fmtCurrency } from "@/lib/au/format";
 import {
   amountToFinance,
   carCost,
-  driveAwayTotal,
+  financedAfterGstCredit,
   hasCarCost,
   onRoadCosts,
   type PurchaseBreakdown,
 } from "@/lib/au/purchase";
+import { carGstCredit } from "@/lib/au/novated";
+import type { EngineConfig } from "@/lib/au/config";
 
 /**
  * Working out what the car actually costs, item by item.
@@ -139,7 +141,7 @@ function Total({
         {note && <span className="block text-[11px] font-normal text-muted">{note}</span>}
       </span>
       <span className={`tabular-nums ${strong ? "text-base font-semibold" : "text-sm font-medium text-subtle"}`}>
-        {fmtCurrency(value)}
+        {value < 0 ? `− ${fmtCurrency(Math.abs(value))}` : fmtCurrency(value)}
       </span>
     </div>
   );
@@ -147,10 +149,12 @@ function Total({
 
 export default function PriceBuilder({
   initial,
+  config,
   onCancel,
   onApply,
 }: {
   initial: PurchaseBreakdown;
+  config: EngineConfig;
   onCancel: () => void;
   onApply: (b: PurchaseBreakdown) => void;
 }) {
@@ -232,16 +236,38 @@ export default function PriceBuilder({
           </section>
         </div>
 
+        {/* The chain in full, because "financed" is not the invoice total and
+            this is the one place a user would reasonably assume it is. */}
         <div className="space-y-1.5 border-t border-line bg-panel-2 px-5 py-3.5">
-          <Total
-            label="Cost of the car"
-            note="Taxed on this"
-            value={car}
-          />
+          <Total label="Cost of the car" note="Taxed on this" value={car} />
           <Total label="On-road costs" note="Not taxed on these" value={onRoads} />
-          <Total label="Drive-away price" note="What the dealer invoices" value={driveAwayTotal(b)} />
+          <Total
+            label={
+              financeOnRoads || onRoads === 0 ? "Drive-away price" : "Drive-away price (car only)"
+            }
+            note={
+              financeOnRoads || onRoads === 0
+                ? "What the dealer invoices"
+                : "You're paying the on-roads yourself"
+            }
+            value={amountToFinance(b)}
+          />
+          <Total
+            label="Less the GST the financier claims back"
+            note={
+              car > config.gst.carLimit
+                ? `Capped at one eleventh of the ${fmtCurrency(config.gst.carLimit)} car limit`
+                : undefined
+            }
+            value={-carGstCredit(car, config)}
+          />
           <div className="border-t border-line pt-1.5">
-            <Total label="Financed" value={amountToFinance(b)} strong />
+            <Total
+              label="Financed"
+              note="What the lease is written over, and what the repayments are calculated on"
+              value={financedAfterGstCredit(b, config)}
+              strong
+            />
           </div>
         </div>
 

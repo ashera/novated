@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { DEFAULT_CONFIG } from "@/lib/au/config";
+import { buildFinance, defaultInputs } from "@/lib/au/novated";
 import {
   amountToFinance,
+  financedAfterGstCredit,
   carCost,
   driveAwayTotal,
   hasCarCost,
@@ -63,5 +66,53 @@ describe("What you pay for a car, split the way the tax rules split it", () => {
     expect(isEmpty({ financeOnRoads: true })).toBe(true);
     expect(isEmpty({ vehicle: 50_000 })).toBe(false);
     expect(isEmpty({ stampDuty: 100 })).toBe(false);
+  });
+});
+
+describe("What the builder says will be financed", () => {
+  /**
+   * The builder shows a "Financed" figure while the user is still typing, and
+   * the engine works one out afterwards. If they disagree, the modal is
+   * lying about the consequence of the numbers being entered into it — which
+   * is worse than not showing a preview at all.
+   *
+   * They also nearly did: the first version labelled the drive-away total
+   * "Financed", which is the invoice, not what the lease is written over.
+   */
+  const config = DEFAULT_CONFIG;
+  const base = defaultInputs(config);
+
+  const agrees = (b: Parameters<typeof financedAfterGstCredit>[0]) => {
+    const preview = financedAfterGstCredit(b, config);
+    const engine = buildFinance(
+      {
+        ...base,
+        vehiclePrice: carCost(b),
+        onRoadCosts: b.financeOnRoads === false ? 0 : onRoadCosts(b),
+      },
+      config,
+    ).amountFinanced;
+    expect(preview).toBeCloseTo(engine, 6);
+  };
+
+  it("agrees with the engine on a plain car", () => agrees({ vehicle: 55_000 }));
+
+  it("agrees with delivery and accessories in the car's cost", () =>
+    agrees({ vehicle: 55_000, delivery: 1_800, accessories: 1_200 }));
+
+  it("agrees with on-roads financed", () => agrees({ ...full }));
+
+  it("agrees with on-roads paid separately", () =>
+    agrees({ ...full, financeOnRoads: false }));
+
+  it("agrees above the car limit, where the GST credit caps", () => {
+    agrees({ vehicle: 120_000, stampDuty: 6_000 });
+    // And the cap really is biting, so the case is worth something.
+    const credit = 120_000 - financedAfterGstCredit({ vehicle: 120_000 }, config);
+    expect(credit).toBeLessThan(120_000 - 120_000 / 1.1);
+  });
+
+  it("is less than the invoice, always — that is the whole point", () => {
+    expect(financedAfterGstCredit(full, config)).toBeLessThan(driveAwayTotal(full));
   });
 });

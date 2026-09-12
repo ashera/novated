@@ -22,6 +22,9 @@
 // non-business accessories; it excludes registration, stamp duty, CTP and
 // extended warranties.
 
+import type { EngineConfig } from "./config";
+import { carGstCredit } from "./novated";
+
 export interface PurchaseBreakdown {
   /** Negotiated price of the vehicle itself, GST inclusive. */
   vehicle?: number;
@@ -81,6 +84,18 @@ export function driveAwayTotal(b: PurchaseBreakdown): number {
  *  is taken off. On-roads only count when they are being financed. */
 export function amountToFinance(b: PurchaseBreakdown): number {
   return carCost(b) + (b.financeOnRoads === false ? 0 : onRoadCosts(b));
+}
+
+/**
+ * What the lease is actually written over.
+ *
+ * Not the invoice: the financier buys the car, claims the GST back and writes
+ * the lease over what is left. Everything on this site explains that, so the
+ * builder cannot be the one place that quietly calls the drive-away total
+ * "financed".
+ */
+export function financedAfterGstCredit(b: PurchaseBreakdown, config: EngineConfig): number {
+  return amountToFinance(b) - carGstCredit(carCost(b), config);
 }
 
 /** True once there is enough to work with — the car itself is the only part

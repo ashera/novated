@@ -325,6 +325,18 @@ export function luxuryCarTax(
   return (excess / (1 + config.gst.rate)) * config.lct.rate;
 }
 
+/**
+ * The GST the financier recovers on the car, capped at the car limit.
+ *
+ * Exported because the price builder shows the same figure while the user is
+ * still typing — and two copies of a capped calculation is exactly the kind
+ * of thing that drifts apart.
+ */
+export function carGstCredit(carCost: number, config: EngineConfig): number {
+  const creditable = Math.min(Math.max(0, carCost), config.gst.carLimit);
+  return creditable - creditable / (1 + config.gst.rate);
+}
+
 export function buildFinance(
   inputs: LeaseInputs,
   config: EngineConfig,
@@ -335,8 +347,7 @@ export function buildFinance(
   // car limit — GST on value above that is not recoverable and stays in the
   // amount financed. Measured on the CAR, not the drive-away total: the car
   // limit is a limit on the car.
-  const creditableValue = Math.min(price, config.gst.carLimit);
-  const gstCredit = creditableValue - creditableValue / (1 + config.gst.rate);
+  const gstCredit = carGstCredit(price, config);
   // On-roads are financed alongside the car and repaid with it. No GST credit
   // is taken on them here: registration and stamp duty carry no GST, and the
   // CTP component that does is small enough that claiming it would be a

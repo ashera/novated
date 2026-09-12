@@ -5,10 +5,15 @@ import Link from "next/link";
 import QuoteField from "./QuoteField";
 import VehicleArt from "./VehicleArt";
 import { findVehicle, vehicleMakes, vehiclesForMake, type Vehicle } from "@/lib/au/vehicles";
-import { AU_STATES, type AuState } from "@/lib/au/config";
+import { AU_STATES, type AuState, type EngineConfig } from "@/lib/au/config";
 import { fmtCurrency } from "@/lib/au/format";
 import PriceBuilder from "./PriceBuilder";
-import { carCost, onRoadCosts, type PurchaseBreakdown } from "@/lib/au/purchase";
+import {
+  carCost,
+  financedAfterGstCredit,
+  onRoadCosts,
+  type PurchaseBreakdown,
+} from "@/lib/au/purchase";
 import type { FuelType } from "@/lib/au/novated";
 
 /**
@@ -102,6 +107,8 @@ export interface VehicleCardProps {
   purchase?: PurchaseBreakdown;
   /** Given together, because they are one decision. */
   onPurchase?: (p: { price?: number; onRoadCosts?: number; purchase: PurchaseBreakdown }) => void;
+  /** Needed to show what the lease is written over, after the GST credit. */
+  config?: EngineConfig;
 
   annualKm: number | undefined;
   onAnnualKm: (v: number | undefined) => void;
@@ -301,11 +308,28 @@ export default function VehicleCard(p: VehicleCardProps) {
                   </span>
                 </button>
                 <span className="mt-1 block text-[11px] leading-snug text-muted">
-                  {(p.onRoadCosts ?? 0) > 0 ? (
+                  {p.price != null && p.config ? (
                     <>
-                      Plus {fmtCurrency(p.onRoadCosts!)} of on-road costs —{" "}
-                      {fmtCurrency((p.price ?? 0) + (p.onRoadCosts ?? 0))} drive-away. Only the
-                      car is taxed.
+                      {(p.onRoadCosts ?? 0) > 0 && (
+                        <>
+                          Plus {fmtCurrency(p.onRoadCosts!)} of on-road costs —{" "}
+                          {fmtCurrency(p.price + p.onRoadCosts!)} drive-away, and only the car is
+                          taxed.{" "}
+                        </>
+                      )}
+                      The lease is written over{" "}
+                      <strong className="text-subtle">
+                        {fmtCurrency(
+                          financedAfterGstCredit(
+                            {
+                              vehicle: p.price,
+                              stampDuty: p.onRoadCosts,
+                            },
+                            p.config,
+                          ),
+                        )}
+                      </strong>{" "}
+                      once the financier claims the GST back.
                     </>
                   ) : (
                     (p.priceHint ??
@@ -392,8 +416,9 @@ export default function VehicleCard(p: VehicleCardProps) {
         )}
       </div>
 
-      {building && p.onPurchase && (
+      {building && p.onPurchase && p.config && (
         <PriceBuilder
+          config={p.config!}
           initial={p.purchase ?? (p.price != null ? { vehicle: p.price } : {})}
           onCancel={() => setBuilding(false)}
           onApply={(b) => {
