@@ -11,6 +11,8 @@ import {
   lockQuote,
   lockedQuote,
   unlockQuote,
+  defaultScenario,
+  defaultVehicle,
   newQuoteSpec,
   quoteLabel,
   quoteStatus,
@@ -565,5 +567,61 @@ describe("A lock can never point at a quote that isn't being modelled", () => {
     let lease: Lease = { ...leaseWithCar(), quotes: [a] };
     lease = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
     expect(applyScenarioFromQuote(lease, leaseToInputs(lease), a.id).lockedQuoteId).toBe(a.id);
+  });
+});
+
+describe("Everything on a lease actually gets saved", () => {
+  /**
+   * The bug this guards, which reached production.
+   *
+   * lockedQuoteId was added as a top-level field on the Lease. Guests were
+   * fine — localStorage stores the whole object — but app/actions/leases.ts
+   * writes NAMED COLUMNS, so for signed-in users the lock was silently
+   * dropped on every save. It looked like it worked right up until a reload,
+   * and every local test passed because they all ran as a guest.
+   *
+   * Required<Lease> makes this a compile error rather than a failing
+   * assertion: add a field to the Lease and this object stops type-checking
+   * until you list it, at which point the list below tells you where it has
+   * to be wired up.
+   */
+  it("has no top-level field the server doesn't know about", () => {
+    const everything: Required<Lease> = {
+      version: 1,
+      name: "x",
+      vehicle: defaultVehicle(),
+      scenario: defaultScenario(),
+      quotes: [],
+      notes: "x",
+      lockedQuoteId: "q-1",
+    };
+
+    // Each of these must be read in hydrate() and written in saveLease().
+    // version is derived, quotes live in their own table.
+    const persisted = [
+      "version",
+      "name",
+      "vehicle",
+      "scenario",
+      "quotes",
+      "notes",
+      "lockedQuoteId",
+    ];
+    expect(Object.keys(everything).sort()).toEqual([...persisted].sort());
+  });
+
+  it("carries the lock through the shape the server rebuilds a lease from", () => {
+    // hydrate() reassembles from columns; this is that shape.
+    const back = migrateLease({
+      version: 1,
+      name: "My lease",
+      vehicle: defaultVehicle(),
+      scenario: { ...defaultScenario(), fromQuoteId: "q-1" },
+      notes: null,
+      quotes: [{ ...newQuoteSpec("Maxxia"), id: "q-1" }],
+      lockedQuoteId: "q-1",
+    });
+    expect(back.lockedQuoteId).toBe("q-1");
+    expect(lockedQuote(back)?.label).toBe("Maxxia");
   });
 });

@@ -32,6 +32,7 @@ interface LeaseRow {
   notes: string | null;
   updated_at: string;
   share_token: string | null;
+  locked_quote_id: string | null;
 }
 
 /** Reassemble a lease and its quotes from the two tables. */
@@ -59,11 +60,13 @@ async function hydrate(rows: LeaseRow[]): Promise<SavedLease[]> {
       scenario: r.scenario,
       notes: r.notes,
       quotes: byLease.get(r.id) ?? [],
+      lockedQuoteId: r.locked_quote_id ?? undefined,
     }),
   }));
 }
 
-const SELECT = "id, name, vehicle, scenario, notes, updated_at, share_token";
+const SELECT =
+  "id, name, vehicle, scenario, notes, updated_at, share_token, locked_quote_id";
 
 export async function listLeases(): Promise<SavedLease[]> {
   const user = await getCurrentUser();
@@ -135,16 +138,32 @@ export async function saveLease(id: string | null, lease: Lease): Promise<LeaseR
     let leaseId = id;
     if (leaseId) {
       const r = (await q(
-        `update leases set name=$1, vehicle=$2, scenario=$3, notes=$4, updated_at=now()
-          where id=$5 and user_id=$6 returning id`,
-        [name, JSON.stringify(lease.vehicle), JSON.stringify(lease.scenario), lease.notes ?? null, leaseId, user.id],
+        `update leases set name=$1, vehicle=$2, scenario=$3, notes=$4,
+                locked_quote_id=$5, updated_at=now()
+          where id=$6 and user_id=$7 returning id`,
+        [
+          name,
+          JSON.stringify(lease.vehicle),
+          JSON.stringify(lease.scenario),
+          lease.notes ?? null,
+          lease.lockedQuoteId ?? null,
+          leaseId,
+          user.id,
+        ],
       )) as { rows: { id: string }[] };
       if (!r.rows.length) throw new Error("Lease not found.");
     } else {
       const r = (await q(
-        `insert into leases (user_id, name, vehicle, scenario, notes)
-         values ($1,$2,$3,$4,$5) returning id`,
-        [user.id, name, JSON.stringify(lease.vehicle), JSON.stringify(lease.scenario), lease.notes ?? null],
+        `insert into leases (user_id, name, vehicle, scenario, notes, locked_quote_id)
+         values ($1,$2,$3,$4,$5,$6) returning id`,
+        [
+          user.id,
+          name,
+          JSON.stringify(lease.vehicle),
+          JSON.stringify(lease.scenario),
+          lease.notes ?? null,
+          lease.lockedQuoteId ?? null,
+        ],
       )) as { rows: { id: string }[] };
       leaseId = r.rows[0].id;
     }

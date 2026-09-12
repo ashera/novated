@@ -97,6 +97,11 @@ create table if not exists leases (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- The quote the user has settled on. A column rather than a key inside
+-- "scenario", because it is a decision about the lease and not a modelling
+-- input — and because everything in that blob is spread into LeaseInputs,
+-- where it has no business being.
+alter table leases add column if not exists locked_quote_id text;
 create index if not exists leases_user_idx on leases (user_id, updated_at desc);
 create unique index if not exists leases_share_uidx on leases (share_token) where share_token is not null;
 
