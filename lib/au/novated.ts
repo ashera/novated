@@ -272,6 +272,10 @@ export interface AmortisationPoint {
   interestPaid: number;
   /** How much of the debt has actually been retired so far. */
   principalPaid: number;
+  /** Interest inside THIS month's payment. Zero at month 0. */
+  interest: number;
+  /** Debt retired by THIS month's payment. Zero at month 0. */
+  principal: number;
 }
 
 /**
@@ -295,7 +299,7 @@ export function amortisationSchedule(
   const r = annualRatePct / 100 / 12;
   const payment = annuityPayment(principal, balloon, annualRatePct, months);
   const points: AmortisationPoint[] = [
-    { month: 0, balance: principal, interestPaid: 0, principalPaid: 0 },
+    { month: 0, balance: principal, interestPaid: 0, principalPaid: 0, interest: 0, principal: 0 },
   ];
 
   let balance = principal;
@@ -304,13 +308,18 @@ export function amortisationSchedule(
     const interest = balance * r;
     interestPaid += interest;
     balance = balance + interest - payment;
+    const settled = m === months ? balloon : balance;
     points.push({
       month: m,
       // Floating point drift over 60 iterations is a few cents; the last
       // point is the residual by construction, so say so exactly.
-      balance: m === months ? balloon : balance,
+      balance: settled,
       interestPaid,
-      principalPaid: principal - (m === months ? balloon : balance),
+      principalPaid: principal - settled,
+      interest,
+      // Derived from the balances rather than as payment − interest, so the
+      // split always reconciles with the line drawn above it.
+      principal: points[points.length - 1].balance - settled,
     });
   }
   return points;

@@ -451,6 +451,32 @@ describe("Paying the finance down", () => {
     expect(s[s.length - 1].interestPaid).toBeCloseTo(f.totalInterest, 2);
   });
 
+  it("splits each payment into principal and interest that add to it", () => {
+    const payment = annuityPayment(principal, balloon, rate, months);
+    for (let m = 1; m < months; m++) {
+      expect(sched[m].principal + sched[m].interest, `month ${m}`).toBeCloseTo(payment, 6);
+    }
+  });
+
+  it("moves the split from interest towards principal as it goes", () => {
+    expect(sched[1].interest).toBeGreaterThan(sched[months].interest);
+    expect(sched[1].principal).toBeLessThan(sched[months].principal);
+  });
+
+  it("has each month's principal equal the fall in the balance", () => {
+    for (let m = 1; m <= months; m++) {
+      expect(sched[m].principal, `month ${m}`).toBeCloseTo(
+        sched[m - 1].balance - sched[m].balance,
+        6,
+      );
+    }
+  });
+
+  it("charges nothing at month zero, before any payment is made", () => {
+    expect(sched[0].interest).toBe(0);
+    expect(sched[0].principal).toBe(0);
+  });
+
   it("is a straight line at zero interest", () => {
     const flat = amortisationSchedule(12_000, 0, 0, 12);
     expect(flat[6].balance).toBeCloseTo(6_000, 6);
