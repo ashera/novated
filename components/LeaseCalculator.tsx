@@ -255,7 +255,7 @@ export default function LeaseCalculator({
                   step={1_000}
                   integer
                   prefix="$"
-                  hint="Before tax and before any packaging."
+                  hint="Before tax, and not counting employer super — the salary figure on your contract, not your total package."
                 />
 
                 <div>

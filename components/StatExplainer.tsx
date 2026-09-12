@@ -93,7 +93,8 @@ export default function StatExplainer({
           </p>
           <div>
             <InlineExplainer label="Taxed on, without the lease" value={fmtCurrency(inputs.salary)}>
-              Your gross salary.
+              Your gross salary, before tax and not counting employer super — super is paid on
+              top and is not part of what you are taxed on here.
             </InlineExplainer>
             <InlineExplainer
               label="Taxed on, with it"

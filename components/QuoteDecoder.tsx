@@ -440,6 +440,7 @@ export default function QuoteDecoder({
                   value={quote.salary}
                   onChange={(v) => set("salary", v)}
                   placeholder="130,000"
+                  hint="Before tax, and not counting employer super — whatever the quote was priced on."
                 />
               </div>
             </section>
