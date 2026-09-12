@@ -22,8 +22,6 @@ import {
   PAY_CYCLES_PER_YEAR,
   PAY_CYCLE_LABEL,
   PAY_CYCLE_NOUN,
-  type FuelType,
-  type LeaseInputs,
   type PayCycle,
 } from "@/lib/au/novated";
 import type { EngineConfig } from "@/lib/au/config";
@@ -32,7 +30,6 @@ import {
   leaseToInputs,
   lockedQuote,
   unlockQuote,
-  leaseToQuote,
   quoteLabel,
   type Lease,
 } from "@/lib/au/lease";
@@ -41,10 +38,7 @@ import LeaseBar from "./LeaseBar";
 import QuotesCard from "./QuotesCard";
 import { track, trackLeasePricedConversion } from "@/lib/analytics";
 import { takeHandoff } from "@/lib/quoteHandoff";
-import { decodeQuote } from "@/lib/au/quote";
 import { trackVisit } from "@/app/actions/track";
-
-const STORAGE_KEY = "leasewiz-scenario";
 
 export default function LeaseCalculator({
   user,
@@ -95,32 +89,11 @@ export default function LeaseCalculator({
 
   const inputs = useMemo(() => leaseToInputs(lease), [lease]);
 
-  /**
-   * The quote the scenario currently comes from.
-   *
-   * Read off the lease rather than the handoff, so it survives a reload — the
-   * handoff is consumed on read, and the figures it left behind used to sit
-   * there unattributed, looking like a rate the user had chosen themselves.
-   * The label and the rate are derived from the quote each time, so editing
-   * it updates this rather than leaving a stale copy.
-   */
   // A shared lease is somebody else's, and read-only already. Giving it the
   // locked layout would put an "unlock" button on a page whose store belongs
   // to the viewer, not the owner — it would silently edit their own lease.
   const locked = readOnly ? null : lockedQuote(lease);
 
-  const activeQuote = useMemo(() => {
-    const id = lease.scenario.fromQuoteId;
-    const spec = id ? lease.quotes.find((q) => q.id === id) : undefined;
-    if (!spec) return null;
-    const decoded = decodeQuote(leaseToQuote(lease, spec), config);
-    // If they have since moved the rate by hand, say so rather than claiming
-    // the figures are still the quote's.
-    const rate = decoded.impliedRatePct;
-    const edited =
-      rate != null && Math.abs(rate - lease.scenario.interestRatePct) > 0.01;
-    return { id: spec.id, label: quoteLabel(spec), rate, edited };
-  }, [lease, config]);
 
   const setVehicle = (patch: Partial<Lease["vehicle"]>) => {
     if (readOnly) return;
@@ -168,42 +141,6 @@ export default function LeaseCalculator({
       <TopBar user={user} country={country} reviewDue={reviewDue} />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        {/* Only when arriving from a decoded quote. There is no "decode a quote"
-            pitch here any more: the quotes card below owns that, and a banner
-            above the fold competed with the car for the first look while
-            offering the same thing twice. */}
-        {activeQuote && (
-          <div className="mb-5 rounded-xl border border-accent-border bg-accent-subtle px-4 py-3">
-            <p className="text-sm text-ink">
-              <strong>
-                {activeQuote.edited ? "Started from" : "Filled in from"} {activeQuote.label}.
-              </strong>{" "}
-              {activeQuote.rate != null &&
-                (activeQuote.edited ? (
-                  <>
-                    That quote works out at {activeQuote.rate.toFixed(2)}%; you&apos;ve since
-                    changed the rate to {inputs.interestRatePct.toFixed(2)}%.{" "}
-                  </>
-                ) : (
-                  <>
-                    Modelled at the {activeQuote.rate.toFixed(2)}% we solved from that quote,
-                    with its own running-cost budgets.{" "}
-                  </>
-                ))}
-              Change anything below to see what would have to be different.
-            </p>
-            {/* Named, and with its id: without one the decoder falls back to
-                the lease's FIRST quote, so "back to the quote" opened a
-                different quote than the one these figures came from. */}
-            <Link
-              href={`/decode?quote=${encodeURIComponent(activeQuote.id)}`}
-              className="mt-1 inline-block text-sm font-medium text-accent hover:underline"
-            >
-              ← Back to {activeQuote.label}
-            </Link>
-          </div>
-        )}
-
         <div className="mb-5"><InfoBlastBanner /></div>
 
         <div className="mb-6">
