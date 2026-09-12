@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { fmtCompact, fmtCurrency } from "@/lib/au/format";
 import type { LeaseResult } from "@/lib/au/novated";
+import PaydownChart from "./PaydownChart";
 
 /**
  * Total cost over the lease term, three ways. Each column funds the SAME car
@@ -109,6 +110,12 @@ export default function CostComparisonChart({ result }: { result: LeaseResult })
         )}{" "}
         All three leave {fmtCurrency(result.finance.residual)} owing on the car at the end.
       </p>
+
+      {/* Which is what the second chart is about: where that residual comes
+          from, and why the debt does not simply run down to nothing. */}
+      <div className="mt-5 border-t border-line pt-4">
+        <PaydownChart result={result} />
+      </div>
     </section>
   );
 }

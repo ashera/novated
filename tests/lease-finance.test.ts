@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { AU_STATES, DEFAULT_CONFIG } from "@/lib/au/config";
 import {
+  amortisationSchedule,
   annuityPayment,
   buildFinance,
   calculateLease,
@@ -395,5 +396,68 @@ describe("On-road costs versus the car's cost price", () => {
     const b = buildFinance(withInputs({ vehiclePrice: car, onRoadCosts: 0 }), config);
     expect(a.amountFinanced).toBeCloseTo(b.amountFinanced, 6);
     expect(a.onRoadCosts).toBe(0);
+  });
+});
+
+describe("Paying the finance down", () => {
+  const principal = 50_000;
+  const balloon = 14_065;
+  const rate = 7.5;
+  const months = 60;
+  const sched = amortisationSchedule(principal, balloon, rate, months);
+
+  it("starts at the amount financed, before anything is paid", () => {
+    expect(sched[0]).toMatchObject({ month: 0, balance: principal, principalPaid: 0 });
+  });
+
+  it("has a point for every month of the term", () => {
+    expect(sched).toHaveLength(months + 1);
+    expect(sched[sched.length - 1].month).toBe(months);
+  });
+
+  // The whole reason this is worth drawing: it does not reach zero.
+  it("lands exactly on the residual, not on zero", () => {
+    expect(sched[sched.length - 1].balance).toBeCloseTo(balloon, 6);
+  });
+
+  it("never increases — the balance only comes down", () => {
+    for (let i = 1; i < sched.length; i++) {
+      expect(sched[i].balance, `month ${i}`).toBeLessThan(sched[i - 1].balance);
+    }
+  });
+
+  // The other reason: the curve is not a straight line. Early payments are
+  // mostly interest, so less of the debt is retired in the first half.
+  it("retires less principal in the first half than the second", () => {
+    const half = sched[months / 2].principalPaid;
+    const rest = sched[months].principalPaid - half;
+    expect(half).toBeLessThan(rest);
+  });
+
+  it("accounts for every dollar: payments = principal retired + interest", () => {
+    const payment = annuityPayment(principal, balloon, rate, months);
+    const last = sched[sched.length - 1];
+    expect(payment * months).toBeCloseTo(last.principalPaid + last.interestPaid, 4);
+  });
+
+  it("agrees with the total interest the finance reports", () => {
+    const f = buildFinance(withInputs({ vehiclePrice: 55_000, termYears: 5 }), config);
+    const s = amortisationSchedule(
+      f.amountFinanced,
+      f.residual,
+      base.interestRatePct,
+      f.monthlyPayment > 0 ? 60 : 0,
+    );
+    expect(s[s.length - 1].interestPaid).toBeCloseTo(f.totalInterest, 2);
+  });
+
+  it("is a straight line at zero interest", () => {
+    const flat = amortisationSchedule(12_000, 0, 0, 12);
+    expect(flat[6].balance).toBeCloseTo(6_000, 6);
+    expect(flat[12].balance).toBeCloseTo(0, 6);
+  });
+
+  it("copes with a zero-month term rather than looping forever", () => {
+    expect(amortisationSchedule(1_000, 0, 5, 0)).toHaveLength(1);
   });
 });

@@ -262,6 +262,60 @@ export function annuityPayment(
   return (principal * growth - balloon) * (r / (growth - 1));
 }
 
+/** One month of the lease, after that month's payment has been made. */
+export interface AmortisationPoint {
+  /** Months elapsed. 0 is the day the lease starts. */
+  month: number;
+  /** Still owing to the financier. Ends at the residual, not at zero. */
+  balance: number;
+  /** Interest charged so far, cumulatively. */
+  interestPaid: number;
+  /** How much of the debt has actually been retired so far. */
+  principalPaid: number;
+}
+
+/**
+ * What is still owed, month by month.
+ *
+ * Worth plotting rather than describing, because the shape carries the two
+ * facts people are most often surprised by. The line is not straight — early
+ * payments are mostly interest, so the balance barely moves at first — and it
+ * does not reach zero: it lands exactly on the residual, which is the lump
+ * still owing on the last day.
+ *
+ * Starts at month 0 with nothing paid, so the first point is the amount
+ * financed itself.
+ */
+export function amortisationSchedule(
+  principal: number,
+  balloon: number,
+  annualRatePct: number,
+  months: number,
+): AmortisationPoint[] {
+  const r = annualRatePct / 100 / 12;
+  const payment = annuityPayment(principal, balloon, annualRatePct, months);
+  const points: AmortisationPoint[] = [
+    { month: 0, balance: principal, interestPaid: 0, principalPaid: 0 },
+  ];
+
+  let balance = principal;
+  let interestPaid = 0;
+  for (let m = 1; m <= months; m++) {
+    const interest = balance * r;
+    interestPaid += interest;
+    balance = balance + interest - payment;
+    points.push({
+      month: m,
+      // Floating point drift over 60 iterations is a few cents; the last
+      // point is the residual by construction, so say so exactly.
+      balance: m === months ? balloon : balance,
+      interestPaid,
+      principalPaid: principal - (m === months ? balloon : balance),
+    });
+  }
+  return points;
+}
+
 /**
  * The inverse of {@link annuityPayment}: given what is being paid, recover the
  * interest rate behind it.
