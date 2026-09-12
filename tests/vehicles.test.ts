@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { defaultVehicle, isCustomVehicle, newLease, vehicleName } from "@/lib/au/lease";
 import {
   BODY_TYPES,
   CONSUMPTION_RANGE,
@@ -172,5 +173,56 @@ describe("Vehicle image prompts", () => {
   it("survives a body type it has no phrase for", () => {
     expect(vehicleImagePrompt({ make: "X", model: "Y", fuelType: "petrol", bodyType: "Coupe" }))
       .toContain("a coupe");
+  });
+});
+
+describe("A car the catalogue doesn't have", () => {
+  // The catalogue is a few dozen curated models against a market of hundreds,
+  // so "not listed" is a normal state rather than a failure — and a lease
+  // that cannot name the car is one the user cannot check.
+  it("names the car from the catalogue when one was picked", () => {
+    const lease = { ...newLease(), vehicle: { ...defaultVehicle(), vehicleId: "kia-ev6" } };
+    expect(vehicleName(lease.vehicle, VEHICLES)).toBe("Kia EV6");
+  });
+
+  it("names it from what the user typed when there wasn't", () => {
+    const v = { ...defaultVehicle(), make: "Skoda", model: "Enyaq" };
+    expect(vehicleName(v, VEHICLES)).toBe("Skoda Enyaq");
+    expect(isCustomVehicle(v)).toBe(true);
+  });
+
+  it("copes with only half of it", () => {
+    expect(vehicleName({ ...defaultVehicle(), make: "Skoda" }, VEHICLES)).toBe("Skoda");
+    expect(vehicleName({ ...defaultVehicle(), model: "Enyaq" }, VEHICLES)).toBe("Enyaq");
+  });
+
+  it("falls back rather than showing an empty heading", () => {
+    expect(vehicleName(defaultVehicle(), VEHICLES)).toBe("Your car");
+    expect(vehicleName({ ...defaultVehicle(), make: "   " }, VEHICLES)).toBe("Your car");
+    expect(isCustomVehicle(defaultVehicle())).toBe(false);
+  });
+
+  // A catalogue car that was later retired still has an id on the lease. The
+  // name has to survive that, or the user's own page stops naming their car.
+  it("prefers the catalogue entry over typed text when both are present", () => {
+    const v = { ...defaultVehicle(), vehicleId: "kia-ev6", make: "Wrong", model: "Thing" };
+    expect(vehicleName(v, VEHICLES)).toBe("Kia EV6");
+    expect(isCustomVehicle(v)).toBe(false);
+  });
+
+  it("falls back to the typed name if the catalogue no longer has that id", () => {
+    const v = { ...defaultVehicle(), vehicleId: "retired-model", make: "Skoda", model: "Enyaq" };
+    expect(vehicleName(v, VEHICLES)).toBe("Skoda Enyaq");
+  });
+
+  it("accepts a suggestion that would pass the admin's own checks", () => {
+    const r = validateVehicle({
+      make: "Skoda",
+      model: "Enyaq",
+      fuelType: "electric",
+      consumption: 16.8,
+      bodyType: "SUV",
+    });
+    expect(r.ok && r.vehicle.id).toBe("skoda-enyaq");
   });
 });

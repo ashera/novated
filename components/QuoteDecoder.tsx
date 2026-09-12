@@ -311,6 +311,10 @@ export default function QuoteDecoder({
             onFuelType={(f) => set("fuelType", f)}
             price={quote.vehiclePrice}
             onPrice={(v) => set("vehiclePrice", v)}
+            customMake={lease.vehicle.make}
+            customModel={lease.vehicle.model}
+            customBodyType={lease.vehicle.bodyType}
+            consumption={quote.consumptionPer100km}
             onRoadCosts={lease.vehicle.onRoadCosts}
             annualKm={quote.annualKm}
             onAnnualKm={(v) => set("annualKm", v)}

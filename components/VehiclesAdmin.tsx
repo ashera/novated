@@ -46,7 +46,7 @@ const FUEL_LABEL: Record<string, string> = {
   phev: "Plug-in hybrid",
 };
 
-type Origin = "all" | "catalogue" | "added" | "edited";
+type Origin = "all" | "catalogue" | "added" | "suggested" | "edited";
 type Art = "all" | "has" | "missing";
 type Shown = "all" | "active" | "hidden";
 type Sort = "make" | "consumption" | "updated";
@@ -127,6 +127,7 @@ export default function VehiclesAdmin({ vehicles }: { vehicles: VehicleRow[] }) 
       art: vehicles.filter((v) => v.has_image).length,
       edited: vehicles.filter((v) => v.edited).length,
       added: vehicles.filter((v) => v.source === "admin").length,
+      suggested: vehicles.filter((v) => v.source === "user" && !v.active).length,
     }),
     [vehicles],
   );
@@ -144,6 +145,7 @@ export default function VehiclesAdmin({ vehicles }: { vehicles: VehicleRow[] }) 
       if (shown === "active" && !v.active) return false;
       if (shown === "hidden" && v.active) return false;
       if (origin === "added" && v.source !== "admin") return false;
+      if (origin === "suggested" && v.source !== "user") return false;
       if (origin === "catalogue" && v.source !== "seed") return false;
       if (origin === "edited" && !v.edited) return false;
       return true;
@@ -244,17 +246,18 @@ export default function VehiclesAdmin({ vehicles }: { vehicles: VehicleRow[] }) 
       </p>
 
       <div className="mt-6">
-        <AdminTabs active="vehicles" />
+        <AdminTabs active="vehicles" vehicleQueue={stats.suggested} />
       </div>
 
       {/* ── Where the catalogue stands ──────────────────────────────────── */}
-      <dl className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <dl className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-6">
         {[
           { k: "In the catalogue", v: stats.total },
           { k: "Showing in the picker", v: stats.active },
           { k: "With artwork", v: `${stats.art} of ${stats.total}` },
           { k: "Edited here", v: stats.edited },
           { k: "Added here", v: stats.added },
+          { k: "Suggested, waiting", v: stats.suggested },
         ].map((s) => (
           <div key={s.k} className="rounded-lg border border-line bg-panel px-3 py-2">
             <dt className="text-[11px] font-medium uppercase tracking-wide text-muted">{s.k}</dt>
@@ -325,6 +328,7 @@ export default function VehiclesAdmin({ vehicles }: { vehicles: VehicleRow[] }) 
           <option value="all">Any origin</option>
           <option value="catalogue">From the code catalogue</option>
           <option value="added">Added here</option>
+          <option value="suggested">Suggested by users</option>
           <option value="edited">Edited here</option>
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort" className={selectCls}>
@@ -423,7 +427,9 @@ export default function VehiclesAdmin({ vehicles }: { vehicles: VehicleRow[] }) 
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-1">
                     {!v.active && <Pill tone="warn">Hidden</Pill>}
-                    {v.source === "admin" ? (
+                    {v.source === "user" ? (
+                      <Pill tone="warn">Suggested</Pill>
+                    ) : v.source === "admin" ? (
                       <Pill tone="info">Added here</Pill>
                     ) : (
                       v.edited && <Pill tone="good">Edited</Pill>

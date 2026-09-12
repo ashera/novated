@@ -17,12 +17,15 @@ export default function AdminTabs({
   staleCount = 0,
   feedbackCount = 0,
   providerQueue = 0,
+  vehicleQueue = 0,
 }: {
   active: Tab;
   staleCount?: number;
   feedbackCount?: number;
   /** Providers waiting to be moderated. */
   providerQueue?: number;
+  /** Vehicles users have suggested, waiting to be looked at. */
+  vehicleQueue?: number;
 }) {
   const tab = (href: string, key: Tab, label: string, badge: number) => {
     const isActive = active === key;
@@ -59,7 +62,7 @@ export default function AdminTabs({
         {tab("/admin/tests", "tests", "Tests", 0)}
         {tab("/admin/users", "users", "Users", 0)}
         {tab("/admin/releases", "releases", "Releases", 0)}
-        {tab("/admin/vehicles", "vehicles", "Vehicles", 0)}
+        {tab("/admin/vehicles", "vehicles", "Vehicles", vehicleQueue)}
         {tab("/admin/providers", "providers", "Providers", providerQueue)}
       </div>
 

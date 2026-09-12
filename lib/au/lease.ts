@@ -17,6 +17,7 @@
 
 import type { AuState } from "./config";
 import type { PurchaseBreakdown } from "./purchase";
+import type { BodyType, Vehicle } from "./vehicles";
 import type {
   AnnualRunningCosts,
   FbtMethod,
@@ -39,6 +40,20 @@ import { DEFAULT_CONFIG } from "./config";
 export interface VehicleSpec {
   /** Catalogue vehicle, when one was picked. Drives the artwork. */
   vehicleId?: string;
+  /**
+   * A car the catalogue doesn't have yet.
+   *
+   * Only read when there is no vehicleId. The catalogue is 44 curated models
+   * and the Australian market is hundreds, so "not listed" is a normal state,
+   * not an error — and a lease that can't name the car is a lease the user
+   * can't check. The consumption figure is the one that matters beyond
+   * display: without it the engine falls back to a class average, which at
+   * 15,000km a year is hundreds of dollars of error in the running-cost
+   * budget the padding findings are measured against.
+   */
+  make?: string;
+  model?: string;
+  bodyType?: BodyType;
   /**
    * The CAR's cost price, GST included — not the drive-away figure.
    * Never inferred: it varies by dealer.
@@ -151,6 +166,28 @@ export interface Lease {
  *  whitespace-only one needs something to show. */
 export function quoteLabel(spec: { label?: string }, fallback = "Untitled quote"): string {
   return spec.label?.trim() || fallback;
+}
+
+/**
+ * What to call the car, wherever it is shown.
+ *
+ * The catalogue entry when there is one, otherwise what the user told us, and
+ * a placeholder only when we genuinely have nothing.
+ */
+export function vehicleName(
+  v: VehicleSpec,
+  catalogue: Vehicle[],
+  fallback = "Your car",
+): string {
+  const picked = catalogue.find((c) => c.id === v.vehicleId);
+  if (picked) return `${picked.make} ${picked.model}`;
+  const custom = [v.make?.trim(), v.model?.trim()].filter(Boolean).join(" ");
+  return custom || fallback;
+}
+
+/** True when the user has described a car we don't stock. */
+export function isCustomVehicle(v: VehicleSpec): boolean {
+  return !v.vehicleId && Boolean(v.make?.trim() || v.model?.trim());
 }
 
 export function defaultVehicle(): VehicleSpec {

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { query } from "@/lib/db";
-import { getAdmin } from "@/lib/auth";
+import { getAdmin, getCurrentUser } from "@/lib/auth";
 import { VEHICLES, validateVehicle, type VehicleInput } from "@/lib/au/vehicles";
 
 /**
@@ -169,6 +169,61 @@ export async function revertVehicle(id: string): Promise<VehicleResult> {
   revalidatePath("/admin/vehicles");
   return { ok: true };
 }
+
+/**
+ * Public: tell us about a car the catalogue doesn't have.
+ *
+ * Same shape as suggesting a provider, and for the same reason: the person
+ * who owns the car we're missing is exactly who we want to hear from. It
+ * lands inactive, so it reaches nobody else's picker until an admin has
+ * looked at it — their own lease already has the car regardless, because
+ * that is stored on the lease and does not depend on this succeeding.
+ */
+export async function suggestVehicle(
+  input: VehicleInput,
+): Promise<VehicleResult & { pending?: boolean }> {
+  const checked = validateVehicle(input);
+  if (!checked.ok) return { error: checked.error };
+  const v = checked.vehicle;
+
+  const existing = await query<{ id: string; active: boolean }>(
+    "select id, active from vehicles where id = $1",
+    [v.id],
+  );
+  if (existing.rows[0]) {
+    // Already known, or already suggested by someone else. Either way there
+    // is nothing to add and nothing to apologise for.
+    return { ok: true, id: v.id, pending: !existing.rows[0].active };
+  }
+
+  const waiting = await query<{ n: number }>(
+    "select count(*)::int as n from vehicles where source = 'user' and not active",
+  );
+  if ((waiting.rows[0]?.n ?? 0) >= MAX_SUGGESTIONS) {
+    return { error: "We can't take new vehicles right now. Your lease still works — carry on." };
+  }
+
+  const user = await getCurrentUser();
+  await query(
+    `insert into vehicles (id, make, model, fuel_type, consumption, body_type, source, active, edited, notes)
+     values ($1,$2,$3,$4,$5,$6,'user',false,true,$7)`,
+    [
+      v.id,
+      v.make,
+      v.model,
+      v.fuelType,
+      v.consumption,
+      v.bodyType,
+      user ? `Suggested by ${user.email}` : "Suggested by a visitor",
+    ],
+  );
+  revalidatePath("/admin/vehicles");
+  return { ok: true, id: v.id, pending: true };
+}
+
+/** A ceiling on the unmoderated queue — not rate limiting, just a stop on the
+ *  table growing without bound. */
+const MAX_SUGGESTIONS = 500;
 
 const MAX_BYTES = 2_000_000;
 const ALLOWED = ["image/webp", "image/png", "image/jpeg"];

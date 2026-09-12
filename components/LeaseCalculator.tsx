@@ -173,6 +173,11 @@ export default function LeaseCalculator({
             }}
             price={inputs.vehiclePrice}
             onPrice={(v) => setVehicle({ price: v })}
+            customMake={lease.vehicle.make}
+            customModel={lease.vehicle.model}
+            customBodyType={lease.vehicle.bodyType}
+            consumption={inputs.consumptionPer100km}
+            onCustom={(patch) => setVehicle(patch)}
             onRoadCosts={lease.vehicle.onRoadCosts}
             purchase={lease.vehicle.purchase}
             onPurchase={(b) => setVehicle(b)}
