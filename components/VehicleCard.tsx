@@ -5,8 +5,6 @@ import Link from "next/link";
 import QuoteField from "./QuoteField";
 import VehicleArt from "./VehicleArt";
 import {
-  BODY_TYPES,
-  CONSUMPTION_RANGE,
   consumptionUnit,
   findVehicle,
   vehicleMakes,
@@ -15,6 +13,7 @@ import {
   type Vehicle,
 } from "@/lib/au/vehicles";
 import { suggestVehicle } from "@/app/actions/vehicles";
+import NewVehicleModal from "./NewVehicleModal";
 import { AU_STATES, type AuState, type EngineConfig } from "@/lib/au/config";
 import { fmtCurrency } from "@/lib/au/format";
 import PriceBuilder from "./PriceBuilder";
@@ -56,10 +55,6 @@ import type { FuelType } from "@/lib/au/novated";
  * invites a fight with the page instead of answering the question — so the
  * readout says where to go and change it.
  */
-
-/** Sentinel for the make dropdown. Distinct from "" (nothing chosen yet) so
- *  that asking for the custom fields is a deliberate act. */
-const NOT_LISTED = "__not_listed__";
 
 const FUEL_TYPES: { key: FuelType; label: string; hint: string }[] = [
   { key: "electric", label: "Electric", hint: "Battery-electric — FBT exempt under the threshold" },
@@ -167,15 +162,13 @@ export default function VehicleCard(p: VehicleCardProps) {
   // Local state only covers the gap between choosing a make and a model.
   const [building, setBuilding] = useState(false);
   const [pendingMake, setPendingMake] = useState("");
-  const [suggested, setSuggested] = useState<string | null>(null);
-  const [suggesting, setSuggesting] = useState(false);
+  const [adding, setAdding] = useState(false);
   const make = selected?.make ?? pendingMake;
 
   const models = make ? vehiclesForMake(p.catalogue, make) : [];
-  // "Not listed" is a real answer, not a failure to answer: the catalogue is
-  // a few dozen curated models and the market is hundreds.
-  const custom = !selected && (pendingMake === NOT_LISTED || Boolean(p.customMake || p.customModel));
-  const range = CONSUMPTION_RANGE[p.fuelType];
+  // "Not in the list" is a real answer, not a failure to answer: the
+  // catalogue is a few dozen curated models and the market is hundreds.
+  const custom = !selected && Boolean(p.customMake || p.customModel);
   const customName = [p.customMake?.trim(), p.customModel?.trim()].filter(Boolean).join(" ");
 
   // Artwork lives in the database, uploaded per vehicle. Until one exists the
@@ -283,9 +276,55 @@ export default function VehicleCard(p: VehicleCardProps) {
           </div>
         ) : (
         <div className="space-y-4">
+          {custom ? (
+            /* A car we don't stock is shown as what it is rather than as two
+               dropdowns that cannot represent it. */
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-panel-2 px-3 py-2">
+              <div>
+                <p className="text-sm font-medium text-ink">{customName}</p>
+                <p className="text-[11px] text-muted">
+                  {p.customBodyType ?? "SUV"}
+                  {p.consumption != null && ` · ${p.consumption} ${consumptionUnit(p.fuelType)}`}
+                  {" · not in our list yet"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAdding(true)}
+                  className="rounded border border-line bg-panel px-2.5 py-1 text-xs font-medium text-ink transition hover:border-accent hover:text-accent"
+                >
+                  Change
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    p.onCustom?.({
+                      make: undefined,
+                      model: undefined,
+                      bodyType: undefined,
+                      consumptionPer100km: undefined,
+                    })
+                  }
+                  className="rounded px-2 py-1 text-xs font-medium text-muted transition hover:text-ink"
+                >
+                  Pick from the list
+                </button>
+              </div>
+            </div>
+          ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="text-sm font-medium text-ink">Make</span>
+              <span className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-sm font-medium text-ink">Make</span>
+                <button
+                  type="button"
+                  onClick={() => setAdding(true)}
+                  className="text-xs font-medium text-accent hover:underline"
+                >
+                  Can&apos;t find your car?
+                </button>
+              </span>
               <select
                 value={make}
                 onChange={(e) => {
@@ -300,7 +339,6 @@ export default function VehicleCard(p: VehicleCardProps) {
                     {m}
                   </option>
                 ))}
-                <option value={NOT_LISTED}>My car isn&apos;t listed…</option>
               </select>
             </label>
 
@@ -333,106 +371,6 @@ export default function VehicleCard(p: VehicleCardProps) {
               </label>
             )}
           </div>
-
-          {custom && (
-            <div className="rounded-lg border border-line bg-panel-2 p-3">
-              <p className="text-[11px] leading-snug text-muted">
-                We keep a short list of the cars most often novated, so plenty aren&apos;t on it.
-                Tell us about yours and everything below works the same.
-              </p>
-
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <label className="block">
-                  <span className="text-sm font-medium text-ink">Model</span>
-                  <input
-                    value={p.customModel ?? ""}
-                    onChange={(e) => p.onCustom?.({ model: e.target.value })}
-                    placeholder="e.g. Enyaq"
-                    className="mt-1 w-full rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="text-sm font-medium text-ink">Body type</span>
-                  <select
-                    value={p.customBodyType ?? "SUV"}
-                    onChange={(e) => p.onCustom?.({ bodyType: e.target.value as BodyType })}
-                    className="mt-1 w-full rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                  >
-                    {BODY_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="mt-1 block text-[11px] text-muted">Picks the drawing.</span>
-                </label>
-
-                <label className="block">
-                  <span className="text-sm font-medium text-ink">Consumption</span>
-                  <span className="mt-1 flex items-center gap-1 rounded-md border border-line bg-panel px-2 py-1.5 focus-within:border-accent">
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={p.consumption ?? ""}
-                      onChange={(e) => {
-                        const n = parseFloat(e.target.value);
-                        p.onCustom?.({ consumptionPer100km: Number.isNaN(n) ? undefined : n });
-                      }}
-                      placeholder={String((range.min + range.max) / 2)}
-                      className="w-full bg-transparent text-right text-sm font-semibold tabular-nums text-ink outline-none placeholder:font-normal placeholder:text-muted/70"
-                    />
-                    <span className="whitespace-nowrap text-[11px] text-muted">
-                      {consumptionUnit(p.fuelType)}
-                    </span>
-                  </span>
-                  <span className="mt-1 block text-[11px] leading-snug text-muted">
-                    The combined figure from the brochure or the Green Vehicle Guide. Worth
-                    finding: without it we fall back to a class average, which is hundreds of
-                    dollars a year out on the running-cost budget.
-                  </span>
-                </label>
-              </div>
-
-              {p.customMake?.trim() && p.customModel?.trim() && p.consumption != null && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {suggested ? (
-                    <p className="text-[11px] text-subtle">{suggested}</p>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        disabled={suggesting}
-                        onClick={async () => {
-                          setSuggesting(true);
-                          const res = await suggestVehicle({
-                            make: p.customMake!,
-                            model: p.customModel!,
-                            fuelType: p.fuelType,
-                            consumption: p.consumption!,
-                            bodyType: p.customBodyType ?? "SUV",
-                          });
-                          setSuggesting(false);
-                          setSuggested(
-                            res.error
-                              ? res.error
-                              : res.pending
-                                ? "Thanks — we’ll check it and add it to the list."
-                                : "We already have that one; it will show up next time.",
-                          );
-                        }}
-                        className="rounded border border-line bg-panel px-2.5 py-1 text-xs font-medium text-ink transition hover:border-accent hover:text-accent"
-                      >
-                        {suggesting ? "Sending…" : "Add it to your list"}
-                      </button>
-                      <span className="text-[11px] text-muted">
-                        Optional. Your lease has it either way.
-                      </span>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
           )}
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -572,6 +510,41 @@ export default function VehicleCard(p: VehicleCardProps) {
         </div>
         )}
       </div>
+
+      {adding && (
+        <NewVehicleModal
+          initial={{
+            make: p.customMake,
+            model: p.customModel,
+            bodyType: p.customBodyType,
+            fuelType: p.fuelType,
+            consumption: p.consumption,
+          }}
+          onCancel={() => setAdding(false)}
+          onSave={(v) => {
+            // The lease gets the car immediately. Offering it to the
+            // catalogue is a separate, best-effort thing: it needs an admin
+            // before it helps anyone else, and it must never be the reason
+            // this person's own page stays empty.
+            p.onVehicle(null);
+            p.onCustom?.({
+              make: v.make,
+              model: v.model,
+              bodyType: v.bodyType,
+              consumptionPer100km: v.consumption,
+            });
+            p.onFuelType(v.fuelType);
+            setAdding(false);
+            void suggestVehicle({
+              make: v.make,
+              model: v.model,
+              fuelType: v.fuelType,
+              consumption: v.consumption,
+              bodyType: v.bodyType,
+            });
+          }}
+        />
+      )}
 
       {building && p.onPurchase && p.config && (
         <PriceBuilder
