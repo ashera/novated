@@ -503,6 +503,32 @@ export function buildRunningCosts(
 
 // --- FBT -------------------------------------------------------------------
 
+/**
+ * Whether the car itself is exempt from FBT.
+ *
+ * Pulled out of {@link assessFbt} because the exemption is a fact about the
+ * car, not about a particular salary or term, and the interface needs to say
+ * so next to the car — a whole assessment is a lot of machinery to run just to
+ * put a badge on a picture, and running it twice is how the badge and the
+ * numbers end up disagreeing.
+ *
+ * Two conditions, and both bite: battery-electric only (a plug-in hybrid lost
+ * eligibility on 1 April 2025), and at or under the luxury car tax threshold
+ * for fuel-efficient vehicles — measured on the car's cost, which is why the
+ * price has to be the car alone and not a drive-away figure.
+ */
+export function isFbtExemptVehicle(
+  fuelType: FuelType,
+  vehiclePrice: number,
+  config: EngineConfig,
+): boolean {
+  return (
+    config.fbt.evExemption.enabled &&
+    fuelType === "electric" &&
+    vehiclePrice <= config.lct.thresholdFuelEfficient
+  );
+}
+
 export function assessFbt(
   inputs: LeaseInputs,
   finance: LeaseFinance,
@@ -513,10 +539,7 @@ export function assessFbt(
   const baseValue = finance.priceInclGst;
   const taxableValue = baseValue * config.fbt.statutoryRate;
 
-  const evExempt =
-    config.fbt.evExemption.enabled &&
-    inputs.fuelType === "electric" &&
-    inputs.vehiclePrice <= config.lct.thresholdFuelEfficient;
+  const evExempt = isFbtExemptVehicle(inputs.fuelType, inputs.vehiclePrice, config);
 
   if (evExempt) {
     return {

@@ -5,6 +5,7 @@ import {
   buildFinance,
   calculateLease,
   defaultInputs,
+  isFbtExemptVehicle,
   type LeaseInputs,
 } from "@/lib/au/novated";
 
@@ -108,6 +109,33 @@ describe("Electric vehicle exemption", () => {
     // …and the whole exempt package comes out pre-tax.
     expect(ev.package.postTaxAnnual).toBe(0);
     expect(petrol.package.postTaxAnnual).toBeGreaterThan(0);
+  });
+
+  // The badge on the car is a second caller of the exemption rule, and the one
+  // place a user reads it before any figure is worked out. If it ever answers
+  // differently from the assessment, the picture says "no FBT" over a page
+  // full of employee contributions.
+  it("tells the interface the same thing the assessment concluded", () => {
+    const cases: Partial<LeaseInputs>[] = [
+      { fuelType: "electric", vehiclePrice: 55_000 },
+      { fuelType: "electric", vehiclePrice: config.lct.thresholdFuelEfficient },
+      { fuelType: "electric", vehiclePrice: config.lct.thresholdFuelEfficient + 1 },
+      { fuelType: "phev", vehiclePrice: 55_000 },
+      { fuelType: "hybrid", vehiclePrice: 55_000 },
+      { fuelType: "petrol", vehiclePrice: 120_000 },
+      { fuelType: "diesel", vehiclePrice: 40_000 },
+    ];
+    for (const c of cases) {
+      expect(
+        isFbtExemptVehicle(c.fuelType!, c.vehiclePrice!, config),
+        `${c.fuelType} at ${c.vehiclePrice}`,
+      ).toBe(assess(c).exempt);
+    }
+  });
+
+  it("goes quiet if the exemption is switched off in the rules", () => {
+    const off = { ...config, fbt: { ...config.fbt, evExemption: { ...config.fbt.evExemption, enabled: false } } };
+    expect(isFbtExemptVehicle("electric", 55_000, off)).toBe(false);
   });
 
   it("warns when an EV misses the exemption on price", () => {

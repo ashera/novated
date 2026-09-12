@@ -23,7 +23,7 @@ import {
   onRoadCosts,
   type PurchaseBreakdown,
 } from "@/lib/au/purchase";
-import type { FuelType } from "@/lib/au/novated";
+import { isFbtExemptVehicle, type FuelType } from "@/lib/au/novated";
 
 /**
  * Everything about the car, in one card at the top of the page.
@@ -183,6 +183,17 @@ export default function VehicleCard(p: VehicleCardProps) {
     />
   );
 
+  // The exemption is the single biggest thing about a car on this page — it is
+  // the difference between packaging the whole lease pre-tax and handing back
+  // a fifth of the car's value as taxable benefit every year. It goes above
+  // the picture because that is where the eye lands first, and because it is a
+  // fact about the car rather than about any of the figures below it.
+  //
+  // Only once there is a price: the threshold is a price test, so with nothing
+  // entered we would be claiming an exemption we haven't checked.
+  const fbtExempt =
+    p.config != null && p.price != null && isFbtExemptVehicle(p.fuelType, p.price, p.config);
+
   return (
     <section className="rounded-xl border border-line bg-panel shadow-[var(--shadow-card)]">
       {p.header && (
@@ -190,6 +201,22 @@ export default function VehicleCard(p: VehicleCardProps) {
       )}
       <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
         <div>
+          {fbtExempt && (
+            <div className="mb-2 flex items-start gap-2 rounded-lg border border-success/40 bg-success-subtle px-3 py-2">
+              <svg
+                viewBox="0 0 20 20"
+                aria-hidden="true"
+                className="mt-0.5 h-4 w-4 shrink-0 fill-success"
+              >
+                <path d="M10 1.6a8.4 8.4 0 1 0 0 16.8 8.4 8.4 0 0 0 0-16.8Zm4.03 6.2-4.9 5.2a.95.95 0 0 1-1.38 0L5.97 10.8a.95.95 0 0 1 1.38-1.3l1.09 1.16 4.21-4.47a.95.95 0 1 1 1.38 1.3Z" />
+              </svg>
+              <p className="text-[12px] leading-snug text-success-text">
+                <strong className="font-semibold">No FBT on this car.</strong> Battery-electric
+                and under the {fmtCurrency(p.config!.lct.thresholdFuelEfficient)} threshold, so
+                the whole package comes out of pre-tax pay with nothing to contribute back.
+              </p>
+            </div>
+          )}
           <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg border border-line bg-panel-2 sm:h-44">
             {art}
           </div>

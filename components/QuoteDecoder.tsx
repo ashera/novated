@@ -316,6 +316,7 @@ export default function QuoteDecoder({
             customBodyType={lease.vehicle.bodyType}
             consumption={quote.consumptionPer100km}
             onRoadCosts={lease.vehicle.onRoadCosts}
+            config={config}
             annualKm={quote.annualKm}
             onAnnualKm={(v) => set("annualKm", v)}
             state={quote.state}
