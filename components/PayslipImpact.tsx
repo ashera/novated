@@ -2,7 +2,7 @@
 
 import Explainer from "./Explainer";
 import InlineExplainer from "./InlineExplainer";
-import { fmtCurrency } from "@/lib/au/format";
+import { fmtCurrency, fmtCurrencyCents } from "@/lib/au/format";
 import type { EngineConfig } from "@/lib/au/config";
 import {
   PAY_CYCLES_PER_YEAR,
@@ -49,7 +49,7 @@ function Row({
     ) : (
       <>
         {negative && v > 0 ? "− " : ""}
-        {fmtCurrency(v)}
+        {fmtCurrencyCents(v)}
       </>
     );
   return (
@@ -88,7 +88,7 @@ function Line({
     >
       <dt>{label}</dt>
       <dd className="tabular-nums">
-        {value < 0 ? `− ${fmtCurrency(Math.abs(value))}` : fmtCurrency(value)}
+        {value < 0 ? `− ${fmtCurrencyCents(Math.abs(value))}` : fmtCurrencyCents(value)}
       </dd>
     </div>
   );
@@ -105,26 +105,23 @@ export default function PayslipImpact({
 }) {
   const { inputs, finance, running, package: pkg, fbt, payslip, comparison } = result;
   const adminFee = inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual;
-  const r0 = (v: number) => Math.round(v);
 
   const cycle = effectivePayCycle(inputs.payCycle, config);
   const n = PAY_CYCLES_PER_YEAR[cycle];
   const noun = PAY_CYCLE_NOUN[cycle];
-  const per = (annual: number) => annual / n;
-  // Every figure on screen is shown to the nearest dollar, so the summary
-  // lines are derived from the ROUNDED rows rather than from the exact
-  // annuals. Otherwise $3,242 − $2,619 reads as $623 while the callout below
-  // says $622, and a page arguing that it shows its working cannot afford to
-  // be a dollar out against itself.
-  const shown = (annual: number) => Math.round(per(annual));
-  const netDrop = shown(pkg.takeHomeBefore) - shown(pkg.takeHomeAfter);
-  const taxDrop =
-    shown(payslip.before.incomeTax) +
-    shown(payslip.before.medicare) +
-    shown(payslip.before.help) -
-    (shown(payslip.after.incomeTax) +
-      shown(payslip.after.medicare) +
-      shown(payslip.after.help));
+  /**
+   * An annual figure as this pay cycle's, rounded to the cent ONCE.
+   *
+   * Everything downstream is arithmetic on these values, so what is displayed
+   * and what is added up are the same numbers. Rounding at display time
+   * instead let each column round at a different point, and the same quantity
+   * appeared twice on screen with different values.
+   */
+  const per = (annual: number) => Math.round((annual / n) * 100) / 100;
+  // Derived from the two figures the table prints, not from the annual
+  // reduction, so the headline is exactly what a reader gets by subtracting
+  // the bottom row.
+  const netDrop = per(pkg.takeHomeBefore) - per(pkg.takeHomeAfter);
 
   // ── The two cards under the table ──────────────────────────────────────
   //
@@ -132,35 +129,34 @@ export default function PayslipImpact({
   // you funded them yourself. Both are per pay cycle so they sit beside the
   // table, and both add up to the figure printed under them.
   const cyc = {
-    finance: r0(per(finance.annualPayment)),
-    running: inputs.includeRunningCosts ? r0(per(running.total)) : 0,
-    fee: r0(per(adminFee)),
-    lcc: r0(per(finance.luxuryCarAdjustment)),
-    fbt: r0(per(fbt.fbtPayable)),
+    finance: per(finance.annualPayment),
+    running: inputs.includeRunningCosts ? per(running.total) : 0,
+    fee: per(adminFee),
+    lcc: per(finance.luxuryCarAdjustment),
+    fbt: per(fbt.fbtPayable),
   };
   const packagedCycle = cyc.finance + cyc.running + cyc.fee + cyc.lcc + cyc.fbt;
-  // Presented as the balancing figure rather than rounded independently, so
-  // the column lands exactly on the headline the table above already printed.
-  const reliefCycle = packagedCycle - netDrop;
+  // The tax the lease saves, as the difference between what is packaged and
+  // what actually leaves your pay. The card and the note below it are the
+  // same quantity, so they are the same number by construction rather than by
+  // two calculations that agree if you are lucky.
+  const taxDrop = packagedCycle - netDrop;
 
   // The alternative: buy the same car with a car loan and pay the same bills
   // out of take-home, where the GST is yours to wear. Running costs only
   // appear when the lease is packaging them — otherwise they are paid the
   // same way on both sides and would cancel out.
   const alt = {
-    loan: r0(per(comparison.loan.annualRepayment)),
-    running: inputs.includeRunningCosts
-      ? r0(per(running.total * (1 + config.gst.rate)))
-      : 0,
+    loan: per(comparison.loan.annualRepayment),
+    running: inputs.includeRunningCosts ? per(running.total * (1 + config.gst.rate)) : 0,
   };
   const altTotal = alt.loan + alt.running;
 
   // The row this modal explains is a PER-CYCLE figure, so the whole chain is
   // too — a modal opened from "− $293 a fortnight" that answers in $18,200 a
-  // year is explaining a different number than the one clicked on. The
-  // post-tax line balances, so the column lands exactly on the row above.
-  const preTaxRow = shown(pkg.preTaxAnnual);
-  const postTaxCycle = packagedCycle - preTaxRow;
+  // year is explaining a different number than the one clicked on.
+  const preTaxRow = per(pkg.preTaxAnnual);
+  const postTaxCycle = per(pkg.postTaxAnnual);
   const loanRate = inputs.comparisonLoanRatePct ?? inputs.interestRatePct + 1.5;
 
   const hasHelp = payslip.before.help > 0 || payslip.after.help > 0;
@@ -200,7 +196,7 @@ export default function PayslipImpact({
                   <div>
                     <InlineExplainer
                       label="Lease payments"
-                      value={fmtCurrency(cyc.finance)}
+                      value={fmtCurrencyCents(cyc.finance)}
                     >
                       The car itself, at {inputs.interestRatePct.toFixed(2)}% over{" "}
                       {inputs.termYears} years — {fmtCurrency(finance.annualPayment)} a year,
@@ -210,7 +206,7 @@ export default function PayslipImpact({
                     {inputs.includeRunningCosts && (
                       <InlineExplainer
                         label="Running costs"
-                        value={fmtCurrency(cyc.running)}
+                        value={fmtCurrencyCents(cyc.running)}
                       >
                         Fuel or charging, servicing, tyres, registration, insurance and roadside
                         — {fmtCurrency(running.total)} budgeted for the year, without GST,
@@ -218,7 +214,7 @@ export default function PayslipImpact({
                       </InlineExplainer>
                     )}
 
-                    <InlineExplainer label="Management fee" value={fmtCurrency(cyc.fee)}>
+                    <InlineExplainer label="Management fee" value={fmtCurrencyCents(cyc.fee)}>
                       What the provider charges to run the package —{" "}
                       {fmtCurrency(adminFee)} a year.
                     </InlineExplainer>
@@ -226,7 +222,7 @@ export default function PayslipImpact({
                     {finance.luxuryCarAdjustment > 0 && (
                       <InlineExplainer
                         label="Luxury car charge"
-                        value={fmtCurrency(cyc.lcc)}
+                        value={fmtCurrencyCents(cyc.lcc)}
                       >
                         The car is financed above the {fmtCurrency(config.gst.carLimit)} car
                         limit, so the financier loses deductions on the excess and passes the
@@ -237,7 +233,7 @@ export default function PayslipImpact({
                     {fbt.fbtPayable > 0 && (
                       <InlineExplainer
                         label="Fringe benefits tax"
-                        value={fmtCurrency(cyc.fbt)}
+                        value={fmtCurrencyCents(cyc.fbt)}
                       >
                         Your employer owes it and passes it on. Paying the employee
                         contribution instead would cancel it.
@@ -246,7 +242,7 @@ export default function PayslipImpact({
 
                     <InlineExplainer
                       label={`Everything packaged, each ${noun}`}
-                      value={fmtCurrency(packagedCycle)}
+                      value={fmtCurrencyCents(packagedCycle)}
                     >
                       The whole cost of running this lease, before it is split across the two
                       sides of tax.
@@ -255,7 +251,7 @@ export default function PayslipImpact({
                     {pkg.postTaxAnnual > 0 && (
                       <InlineExplainer
                         label="Less the post-tax part"
-                        value={`− ${fmtCurrency(postTaxCycle)}`}
+                        value={`− ${fmtCurrencyCents(postTaxCycle)}`}
                       >
                         The employee contribution comes out <em>after</em> tax instead — that is
                         what cancels the FBT — so it is not part of the pre-tax figure. It is
@@ -265,10 +261,10 @@ export default function PayslipImpact({
 
                     <InlineExplainer
                       label={`Deducted before tax, each ${noun}`}
-                      value={fmtCurrency(preTaxRow)}
+                      value={fmtCurrencyCents(preTaxRow)}
                     >
-                      {fmtCurrency(packagedCycle)}
-                      {postTaxCycle > 0 ? ` − ${fmtCurrency(postTaxCycle)}` : ""} — the figure on
+                      {fmtCurrencyCents(packagedCycle)}
+                      {postTaxCycle > 0 ? ` − ${fmtCurrencyCents(postTaxCycle)}` : ""} — the figure on
                       this row. Over a year that is {fmtCurrency(pkg.preTaxAnnual)}.
                     </InlineExplainer>
                   </div>
@@ -337,7 +333,7 @@ export default function PayslipImpact({
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col rounded-lg border border-accent-border bg-accent-subtle px-3.5 py-3">
           <p className="text-sm text-ink">
-            <strong>{fmtCurrency(netDrop)} less a {noun}</strong> in the bank — and this is
+            <strong>{fmtCurrencyCents(netDrop)} less a {noun}</strong> in the bank — and this is
             what it covers.
           </p>
           <dl className="mt-2.5 space-y-1 text-sm">
@@ -347,7 +343,7 @@ export default function PayslipImpact({
             {cyc.lcc > 0 && <Line label="Luxury car charge" value={cyc.lcc} />}
             {cyc.fbt > 0 && <Line label="Fringe benefits tax" value={cyc.fbt} />}
             <Line label={`Packaged each ${noun}`} value={packagedCycle} rule />
-            <Line label="Tax you don't pay on it" value={-reliefCycle} />
+            <Line label="Tax you don't pay on it" value={-taxDrop} />
             <Line label="Out of your pocket" value={netDrop} strong />
           </dl>
           <p className="mt-auto pt-2.5 text-[11px] leading-snug text-muted">
@@ -359,7 +355,7 @@ export default function PayslipImpact({
 
         <div className="flex flex-col rounded-lg border border-line bg-panel-2 px-3.5 py-3">
           <p className="text-sm text-subtle">
-            <strong className="text-ink">{fmtCurrency(altTotal)} a {noun}</strong> to fund the
+            <strong className="text-ink">{fmtCurrencyCents(altTotal)} a {noun}</strong> to fund the
             same car yourself, out of what&apos;s left after tax.
           </p>
           <dl className="mt-2.5 space-y-1 text-sm">
@@ -378,7 +374,7 @@ export default function PayslipImpact({
       <ul className="mt-4 space-y-2 text-xs leading-relaxed text-muted">
         <li>
           <strong className="text-subtle">
-            Your tax falls by {fmtCurrency(taxDrop)} a {noun}
+            Your tax falls by {fmtCurrencyCents(taxDrop)} a {noun}
           </strong>{" "}
           because the pre-tax deduction comes off before tax is worked out. That is
           the saving — it is not a discount on the car.

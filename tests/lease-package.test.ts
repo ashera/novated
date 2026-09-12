@@ -408,3 +408,29 @@ describe("What the pre-tax deduction explainer itemises", () => {
     expect(r.payslip.after.gross).toBeCloseTo(r.inputs.salary - r.package.preTaxAnnual, 6);
   });
 });
+
+describe("The payslip's two summaries are the same quantity", () => {
+  // The bug: "Tax you don't pay on it" in one card and "Your tax falls by" in
+  // the note below it are the same thing, but were reached by two different
+  // chains — one from the packaged parts, one from the tax rows — and each
+  // rounded at a different point, so they disagreed on screen.
+  //
+  // The relationship they both rest on, which is exact in the engine:
+  //   everything packaged − what actually leaves your pay = the tax saved
+  const check = (o: Partial<LeaseInputs>) => {
+    const r = run(o);
+    const packaged = r.package.preTaxAnnual + r.package.postTaxAnnual;
+    expect(packaged - r.package.takeHomeReduction).toBeCloseTo(r.package.taxSaved, 6);
+  };
+
+  it("holds on an exempt EV", () => check({ fuelType: "electric", vehiclePrice: 55_000 }));
+  it("holds with an employee contribution", () =>
+    check({ fuelType: "petrol", vehiclePrice: 55_000, fbtMethod: "ecm" }));
+  it("holds when the employer pays the FBT", () =>
+    check({ fuelType: "petrol", vehiclePrice: 55_000, fbtMethod: "employer-pays" }));
+  it("holds with a study loan, where the repayment rises", () =>
+    check({ fuelType: "electric", vehiclePrice: 55_000, hasHelpDebt: true }));
+  it("holds with running costs outside the package", () =>
+    check({ includeRunningCosts: false }));
+  it("holds above the car limit", () => check({ vehiclePrice: 120_000 }));
+});
