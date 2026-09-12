@@ -1,10 +1,13 @@
 import Link from "next/link";
 import Logo from "./Logo";
 import Disclosures from "./Disclosures";
-import { fmtCurrency, fmtDate } from "@/lib/au/format";
+import PaydownChart from "./PaydownChart";
+import { fmtCurrency, fmtCurrencyCents, fmtDate } from "@/lib/au/format";
 import {
+  amortisationSchedule,
   calculateLease,
   effectivePayCycle,
+  PAY_CYCLES_PER_YEAR,
   PAY_CYCLE_NOUN,
   type LeaseInputs,
 } from "@/lib/au/novated";
@@ -13,8 +16,17 @@ import type { EngineConfig } from "@/lib/au/config";
 /**
  * The printable report: everything the calculator shows, laid out for paper (or
  * "Save as PDF") so it can be taken to an employer, a lease provider or an
- * accountant. Server-rendered and deliberately chart-free — the tables carry the
- * argument, and they survive a black-and-white printer.
+ * accountant.
+ *
+ * Every figure here has a table behind it, because a table survives a
+ * black-and-white printer and a chart may not. The paydown chart is the one
+ * drawing, and it is drawn over its own numbers rather than instead of them —
+ * the year-by-year table beneath it says the same thing to a fax machine.
+ *
+ * The payslip is the reason the report exists at all. The rest of this argues
+ * the lease is worth doing; that table is what payroll is actually asked to
+ * set up, so it is laid out exactly as it is on the calculator — same rows,
+ * same rounding — and can be handed over as-is.
  */
 export default function LeaseReport({
   inputs,
@@ -28,8 +40,43 @@ export default function LeaseReport({
   preparedFor?: string | null;
 }) {
   const r = calculateLease(inputs, config);
-  const { package: pkg, fbt, finance, running, comparison, term } = r;
+  const { package: pkg, fbt, finance, running, comparison, term, payslip } = r;
   const payCycle = effectivePayCycle(inputs.payCycle, config);
+  const noun = PAY_CYCLE_NOUN[payCycle];
+  const adminFee = inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual;
+
+  // Rounded to the cent once, exactly as the calculator does it, so the report
+  // a user prints and the screen they printed it from cannot disagree by a
+  // cent — which is the sort of difference payroll would ask about.
+  const n = PAY_CYCLES_PER_YEAR[payCycle];
+  const per = (annual: number) => Math.round((annual / n) * 100) / 100;
+  const netDrop = per(pkg.takeHomeBefore) - per(pkg.takeHomeAfter);
+  const packagedCycle =
+    per(finance.annualPayment) +
+    (inputs.includeRunningCosts ? per(running.total) : 0) +
+    per(adminFee) +
+    per(finance.luxuryCarAdjustment) +
+    per(fbt.fbtPayable);
+  const taxDrop = packagedCycle - netDrop;
+  const helpRose = payslip.after.help > payslip.before.help + 0.5;
+
+  // The balance at each anniversary, and what the year in between did to it.
+  const schedule = amortisationSchedule(
+    finance.amountFinanced,
+    finance.residual,
+    inputs.interestRatePct,
+    term.years * 12,
+  );
+  const years = Array.from({ length: term.years }, (_, i) => {
+    const start = schedule[i * 12];
+    const end = schedule[(i + 1) * 12];
+    return {
+      year: i + 1,
+      interest: end.interestPaid - start.interestPaid,
+      principal: start.balance - end.balance,
+      balance: end.balance,
+    };
+  });
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-8 print:px-0 print:py-0">
@@ -87,6 +134,34 @@ export default function LeaseReport({
             ["Residual payable at the end", fmtCurrency(finance.residual)],
           ]}
         />
+      </Section>
+
+      <Section title="How the finance is paid down">
+        <PaydownChart result={r} />
+        <table className="mt-5 w-full text-sm">
+          <thead>
+            <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+              <th className="pb-2 font-medium">Year</th>
+              <th className="pb-2 text-right font-medium">Interest</th>
+              <th className="pb-2 text-right font-medium">Off the car</th>
+              <th className="pb-2 text-right font-medium">Still owing</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {years.map((y) => (
+              <tr key={y.year} className={y.year === term.years ? "font-semibold text-ink" : ""}>
+                <td className="py-2 text-subtle">
+                  {y.year === term.years ? `Year ${y.year} — end of the lease` : `Year ${y.year}`}
+                </td>
+                <td className="py-2 text-right tabular-nums text-ink">{fmtCurrency(y.interest)}</td>
+                <td className="py-2 text-right tabular-nums text-ink">
+                  {fmtCurrency(y.principal)}
+                </td>
+                <td className="py-2 text-right tabular-nums text-ink">{fmtCurrency(y.balance)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </Section>
 
       <Section title="Fringe benefits tax">
@@ -165,6 +240,80 @@ export default function LeaseReport({
         </div>
       </Section>
 
+      <Section title={`Your payslip, every ${noun}`}>
+        <Payslip
+          noun={noun}
+          rows={[
+            { label: "Gross pay", before: per(inputs.salary), after: per(inputs.salary) },
+            {
+              label: "Lease deduction, before tax",
+              hint: "Shown as salary sacrifice",
+              after: per(pkg.preTaxAnnual),
+              negative: true,
+            },
+            {
+              label: "Taxable pay",
+              before: per(payslip.before.gross),
+              after: per(payslip.after.gross),
+              strong: true,
+            },
+            {
+              label: "PAYG tax",
+              before: per(payslip.before.incomeTax),
+              after: per(payslip.after.incomeTax),
+              negative: true,
+            },
+            {
+              label: "Medicare levy",
+              before: per(payslip.before.medicare),
+              after: per(payslip.after.medicare),
+              negative: true,
+            },
+            ...(payslip.before.help > 0 || payslip.after.help > 0
+              ? [
+                  {
+                    label: "Study loan repayment",
+                    hint: helpRose
+                      ? "Rises: the reportable fringe benefit counts towards repayment income"
+                      : undefined,
+                    before: per(payslip.before.help),
+                    after: per(payslip.after.help),
+                    negative: true,
+                  },
+                ]
+              : []),
+            ...(pkg.postTaxAnnual > 0
+              ? [
+                  {
+                    label: "Lease contribution, after tax",
+                    hint: "The employee contribution that cancels the FBT",
+                    after: per(pkg.postTaxAnnual),
+                    negative: true,
+                  },
+                ]
+              : []),
+            {
+              label: "Lands in your account",
+              before: per(pkg.takeHomeBefore),
+              after: per(pkg.takeHomeAfter),
+              strong: true,
+            },
+          ]}
+        />
+        <p className="mt-3 text-sm text-subtle">
+          {fmtCurrencyCents(packagedCycle)} a {noun} covers the car, everything packaged with it
+          and the fees. Your tax falls by {fmtCurrencyCents(taxDrop)} because the pre-tax
+          deduction comes off before tax is worked out, so what actually leaves your pay is{" "}
+          {fmtCurrencyCents(netDrop)} a {noun}. That is the saving — it is not a discount on the
+          car.
+        </p>
+        <p className="mt-2 text-sm text-subtle">
+          These are the lines payroll has to set up. The first pay or two may differ: deductions
+          usually start once the car is delivered, and providers commonly true up the budgets
+          after the first few months.
+        </p>
+      </Section>
+
       <Section title="Compared with buying it another way">
         <Table
           rows={[
@@ -217,6 +366,63 @@ function Figure({ label, value, note }: { label: string; value: string; note?: s
       <div className="mt-1 text-xl font-bold tabular-nums text-ink">{value}</div>
       {note && <div className="mt-1 text-xs text-muted">{note}</div>}
     </div>
+  );
+}
+
+interface PayslipRow {
+  label: string;
+  hint?: string;
+  before?: number;
+  after?: number;
+  /** Show it the way a payslip does: a deduction, with a minus in front. */
+  negative?: boolean;
+  strong?: boolean;
+}
+
+/**
+ * A payslip: the same figure before and after, side by side.
+ *
+ * Three columns rather than the report's usual two, because the whole point
+ * of this table is the comparison — a novated lease changes a payslip in
+ * three places at once, and only a "now" column makes that visible. Cents are
+ * shown here and nowhere else in the report: this is the one page someone
+ * checks against a real payslip.
+ */
+function Payslip({ rows, noun }: { rows: PayslipRow[]; noun: string }) {
+  const cell = (v: number | undefined, negative?: boolean) =>
+    v == null ? (
+      <span className="text-muted">—</span>
+    ) : (
+      `${negative && v > 0 ? "− " : ""}${fmtCurrencyCents(v)}`
+    );
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+          <th className="pb-2 font-medium">Per {noun}</th>
+          <th className="pb-2 text-right font-medium">Now</th>
+          <th className="pb-2 text-right font-medium">With the lease</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-line">
+        {rows.map((row) => (
+          <tr key={row.label} className={row.strong ? "font-semibold text-ink" : undefined}>
+            <td className={`py-2 ${row.strong ? "" : "text-subtle"}`}>
+              {row.label}
+              {row.hint && (
+                <span className="block text-[11px] font-normal text-muted">{row.hint}</span>
+              )}
+            </td>
+            <td className="py-2 text-right tabular-nums text-ink">
+              {cell(row.before, row.negative)}
+            </td>
+            <td className="py-2 text-right tabular-nums text-ink">
+              {cell(row.after, row.negative)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

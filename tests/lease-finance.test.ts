@@ -486,4 +486,41 @@ describe("Paying the finance down", () => {
   it("copes with a zero-month term rather than looping forever", () => {
     expect(amortisationSchedule(1_000, 0, 5, 0)).toHaveLength(1);
   });
+
+  // The printed report rolls the schedule up to anniversaries — the chart
+  // doesn't survive a black-and-white printer, so a table has to say the same
+  // thing. It reads the points at month 0, 12, 24 … and takes differences, so
+  // an off-by-one in that indexing would silently lose or double a month.
+  describe("rolled up to years, the way the report prints it", () => {
+    const years = Array.from({ length: months / 12 }, (_, i) => {
+      const start = sched[i * 12];
+      const end = sched[(i + 1) * 12];
+      return {
+        interest: end.interestPaid - start.interestPaid,
+        principal: start.balance - end.balance,
+        balance: end.balance,
+      };
+    });
+
+    it("accounts for every dollar of principal, with none left over", () => {
+      const total = years.reduce((t, y) => t + y.principal, 0);
+      expect(total).toBeCloseTo(principal - balloon, 4);
+    });
+
+    it("accounts for every dollar of interest", () => {
+      const total = years.reduce((t, y) => t + y.interest, 0);
+      expect(total).toBeCloseTo(sched[months].interestPaid, 4);
+    });
+
+    it("ends the last year on the residual", () => {
+      expect(years[years.length - 1].balance).toBeCloseTo(balloon, 6);
+    });
+
+    it("each year picks up where the one before left off", () => {
+      years.forEach((y, i) => {
+        const opening = i === 0 ? principal : years[i - 1].balance;
+        expect(opening - y.principal, `year ${i + 1}`).toBeCloseTo(y.balance, 6);
+      });
+    });
+  });
 });
