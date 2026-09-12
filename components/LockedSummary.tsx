@@ -75,10 +75,23 @@ export default function LockedSummary({
           value={`${inputs.termYears} year${inputs.termYears === 1 ? "" : "s"}`}
         />
 
+        {/* The two figures that decide what the repayments are: what is
+            borrowed, and what it costs to borrow it. The rate is the one no
+            provider prints, so it is the whole reason the decoder exists —
+            it belongs on the summary of what was agreed. */}
+        <Item
+          label="Amount financed"
+          value={fmtCurrency(finance.amountFinanced)}
+          note={
+            finance.onRoadCosts > 0
+              ? `${fmtCurrency(finance.driveAwayTotal)} drive-away, less the ${fmtCurrency(finance.gstCredit)} GST credit`
+              : `${fmtCurrency(finance.priceInclGst)} less the ${fmtCurrency(finance.gstCredit)} GST credit`
+          }
+        />
         <Item
           label="Interest rate"
           value={`${inputs.interestRatePct.toFixed(2)}%`}
-          note={`Solved from ${quoteLabel}`}
+          note={`What you're paying — solved from ${quoteLabel}`}
         />
         <Item
           label="Residual"
