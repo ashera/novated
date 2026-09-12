@@ -354,7 +354,12 @@ export default function VehicleCard(p: VehicleCardProps) {
               </label>
             ) : (
               <label className="block">
-                <span className="text-sm font-medium text-ink">Model</span>
+                {/* The same flex header as Make, which carries a link beside
+                    its label. A plain inline span here measured a pixel
+                    shorter and put the two selects 4px out of line. */}
+                <span className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-sm font-medium text-ink">Model</span>
+                </span>
                 <select
                   value={selected?.id ?? ""}
                   disabled={!make}
