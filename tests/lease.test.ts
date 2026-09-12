@@ -14,6 +14,7 @@ import {
   defaultScenario,
   defaultVehicle,
   newQuoteSpec,
+  priceNeedsBreakdown,
   quoteLabel,
   quoteStatus,
   withLeaseVehicle,
@@ -623,5 +624,52 @@ describe("Everything on a lease actually gets saved", () => {
     });
     expect(back.lockedQuoteId).toBe("q-1");
     expect(lockedQuote(back)?.label).toBe("Maxxia");
+  });
+});
+
+describe("Prices stored before we asked what was in them", () => {
+  /**
+   * The price field used to invite a drive-away figure, and a drive-away
+   * figure in there overstates the FBT base value by the whole of the stamp
+   * duty, rego and CTP — every year of the lease. We cannot tell the two
+   * apart by looking, so the test is whether anyone was ever asked.
+   */
+  it("asks about a price that was typed before the question existed", () => {
+    expect(priceNeedsBreakdown({ ...defaultVehicle(), price: 62_000 })).toBe(true);
+  });
+
+  it("stops asking once it has been broken down", () => {
+    expect(
+      priceNeedsBreakdown({
+        ...defaultVehicle(),
+        price: 58_000,
+        purchase: { vehicle: 58_000, stampDuty: 2_100 },
+      }),
+    ).toBe(false);
+  });
+
+  // "It's just the car" is a real answer, and recording it must settle the
+  // question as firmly as splitting it out does.
+  it("accepts 'it is just the car' as an answer", () => {
+    expect(
+      priceNeedsBreakdown({ ...defaultVehicle(), price: 62_000, purchase: { vehicle: 62_000 } }),
+    ).toBe(false);
+  });
+
+  it("never asks someone who has not entered a price", () => {
+    expect(priceNeedsBreakdown({ ...defaultVehicle(), price: undefined })).toBe(false);
+  });
+
+  // A visitor who has changed nothing should not be questioned about a figure
+  // they did not type.
+  it("leaves the untouched default alone", () => {
+    expect(priceNeedsBreakdown(defaultVehicle())).toBe(false);
+    expect(priceNeedsBreakdown(newLease().vehicle)).toBe(false);
+  });
+
+  it("survives storage, so the prompt is the same after a reload", () => {
+    const lease: Lease = { ...newLease(), vehicle: { ...defaultVehicle(), price: 62_000 } };
+    const back = migrateLease(JSON.parse(JSON.stringify(lease)));
+    expect(priceNeedsBreakdown(back.vehicle)).toBe(true);
   });
 });

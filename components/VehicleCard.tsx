@@ -118,6 +118,8 @@ export interface VehicleCardProps {
   onPurchase?: (p: { price?: number; onRoadCosts?: number; purchase: PurchaseBreakdown }) => void;
   /** Needed to show what the lease is written over, after the GST credit. */
   config?: EngineConfig;
+  /** This price was entered before we asked what was inside it. */
+  priceNeedsBreakdown?: boolean;
 
   annualKm: number | undefined;
   onAnnualKm: (v: number | undefined) => void;
@@ -407,6 +409,44 @@ export default function VehicleCard(p: VehicleCardProps) {
                       : "85,000"}
                   </span>
                 </button>
+                {/* Asked once, and only of a price nobody was ever asked
+                    about. Registration and stamp duty inside this figure are
+                    taxed as though they were part of the car — so the cheap
+                    fix is to find out, not to assume either way. */}
+                {p.priceNeedsBreakdown && (
+                  <div className="mt-2 rounded-md border border-warning/40 bg-warning-subtle px-2.5 py-2">
+                    <p className="text-[11px] leading-snug text-warning-text">
+                      <strong>Does this include stamp duty and rego?</strong> If it&apos;s a
+                      drive-away figure they shouldn&apos;t be in here — the FBT is worked out on
+                      the car alone, so you&apos;d be taxed on 20% of them every year.
+                      {p.fuelType === "electric" &&
+                        " On an electric car it also decides whether you stay under the exemption threshold."}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBuilding(true)}
+                        className="rounded border border-warning/50 bg-panel px-2 py-0.5 text-[11px] font-medium text-warning-text transition hover:border-warning"
+                      >
+                        Split it out
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          p.onPurchase?.({
+                            price: p.price,
+                            onRoadCosts: undefined,
+                            purchase: { vehicle: p.price },
+                          })
+                        }
+                        className="rounded px-2 py-0.5 text-[11px] font-medium text-warning-text/80 transition hover:text-warning-text"
+                      >
+                        It&apos;s just the car
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <span className="mt-1 block text-[11px] leading-snug text-muted">
                   {p.price != null && p.config ? (
                     <>

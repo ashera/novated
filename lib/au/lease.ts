@@ -190,6 +190,30 @@ export function isCustomVehicle(v: VehicleSpec): boolean {
   return !v.vehicleId && Boolean(v.make?.trim() || v.model?.trim());
 }
 
+/**
+ * Does this lease's price need breaking down?
+ *
+ * The price field used to be a single box labelled "also Drive Away Price",
+ * so a lot of stored leases hold a drive-away figure where the car's cost
+ * price belongs. That silently overstates the FBT base value by the whole of
+ * the stamp duty, registration and CTP — and on an electric car it can push
+ * the price past the exemption threshold and cost the lot.
+ *
+ * We cannot tell a drive-away figure from a car price by looking at it. What
+ * we can tell is whether anyone was ever ASKED: a price with no breakdown
+ * behind it was typed before the question existed. Saving anything through
+ * the price builder — even "it's just the car" — records an answer and
+ * settles it.
+ *
+ * The untouched default is excluded, so a visitor who has changed nothing is
+ * never asked about a figure they did not enter. That does mean a real
+ * $55,000 car is not prompted; a nag on every new session would be a worse
+ * trade.
+ */
+export function priceNeedsBreakdown(v: VehicleSpec): boolean {
+  return v.price != null && v.purchase == null && v.price !== defaultVehicle().price;
+}
+
 export function defaultVehicle(): VehicleSpec {
   return { fuelType: "electric", price: 55_000, annualKm: 15_000 };
 }

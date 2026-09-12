@@ -29,6 +29,7 @@ import {
   applyScenarioFromQuote,
   leaseToInputs,
   lockedQuote,
+  priceNeedsBreakdown,
   unlockQuote,
   quoteLabel,
   type Lease,
@@ -182,6 +183,7 @@ export default function LeaseCalculator({
             purchase={lease.vehicle.purchase}
             onPurchase={(b) => setVehicle(b)}
             config={config}
+            priceNeedsBreakdown={!readOnly && priceNeedsBreakdown(lease.vehicle)}
             annualKm={inputs.annualKm}
             onAnnualKm={(v) => setVehicle({ annualKm: v })}
             state={inputs.state}
