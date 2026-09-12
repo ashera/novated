@@ -79,8 +79,24 @@ export function effectivePayCycle(
 export interface LeaseInputs {
   /** Gross annual salary, before any packaging. */
   salary: number;
-  /** Advertised drive-away price, GST included. */
+  /**
+   * The CAR's cost price, GST included — the negotiated price plus dealer
+   * delivery and anything fitted before handover.
+   *
+   * Not the drive-away figure: registration, stamp duty and CTP are excluded
+   * by the ATO from the base value the FBT is worked out on, so they live in
+   * `onRoadCosts` instead. Putting them here overstates the FBT on every
+   * non-exempt car, by 20% of the on-roads every year.
+   */
   vehiclePrice: number;
+  /**
+   * Stamp duty, registration, CTP and plates.
+   *
+   * Financed with the car on a normal novated lease, so they are repaid — but
+   * they are not part of the FBT base value, the GST credit or the luxury car
+   * tax tests. Omit when the employee pays them separately.
+   */
+  onRoadCosts?: number;
   fuelType: FuelType;
   termYears: number;
   annualKm: number;
@@ -147,8 +163,12 @@ export interface FbtOutcome {
 }
 
 export interface LeaseFinance {
-  /** GST-inclusive price the employee sees advertised. */
+  /** The car's GST-inclusive cost price — the FBT base value. */
   priceInclGst: number;
+  /** Stamp duty, registration and the rest, where they are financed. */
+  onRoadCosts: number;
+  /** Car plus on-roads: the dealer's invoice total. */
+  driveAwayTotal: number;
   /** GST the financier recovers, capped by the car limit. */
   gstCredit: number;
   /** What the lease is actually written over, after the GST credit. */
@@ -310,12 +330,18 @@ export function buildFinance(
   config: EngineConfig,
 ): LeaseFinance {
   const price = Math.max(0, inputs.vehiclePrice);
+  const onRoads = Math.max(0, inputs.onRoadCosts ?? 0);
   // The financier buys the car and claims the GST credit, but only up to the
   // car limit — GST on value above that is not recoverable and stays in the
-  // amount financed.
+  // amount financed. Measured on the CAR, not the drive-away total: the car
+  // limit is a limit on the car.
   const creditableValue = Math.min(price, config.gst.carLimit);
   const gstCredit = creditableValue - creditableValue / (1 + config.gst.rate);
-  const amountFinanced = price - gstCredit;
+  // On-roads are financed alongside the car and repaid with it. No GST credit
+  // is taken on them here: registration and stamp duty carry no GST, and the
+  // CTP component that does is small enough that claiming it would be a
+  // bigger error than leaving it.
+  const amountFinanced = price - gstCredit + onRoads;
 
   const residualPct =
     inputs.residualPct ?? config.lease.residualMinPct[String(inputs.termYears)] ?? 0;
@@ -331,6 +357,8 @@ export function buildFinance(
 
   return {
     priceInclGst: price,
+    onRoadCosts: onRoads,
+    driveAwayTotal: price + onRoads,
     gstCredit,
     amountFinanced,
     residual,

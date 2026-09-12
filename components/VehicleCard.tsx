@@ -7,6 +7,8 @@ import VehicleArt from "./VehicleArt";
 import { findVehicle, vehicleMakes, vehiclesForMake, type Vehicle } from "@/lib/au/vehicles";
 import { AU_STATES, type AuState } from "@/lib/au/config";
 import { fmtCurrency } from "@/lib/au/format";
+import PriceBuilder from "./PriceBuilder";
+import { carCost, onRoadCosts, type PurchaseBreakdown } from "@/lib/au/purchase";
 import type { FuelType } from "@/lib/au/novated";
 
 /**
@@ -94,6 +96,12 @@ export interface VehicleCardProps {
   price: number | undefined;
   onPrice: (v: number | undefined) => void;
   priceHint?: string;
+  /** Stamp duty, rego and CTP, kept apart from the car's price. */
+  onRoadCosts?: number;
+  /** What was itemised in the price builder, so it reopens with their work. */
+  purchase?: PurchaseBreakdown;
+  /** Given together, because they are one decision. */
+  onPurchase?: (p: { price?: number; onRoadCosts?: number; purchase: PurchaseBreakdown }) => void;
 
   annualKm: number | undefined;
   onAnnualKm: (v: number | undefined) => void;
@@ -107,11 +115,12 @@ export interface VehicleCardProps {
   onFirstHeldDate?: (d: string | undefined) => void;
 }
 
-function Readout({ label, value }: { label: string; value: string }) {
+function Readout({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div>
       <span className="text-sm font-medium text-ink">{label}</span>
       <p className="mt-0.5 text-sm text-subtle">{value}</p>
+      {note && <p className="text-[11px] text-muted">{note}</p>}
     </div>
   );
 }
@@ -123,6 +132,7 @@ export default function VehicleCard(p: VehicleCardProps) {
   // was known at first render — and the lease loads asynchronously, so on a
   // reload the dropdowns stayed empty while the title showed the right car.
   // Local state only covers the gap between choosing a make and a model.
+  const [building, setBuilding] = useState(false);
   const [pendingMake, setPendingMake] = useState("");
   const make = selected?.make ?? pendingMake;
 
@@ -173,6 +183,11 @@ export default function VehicleCard(p: VehicleCardProps) {
               <Readout
                 label="Price of the car"
                 value={p.price != null ? fmtCurrency(p.price) : "Not set"}
+                note={
+                  (p.onRoadCosts ?? 0) > 0
+                    ? `+ ${fmtCurrency(p.onRoadCosts!)} on-roads`
+                    : undefined
+                }
               />
               <Readout
                 label="Kilometres a year"
@@ -257,14 +272,56 @@ export default function VehicleCard(p: VehicleCardProps) {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <QuoteField
-              label="Price of the car"
-              alsoCalled={["Vehicle Price", "Drive Away Price"]}
-              value={p.price}
-              onChange={p.onPrice}
-              placeholder="85,000"
-              hint={p.priceHint ?? "GST included, as advertised. Take it from your own quote."}
-            />
+            {p.onPurchase ? (
+              <div>
+                <span className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-sm font-medium text-ink">Price of the car</span>
+                  <button
+                    type="button"
+                    onClick={() => setBuilding(true)}
+                    className="text-xs font-medium text-accent hover:underline"
+                  >
+                    {p.price != null ? "Break it down" : "Work it out"}
+                  </button>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBuilding(true)}
+                  className="mt-1 flex w-full items-center justify-between gap-2 rounded-md border border-line bg-panel-2 px-2 py-1.5 text-left transition hover:border-accent"
+                >
+                  <span className="text-xs text-muted">$</span>
+                  <span
+                    className={`text-sm font-semibold tabular-nums ${
+                      p.price != null ? "text-ink" : "text-muted/70"
+                    }`}
+                  >
+                    {p.price != null
+                      ? p.price.toLocaleString("en-AU", { maximumFractionDigits: 0 })
+                      : "85,000"}
+                  </span>
+                </button>
+                <span className="mt-1 block text-[11px] leading-snug text-muted">
+                  {(p.onRoadCosts ?? 0) > 0 ? (
+                    <>
+                      Plus {fmtCurrency(p.onRoadCosts!)} of on-road costs —{" "}
+                      {fmtCurrency((p.price ?? 0) + (p.onRoadCosts ?? 0))} drive-away. Only the
+                      car is taxed.
+                    </>
+                  ) : (
+                    (p.priceHint ??
+                      "The car itself, GST included. A drive-away figure includes stamp duty and rego, which aren't taxed — work it out to keep them apart.")
+                  )}
+                </span>
+              </div>
+            ) : (
+              <QuoteField
+                label="Price of the car"
+                value={p.price}
+                onChange={p.onPrice}
+                placeholder="85,000"
+                hint={p.priceHint ?? "The car itself, GST included — not the drive-away total."}
+              />
+            )}
             <QuoteField
               label="Kilometres a year"
               prefix={null}
@@ -334,6 +391,21 @@ export default function VehicleCard(p: VehicleCardProps) {
         </div>
         )}
       </div>
+
+      {building && p.onPurchase && (
+        <PriceBuilder
+          initial={p.purchase ?? (p.price != null ? { vehicle: p.price } : {})}
+          onCancel={() => setBuilding(false)}
+          onApply={(b) => {
+            p.onPurchase!({
+              price: carCost(b) || undefined,
+              onRoadCosts: b.financeOnRoads === false ? undefined : onRoadCosts(b) || undefined,
+              purchase: b,
+            });
+            setBuilding(false);
+          }}
+        />
+      )}
     </section>
   );
 }

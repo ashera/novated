@@ -65,7 +65,12 @@ export interface Quote {
   frequency: QuoteFrequency;
 
   // The car
-  vehiclePrice?: number; // drive-away, inc GST
+  /** The CAR's cost price, inc GST — not the drive-away total. Stamp duty,
+   *  rego and CTP live in onRoadCosts, because the ATO keeps them out of the
+   *  FBT base value. */
+  vehiclePrice?: number;
+  /** Stamp duty, registration, CTP and plates, where they are financed. */
+  onRoadCosts?: number;
   fuelType: FuelType;
   /** Catalogue vehicle, when the user picked one. Never sets the price. */
   vehicleId?: string;
@@ -164,12 +169,18 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
   // ── The financed amount ──────────────────────────────────────────────────
   // Where a quote doesn't state it, drive-away less the capped GST credit
   // reproduces it exactly on every quote that does — so derive it, and say so.
+  //
+  // Drive-away is the car PLUS the on-roads: the financier pays the dealer's
+  // whole invoice. The GST credit is on the car alone, because that is what
+  // the car limit applies to and what carries the GST.
+  const driveAway =
+    quote.vehiclePrice != null ? quote.vehiclePrice + (quote.onRoadCosts ?? 0) : null;
   const creditable = Math.min(quote.vehiclePrice ?? 0, config.gst.carLimit);
   const gstCredit = creditable - creditable / (1 + config.gst.rate);
   let amountFinanced = quote.amountFinanced ?? null;
   let financedWasDerived = false;
-  if (amountFinanced == null && quote.vehiclePrice != null) {
-    amountFinanced = quote.vehiclePrice - gstCredit;
+  if (amountFinanced == null && driveAway != null) {
+    amountFinanced = driveAway - gstCredit;
     financedWasDerived = true;
   }
 
@@ -425,15 +436,15 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
   // third candidate. Only flag what is unambiguously wrong: a lease cannot be
   // written over more than the car costs, and the two figures are never equal
   // (the GST credit always separates them).
-  if (quote.vehiclePrice != null && quote.amountFinanced != null) {
-    const gap = quote.vehiclePrice - quote.amountFinanced;
+  if (driveAway != null && quote.amountFinanced != null) {
+    const gap = driveAway - quote.amountFinanced;
     if (gap < 0) {
       findings.push({
         key: "financed-above-price",
         severity: "critical",
         category: "Check",
         title: "The amount financed is more than the car costs",
-        detail: `You've entered ${money(quote.amountFinanced)} financed against a ${money(quote.vehiclePrice)} drive-away price. The lease is written over the price LESS the GST the financier claims back, so it is always the smaller of the two — these look swapped.`,
+        detail: `You've entered ${money(quote.amountFinanced)} financed against a ${money(driveAway)} drive-away price. The lease is written over the price LESS the GST the financier claims back, so it is always the smaller of the two — these look swapped.`,
       });
     } else if (gap === 0) {
       findings.push({
@@ -441,7 +452,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         severity: "warn",
         category: "Check",
         title: "The amount financed is exactly the drive-away price",
-        detail: `The financier claims the GST back on the car, so the lease is normally written over about ${money(quote.vehiclePrice - gstCredit)} — around ${money(gstCredit)} less. Check you haven't entered the same figure twice.`,
+        detail: `The financier claims the GST back on the car, so the lease is normally written over about ${money(driveAway - gstCredit)} — around ${money(gstCredit)} less. Check you haven't entered the same figure twice.`,
       });
     }
   }
@@ -482,7 +493,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
 
   // The GST credit cap — a check that usually passes, and worth saying so.
   if (quote.vehiclePrice && quote.vehiclePrice > config.gst.carLimit && amountFinanced != null) {
-    const impliedCredit = quote.vehiclePrice - amountFinanced;
+    const impliedCredit = (driveAway ?? quote.vehiclePrice) - amountFinanced;
     const expected = gstCredit;
     if (Math.abs(impliedCredit - expected) < 25) {
       findings.push({
@@ -715,6 +726,7 @@ export function quoteToLeaseInputs(
     ...base,
     salary: quote.salary ?? base.salary,
     vehiclePrice: quote.vehiclePrice ?? base.vehiclePrice,
+    onRoadCosts: quote.onRoadCosts,
     fuelType: quote.fuelType,
     termYears: years,
     annualKm: quote.annualKm ?? base.annualKm,

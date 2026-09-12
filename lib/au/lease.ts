@@ -16,6 +16,7 @@
 // shape can change independently.
 
 import type { AuState } from "./config";
+import type { PurchaseBreakdown } from "./purchase";
 import type {
   AnnualRunningCosts,
   FbtMethod,
@@ -38,8 +39,17 @@ import { DEFAULT_CONFIG } from "./config";
 export interface VehicleSpec {
   /** Catalogue vehicle, when one was picked. Drives the artwork. */
   vehicleId?: string;
-  /** Drive-away price, GST included. Never inferred — it varies by dealer. */
+  /**
+   * The CAR's cost price, GST included — not the drive-away figure.
+   * Never inferred: it varies by dealer.
+   */
   price?: number;
+  /** Stamp duty, rego, CTP and plates, where they are financed. Kept apart
+   *  from the price because the ATO keeps them out of the FBT base value. */
+  onRoadCosts?: number;
+  /** What the user itemised in the price builder, so it can be reopened and
+   *  corrected rather than retyped. */
+  purchase?: PurchaseBreakdown;
   fuelType: FuelType;
   annualKm?: number;
   state?: AuState;
@@ -191,6 +201,7 @@ export function leaseToInputs(lease: Lease): LeaseInputs {
     ...lease.scenario,
     vehicleId: v.vehicleId,
     vehiclePrice: v.price ?? base.vehiclePrice,
+    onRoadCosts: v.onRoadCosts,
     fuelType: v.fuelType,
     annualKm: v.annualKm ?? base.annualKm,
     state: v.state,
@@ -206,6 +217,7 @@ export function leaseToQuote(lease: Lease, spec: QuoteSpec): Quote {
     label: spec.label,
     frequency: spec.frequency,
     vehiclePrice: v.price,
+    onRoadCosts: v.onRoadCosts,
     fuelType: v.fuelType,
     vehicleId: v.vehicleId,
     consumptionPer100km: v.consumptionPer100km,
@@ -240,6 +252,7 @@ export function withLeaseVehicle(lease: Lease, q: Quote): Quote {
     ...q,
     vehicleId: v.vehicleId,
     vehiclePrice: v.price,
+    onRoadCosts: v.onRoadCosts,
     fuelType: v.fuelType,
     annualKm: v.annualKm,
     state: v.state,
@@ -325,6 +338,7 @@ export function applyQuoteEdit(lease: Lease, quoteId: string, q: Quote): Lease {
     ...lease.vehicle,
     vehicleId: q.vehicleId,
     price: q.vehiclePrice,
+    onRoadCosts: q.onRoadCosts,
     fuelType: q.fuelType,
     annualKm: q.annualKm,
     state: q.state,

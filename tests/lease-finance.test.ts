@@ -3,6 +3,7 @@ import { AU_STATES, DEFAULT_CONFIG } from "@/lib/au/config";
 import {
   annuityPayment,
   buildFinance,
+  calculateLease,
   buildRunningCosts,
   luxuryCarTax,
   defaultInputs,
@@ -320,5 +321,79 @@ describe("What the deduction explainer promises", () => {
   it("registration uses the state's own figure when one is set", () => {
     const nsw = buildRunningCosts(withInputs({ state: "NSW" }), config);
     expect(nsw.registration).toBe(r.registrationByState?.NSW ?? r.registrationAnnual);
+  });
+});
+
+describe("On-road costs versus the car's cost price", () => {
+  /**
+   * The distinction this guards, and the reason the price field became a
+   * guided one: a dealer's drive-away figure bundles stamp duty, registration
+   * and CTP with the car, but the ATO excludes all three from the base value
+   * the FBT is worked out on. Typing a drive-away total into "price" therefore
+   * charges the user FBT on their own registration, every year.
+   */
+  const car = 55_000;
+  const onRoads = 3_000;
+
+  it("finances the on-roads but keeps them out of the base value", () => {
+    const withOut = buildFinance(withInputs({ vehiclePrice: car }), config);
+    const withOn = buildFinance(withInputs({ vehiclePrice: car, onRoadCosts: onRoads }), config);
+
+    // Repaid: the on-roads are added in full, with no GST credit taken.
+    expect(withOn.amountFinanced).toBeCloseTo(withOut.amountFinanced + onRoads, 6);
+    // Taxed on: unchanged.
+    expect(withOn.priceInclGst).toBe(car);
+    expect(withOn.gstCredit).toBeCloseTo(withOut.gstCredit, 6);
+  });
+
+  it("is the difference between doing it right and doing it the obvious way", () => {
+    const right = calculateLease(
+      withInputs({ fuelType: "petrol", vehiclePrice: car, onRoadCosts: onRoads }),
+      config,
+    );
+    const lumped = calculateLease(
+      withInputs({ fuelType: "petrol", vehiclePrice: car + onRoads }),
+      config,
+    );
+    // Same amount borrowed either way...
+    expect(right.finance.amountFinanced).toBeGreaterThan(0);
+    // ...but lumping them in inflates the taxable value by 20% of the
+    // on-roads, every year, which is the error this exists to stop.
+    expect(lumped.fbt.taxableValue - right.fbt.taxableValue).toBeCloseTo(
+      onRoads * config.fbt.statutoryRate,
+      6,
+    );
+  });
+
+  it("measures the car limit on the car, not the drive-away total", () => {
+    // A car just under the limit with on-roads that push the invoice over it
+    // still gets the full GST credit — the limit is a limit on the car.
+    const under = config.gst.carLimit - 1_000;
+    const f = buildFinance(withInputs({ vehiclePrice: under, onRoadCosts: 5_000 }), config);
+    const expected = under - under / (1 + config.gst.rate);
+    expect(f.gstCredit).toBeCloseTo(expected, 6);
+  });
+
+  it("leaves the luxury car tax and the EV exemption on the car's price", () => {
+    const threshold = config.lct.thresholdFuelEfficient;
+    const justUnder = calculateLease(
+      withInputs({ fuelType: "electric", vehiclePrice: threshold - 1_000, onRoadCosts: 5_000 }),
+      config,
+    );
+    // On-roads must not tip an otherwise-eligible EV out of the exemption.
+    expect(justUnder.fbt.exempt).toBe(true);
+  });
+
+  it("reports the invoice total alongside the two parts", () => {
+    const f = buildFinance(withInputs({ vehiclePrice: car, onRoadCosts: onRoads }), config);
+    expect(f.driveAwayTotal).toBeCloseTo(car + onRoads, 6);
+    expect(f.priceInclGst + f.onRoadCosts).toBeCloseTo(f.driveAwayTotal, 6);
+  });
+
+  it("behaves exactly as before when there are none", () => {
+    const a = buildFinance(withInputs({ vehiclePrice: car }), config);
+    const b = buildFinance(withInputs({ vehiclePrice: car, onRoadCosts: 0 }), config);
+    expect(a.amountFinanced).toBeCloseTo(b.amountFinanced, 6);
+    expect(a.onRoadCosts).toBe(0);
   });
 });

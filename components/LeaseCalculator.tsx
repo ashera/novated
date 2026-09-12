@@ -173,6 +173,9 @@ export default function LeaseCalculator({
             }}
             price={inputs.vehiclePrice}
             onPrice={(v) => setVehicle({ price: v })}
+            onRoadCosts={lease.vehicle.onRoadCosts}
+            purchase={lease.vehicle.purchase}
+            onPurchase={(b) => setVehicle(b)}
             annualKm={inputs.annualKm}
             onAnnualKm={(v) => setVehicle({ annualKm: v })}
             state={inputs.state}
