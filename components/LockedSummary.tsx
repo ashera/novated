@@ -45,7 +45,7 @@ export default function LockedSummary({
   onUnlock: () => void;
 }) {
   const cycle = effectivePayCycle(inputs.payCycle, config);
-  const { finance } = result;
+  const { finance, running } = result;
 
   return (
     <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
@@ -98,13 +98,16 @@ export default function LockedSummary({
           value={fmtCurrency(finance.residual)}
           note={`${finance.residualPct.toFixed(2)}% of the amount financed`}
         />
+        {/* The amount either way. Unpackaged running costs do not go away —
+            they move to your take-home pay, with GST on top — so showing the
+            figure only when it is inside the lease would flatter it. */}
         <Item
           label="Running costs"
-          value={inputs.includeRunningCosts ? "Packaged" : "Not packaged"}
+          value={`${fmtCurrency(running.total)} a year`}
           note={
             inputs.includeRunningCosts
-              ? "Fuel, servicing, tyres, rego and insurance"
-              : "Paid from your take-home pay"
+              ? "Packaged — fuel, servicing, tyres, rego and insurance"
+              : `Not packaged — about ${fmtCurrency(running.total * (1 + config.gst.rate))} with GST, from your take-home pay`
           }
         />
 
