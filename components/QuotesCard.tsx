@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,6 +10,7 @@ import {
   quoteLabel,
   quoteStatus,
   unlockQuote,
+  type QuoteSpec,
   type QuoteStatus,
 } from "@/lib/au/lease";
 import type { EngineConfig } from "@/lib/au/config";
@@ -20,18 +22,15 @@ import type { UseLease } from "./useLease";
  *
  * Its own card, below the car. The quotes are what accumulate as the journey
  * goes on — one from each provider — so they need room to grow and a heading
- * of their own, which they never had squeezed under the lease name.
+ * of their own.
  *
- * Shown on both tools, because a lease has the same quotes wherever you are
- * looking at it: someone modelling in the calculator can see what they have
- * collected without leaving the page, and tell at a glance which are still
- * half-typed.
- *
- * One of them may be ACTIVE — the one whose rate, budgets and fees the figures
- * below are modelled on. A lease has a single scenario, so handing a second
- * quote to the calculator replaces the first, and without saying which is in
- * force the numbers look like something the user chose rather than something a
- * provider quoted.
+ * The card has two shapes. While the user is still deciding, it is a flat list
+ * with one quote marked ACTIVE — whose rate, budgets and fees the figures
+ * below are modelled on. Once they settle on one it becomes a decision and its
+ * runners-up: the chosen quote alone at the top, then everything it was chosen
+ * over, dimmed, under "other quotes considered". The losers are kept rather
+ * than hidden, because "why did I pick that one" is a question people ask
+ * themselves months later.
  */
 
 const STATUS_STYLE: Record<QuoteStatus, { label: string; className: string }> = {
@@ -39,6 +38,11 @@ const STATUS_STYLE: Record<QuoteStatus, { label: string; className: string }> = 
   "in-progress": { label: "In progress", className: "bg-warning-subtle text-warning-text" },
   complete: { label: "Complete", className: "bg-success-subtle text-success-text" },
 };
+
+const pillBase =
+  "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white";
+const btn =
+  "rounded border border-line bg-panel-2 px-2 py-0.5 text-[11px] font-medium text-ink transition hover:border-accent hover:text-accent";
 
 export default function QuotesCard({
   store,
@@ -50,17 +54,103 @@ export default function QuotesCard({
   const { lease } = store;
   const router = useRouter();
   const activeId = lease.scenario.fromQuoteId;
+  const lockedId = lease.lockedQuoteId;
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   /** Model this quote in the figures below, without a trip to the decoder.
    *  Only offered where the quote solves — see activateQuote. */
   const activate = (id: string) => store.update((l) => activateQuote(l, id, config));
-  const lockedId = lease.lockedQuoteId;
 
   const addQuote = () => {
     const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`);
     store.update((l) => ({ ...l, quotes: [...l.quotes, spec] }));
     // Adding a quote means going and typing it in, so take them there.
     router.push(`/decode?quote=${encodeURIComponent(spec.id)}`);
+  };
+
+  const locked = lockedId ? (lease.quotes.find((q) => q.id === lockedId) ?? null) : null;
+  const others = locked ? lease.quotes.filter((q) => q.id !== locked.id) : lease.quotes;
+  const pending = confirming ? lease.quotes.find((q) => q.id === confirming) : null;
+
+  const row = (q: QuoteSpec, dimmed: boolean) => {
+    const status = quoteStatus(lease, q, config);
+    const style = STATUS_STYLE[status];
+    const active = q.id === activeId;
+    const isLocked = q.id === lockedId;
+
+    return (
+      <li
+        key={q.id}
+        className={`flex flex-wrap items-center gap-x-3 gap-y-1 py-2 ${dimmed ? "opacity-60" : ""} ${
+          active && !isLocked ? "-mx-2 rounded-md bg-accent-subtle px-2" : ""
+        }`}
+      >
+        <Link
+          href={`/decode?quote=${encodeURIComponent(q.id)}`}
+          className={`text-sm font-medium hover:underline ${dimmed ? "text-subtle" : "text-accent"}`}
+        >
+          {quoteLabel(q)}
+        </Link>
+
+        {isLocked && (
+          <span title="The one you've settled on" className={`${pillBase} bg-success`}>
+            Locked in
+          </span>
+        )}
+        {active && !isLocked && (
+          <span
+            title="The figures below are modelled on this quote"
+            className={`${pillBase} bg-accent`}
+          >
+            Active
+          </span>
+        )}
+
+        {isLocked && (
+          <button
+            type="button"
+            onClick={() => store.update(unlockQuote)}
+            title="Go back to comparing"
+            className={btn}
+          >
+            Unlock
+          </button>
+        )}
+
+        {/* While one is locked the decision stands. Reconsidering means
+            unlocking first, rather than another quote quietly taking over and
+            silently undoing it. */}
+        {!locked && active && (
+          <button
+            type="button"
+            onClick={() => setConfirming(q.id)}
+            title="Settle on this one and see what your payslip will look like"
+            className={btn}
+          >
+            Lock it in
+          </button>
+        )}
+        {!locked && !active && status === "complete" && (
+          <button
+            type="button"
+            onClick={() => activate(q.id)}
+            title="Model the figures below on this quote"
+            className={btn}
+          >
+            Use this one
+          </button>
+        )}
+
+        <span className="text-xs text-muted">
+          {q.createdAt ? `Processed ${fmtDate(q.createdAt)}` : "Not yet processed"}
+        </span>
+        <span
+          className={`ml-auto rounded px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${style.className}`}
+        >
+          {style.label}
+        </span>
+      </li>
+    );
   };
 
   return (
@@ -85,7 +175,7 @@ export default function QuotesCard({
         </div>
       </div>
 
-      {activeId && lease.quotes.some((q) => q.id === activeId) && (
+      {!locked && activeId && lease.quotes.some((q) => q.id === activeId) && (
         <p className="mt-1 text-xs text-muted">
           The figures below are modelled on the quote marked active. Open another and choose
           &ldquo;See what this lease saves you&rdquo; to switch.
@@ -97,79 +187,134 @@ export default function QuotesCard({
           None yet. When a provider sends you one, add it here and we&apos;ll work out the
           interest rate it doesn&apos;t print.
         </p>
+      ) : locked ? (
+        <>
+          <p className="mt-2 text-xs text-muted">
+            The one you&apos;ve settled on. Everything below the line is what it was chosen over.
+          </p>
+          <ul>{row(locked, false)}</ul>
+
+          {others.length > 0 && (
+            <>
+              <hr className="border-line" />
+              <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                Other quotes considered
+              </h3>
+              <ul className="divide-y divide-line">{others.map((q) => row(q, true))}</ul>
+            </>
+          )}
+        </>
       ) : (
-        <ul className="mt-3 divide-y divide-line">
-          {lease.quotes.map((q) => {
-            const status = quoteStatus(lease, q, config);
-            const style = STATUS_STYLE[status];
-            const active = q.id === activeId;
-            const locked = active && q.id === lockedId;
-            return (
-              <li
-                key={q.id}
-                className={`flex flex-wrap items-center gap-x-3 gap-y-1 py-2 ${
-                  active ? "-mx-2 rounded-md bg-accent-subtle px-2" : ""
-                }`}
-              >
-                <Link
-                  href={`/decode?quote=${encodeURIComponent(q.id)}`}
-                  className="text-sm font-medium text-accent hover:underline"
-                >
-                  {quoteLabel(q)}
-                </Link>
-                {active && (
-                  <span
-                    title={
-                      locked
-                        ? "The one you've settled on"
-                        : "The figures below are modelled on this quote"
-                    }
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white ${
-                      locked ? "bg-success" : "bg-accent"
-                    }`}
-                  >
-                    {locked ? "Locked in" : "Active"}
-                  </span>
-                )}
-                {active && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      store.update((l) => (locked ? unlockQuote(l) : lockQuote(l, q.id)))
-                    }
-                    title={
-                      locked
-                        ? "Go back to comparing"
-                        : "Settle on this one and see what your payslip will look like"
-                    }
-                    className="rounded border border-line bg-panel-2 px-2 py-0.5 text-[11px] font-medium text-ink transition hover:border-accent hover:text-accent"
-                  >
-                    {locked ? "Unlock" : "Lock it in"}
-                  </button>
-                )}
-                {!active && status === "complete" && (
-                  <button
-                    type="button"
-                    onClick={() => activate(q.id)}
-                    title="Model the figures below on this quote"
-                    className="rounded border border-line bg-panel-2 px-2 py-0.5 text-[11px] font-medium text-ink transition hover:border-accent hover:text-accent"
-                  >
-                    Use this one
-                  </button>
-                )}
-                <span className="text-xs text-muted">
-                  {q.createdAt ? `Processed ${fmtDate(q.createdAt)}` : "Not yet processed"}
-                </span>
-                <span
-                  className={`ml-auto rounded px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${style.className}`}
-                >
-                  {style.label}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <ul className="mt-3 divide-y divide-line">{lease.quotes.map((q) => row(q, false))}</ul>
+      )}
+
+      {pending && (
+        <LockConfirm
+          label={quoteLabel(pending)}
+          othersCount={lease.quotes.length - 1}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => {
+            store.update((l) => lockQuote(l, pending.id));
+            setConfirming(null);
+          }}
+        />
       )}
     </section>
+  );
+}
+
+/**
+ * What locking in actually means, before it happens.
+ *
+ * "Lock in" is borrowed from the language providers use about rates and
+ * finance, so it has to say plainly that this one commits the user to nothing:
+ * no message goes anywhere, and it is reversible. Without that line the word
+ * does the opposite of what this site is for.
+ */
+function LockConfirm({
+  label,
+  othersCount,
+  onCancel,
+  onConfirm,
+}: {
+  label: string;
+  othersCount: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [onCancel]);
+
+  const bullet = (children: React.ReactNode) => (
+    <li className="flex gap-2">
+      <span aria-hidden className="text-accent">
+        &bull;
+      </span>
+      <span>{children}</span>
+    </li>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-[#091e42]/54 backdrop-blur-sm" onClick={onCancel} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Lock in ${label}`}
+        className="relative z-10 w-full max-w-md rounded-xl border border-line bg-panel shadow-2xl"
+      >
+        <div className="border-b border-line px-5 py-3.5">
+          <h2 className="text-lg font-semibold text-ink">Lock in {label}?</h2>
+        </div>
+
+        <div className="space-y-3 px-5 py-4 text-sm leading-relaxed text-subtle">
+          <p>
+            You&apos;ve compared what you have and decided this is the one that works best for
+            you. That is all locking in records.
+          </p>
+          <ul className="space-y-1.5">
+            {bullet(
+              <>
+                The figures on this page stay modelled on {label}, and we&apos;ll show you what
+                your payslip will look like once it starts.
+              </>,
+            )}
+            {othersCount > 0 &&
+              bullet(
+                <>
+                  Your other {othersCount === 1 ? "quote moves" : `${othersCount} quotes move`} to
+                  &ldquo;other quotes considered&rdquo;. Nothing is deleted.
+                </>,
+              )}
+            {bullet(<>You can unlock at any time and go back to comparing.</>)}
+          </ul>
+          <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs text-muted">
+            <strong className="text-subtle">This is a note to yourself.</strong> Nothing is sent
+            to the provider, no application is made, and you are not committed to anything. The
+            lease only becomes real when you and your employer sign their paperwork.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 border-t border-line px-5 py-3">
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-md bg-accent px-3.5 py-1.5 text-sm font-semibold text-white transition hover:bg-accent-soft"
+          >
+            Lock it in
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md px-3 py-1.5 text-sm font-medium text-muted transition hover:text-ink"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
