@@ -147,19 +147,7 @@ export default function PaydownChart({
             />
             <Tooltip
               cursor={{ fill: "var(--color-panel-2)" }}
-              formatter={(v: number | [number, number], name: string) =>
-                Array.isArray(v)
-                  ? [`${fmtCurrency(v[0])} – ${fmtCurrency(v[1])}`, name]
-                  : [fmtCurrency(v), name]
-              }
-              labelFormatter={(m: number) => `Payment ${m} of ${months}`}
-              contentStyle={{
-                background: "var(--color-panel)",
-                border: "1px solid var(--color-line)",
-                borderRadius: 6,
-                fontSize: 12,
-                color: "var(--color-ink)",
-              }}
+              content={<PaydownTooltip months={months} />}
             />
             <Legend
               verticalAlign="top"
@@ -298,6 +286,79 @@ export default function PaydownChart({
           </>
         )}
       </p>
+    </div>
+  );
+}
+
+/**
+ * One row per idea, rather than one row per series.
+ *
+ * The car's value is drawn twice — a band and the line through it — because
+ * that is how you draw a forecast. Recharts quite reasonably offers a tooltip
+ * entry for each, which put "What it's worth" on screen twice with different
+ * numbers under it. Written out by hand, the two collapse into the one row
+ * they always were: an estimate and its range.
+ */
+function PaydownTooltip({
+  months,
+  active,
+  payload,
+  label,
+}: {
+  months: number;
+  active?: boolean;
+  payload?: { dataKey?: string | number; value?: number | [number, number]; color?: string }[];
+  label?: number;
+}) {
+  if (!active || !payload?.length) return null;
+  const find = (key: string) => payload.find((e) => e.dataKey === key)?.value;
+  const num = (key: string) => {
+    const v = find(key);
+    return typeof v === "number" ? v : null;
+  };
+  const range = find("worthRange");
+  const worth = num("worth");
+
+  const rows: { label: string; value: string; note?: string; color: string }[] = [];
+  const principal = num("principal");
+  const interest = num("interest");
+  const balance = num("balance");
+  if (principal != null)
+    rows.push({ label: "Paying off the car", value: fmtCurrency(principal), color: "var(--color-accent-border)" });
+  if (interest != null)
+    rows.push({ label: "Interest", value: fmtCurrency(interest), color: "var(--color-warning)" });
+  if (balance != null)
+    rows.push({ label: "Still owing", value: fmtCurrency(balance), color: "var(--color-accent)" });
+  if (worth != null) {
+    rows.push({
+      label: "What it's worth",
+      value: fmtCurrency(worth),
+      note: Array.isArray(range) ? `${fmtCurrency(range[0])} – ${fmtCurrency(range[1])}` : undefined,
+      color: "var(--color-success)",
+    });
+  }
+
+  return (
+    <div className="rounded-md border border-line bg-panel px-2.5 py-2 text-xs shadow-[var(--shadow-card)]">
+      <p className="font-medium text-ink">
+        Payment {label} of {months}
+      </p>
+      <dl className="mt-1.5 space-y-1">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-baseline gap-3">
+            <span
+              aria-hidden
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ background: r.color }}
+            />
+            <dt className="flex-1 text-subtle">{r.label}</dt>
+            <dd className="text-right tabular-nums text-ink">
+              {r.value}
+              {r.note && <span className="block text-[10px] text-muted">{r.note}</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

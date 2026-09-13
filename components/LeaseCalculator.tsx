@@ -14,6 +14,7 @@ import DeductionExplainer from "./DeductionExplainer";
 import StatExplainer from "./StatExplainer";
 import PayslipImpact from "./PayslipImpact";
 import LockedSummary from "./LockedSummary";
+import EarlyExit from "./EarlyExit";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import {
@@ -470,6 +471,12 @@ export default function LeaseCalculator({
 
             <PayPacketSplit result={result} />
             <CostComparisonChart result={result} config={config} />
+
+            {/* Straight after the comparison, because the comparison assumes
+                the lease runs to term and this is what happens when it
+                doesn't. Everything above is priced in pre-tax dollars; this
+                card is the only one denominated in the other kind. */}
+            <EarlyExit result={result} config={config} />
 
             {/* Breakdown */}
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
