@@ -10,12 +10,50 @@ import {
 import { SOURCE_SEEDS } from "@/lib/au/sources";
 import { computeStaleness } from "@/lib/au/staleness";
 
+/** Every numeric leaf in the config, as a dot path. */
+function numericPaths(o: unknown, path = ""): [string, number][] {
+  const out: [string, number][] = [];
+  for (const [k, v] of Object.entries((o ?? {}) as Record<string, unknown>)) {
+    const p = path ? `${path}.${k}` : k;
+    if (typeof v === "number") out.push([p, v]);
+    else if (v && typeof v === "object") out.push(...numericPaths(v, p));
+  }
+  return out;
+}
+
 describe("Reference data", () => {
   it("resolves every parameter descriptor to a real number in the config", () => {
     for (const d of PARAM_DESCRIPTORS) {
       const value = getByPath(DEFAULT_CONFIG, d.path);
       expect(Number.isFinite(value), `${d.key} (${d.path}) did not resolve`).toBe(true);
     }
+  });
+
+  /**
+   * The other direction, which was not being checked at all.
+   *
+   * Descriptors resolving to real numbers only proves nothing was DELETED
+   * from the config. It says nothing about a rate ADDED to the config with no
+   * descriptor and no source — which passes silently, never appears in the
+   * backoffice, can never be corrected without a deploy, and is invisible to
+   * the drift check, since that walks the descriptors too. Every guard this
+   * project has around reference data runs through params.ts, so anything
+   * that never reaches params.ts is unguarded by all of them at once.
+   *
+   * Non-finite values are exempt by rule rather than by name: the top tax
+   * bracket and the top HELP band are open-ended, cannot be edited, and do
+   * not survive JSON. Anything finite is a rate somebody could get wrong.
+   */
+  it("gives every finite value in the config a descriptor", () => {
+    const described = new Set(PARAM_DESCRIPTORS.map((d) => d.path));
+    const undescribed = numericPaths(DEFAULT_CONFIG)
+      .filter(([, v]) => Number.isFinite(v))
+      .map(([p]) => p)
+      .filter((p) => !described.has(p));
+    expect(
+      undescribed,
+      `These config values have no descriptor in params.ts, so they cannot be edited, sourced, verified or drift-checked. Add one for each (and a source), or make it non-finite if it genuinely is not a parameter: ${undescribed.join(", ")}`,
+    ).toEqual([]);
   });
 
   it("uses a unique key for every parameter", () => {

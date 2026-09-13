@@ -235,7 +235,13 @@ export default function LeaseCalculator({
           className={
             locked
               ? "space-y-6"
-              : "grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]"
+              : // grid-cols-1 is not redundant. Without it the single implicit
+                // column below `lg` is `auto`, which sizes to MAX-content, so
+                // the inputs panel grew to 586px inside a 390px phone and took
+                // the whole page sideways with it. The minmax(0,…) guards only
+                // apply once the two-column rule does. grid-cols-1 expands to
+                // repeat(1, minmax(0,1fr)), which clamps it to the container.
+                "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]"
           }
         >
           {locked && (
