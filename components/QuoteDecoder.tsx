@@ -93,7 +93,26 @@ export default function QuoteDecoder({
    * editing it here would quietly move the ground under a decision made
    * somewhere else. Read-only until they unlock it where they locked it.
    */
-  const readOnly = Boolean(activeSpec && lease.lockedQuoteId === activeSpec.id);
+  const locked = Boolean(activeSpec && lease.lockedQuoteId === activeSpec.id);
+  /**
+   * Nobody has said what the car is yet.
+   *
+   * A quote can be read without one — the interest rate falls out of the
+   * amount financed, the residual, the term and the rental, and none of those
+   * involve the car. Everything else does. The GST credit, whether the amount
+   * financed is plausible against the price, the FBT base and the running-cost
+   * benchmarks are all measured against the car on the lease, and with none
+   * chosen that is a $55,000 electric default nobody picked.
+   *
+   * Worse, it is silent: the page opens on a worked example priced at $85,000,
+   * and the first keystroke would swap that for the default while the user was
+   * looking at the field they just typed in. So the figures stay read-only
+   * until there is a car, and the example stays on screen as what it is — a
+   * demonstration.
+   */
+  const needsCar =
+    !lease.vehicle.vehicleId && lease.vehicle.price === defaultVehicle().price;
+  const readOnly = locked || needsCar;
   // A worked example is only right for someone who has told us nothing yet.
   // Once they have described a car, showing the example's car instead would
   // hide the very thing the lease exists to share — and showing the example's
@@ -269,7 +288,24 @@ export default function QuoteDecoder({
             page that simply refuses to type is a page that looks broken. It
             also has to say where to undo it: the lock was made somewhere else,
             so this page cannot be the one to release it. */}
-        {readOnly && (
+        {needsCar && !locked && (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent-border bg-accent-subtle px-4 py-3">
+            <p className="max-w-3xl text-sm text-ink">
+              <strong>Start with the car.</strong> A quote can only be checked against the car
+              it is for — the price sets the FBT, the GST the financier claims back and how much
+              of the amount financed makes sense. Below is a worked example so you can see what
+              this page does; your own figures unlock once there is a car on the lease.
+            </p>
+            <Link
+              href="/"
+              className="shrink-0 whitespace-nowrap rounded bg-accent px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
+            >
+              Set up your car
+            </Link>
+          </div>
+        )}
+
+        {locked && (
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-success/40 bg-success-subtle px-4 py-3">
             <p className="text-sm text-success-text">
               <strong>This quote is locked in.</strong> It&apos;s the quote you want to move
