@@ -365,8 +365,29 @@ export default function QuoteDecoder({
           <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h2 className="text-base font-semibold text-ink">The finance</h2>
+              {/* Says what the greyed figures ARE, because a number already
+                  sitting in a field reads as an answer. It is careful about
+                  which: the term is genuinely filled in, the other two are
+                  expectations waiting to be typed over. */}
               <p className="mt-1 text-xs text-muted">
-                These, plus the payment below, are what let us solve the interest rate.
+                {/* Not on the worked example: its fields carry its own
+                    figures in black, so there is nothing grey to explain. */}
+                {readOnly || isExample ? (
+                  "These, plus the payment below, are what let us solve the interest rate."
+                ) : derivedFinanced != null ? (
+                  <>
+                    These, plus the payment below, are what let us solve the interest rate.
+                    The term comes from your lease and the greyed figures are what it leads
+                    us to expect — type over them with whatever the quote actually says.
+                    Where the two disagree is what we&apos;re looking for.
+                  </>
+                ) : (
+                  <>
+                    These, plus the payment below, are what let us solve the interest rate.
+                    The term comes from your lease; set the car&apos;s price there as well and
+                    we&apos;ll show you what to expect for the other two.
+                  </>
+                )}
               </p>
               <div className="mt-4 space-y-4">
                 {/* The relationship between the two, spelled out with their own
