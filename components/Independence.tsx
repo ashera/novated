@@ -17,6 +17,12 @@ import Link from "next/link";
  * sponsored listing exists, this component is the first thing to change — and
  * the provider directory is the part most likely to be misread as a partner
  * list, which is why it is named.
+ *
+ * The link says where the rates come from, and not "how this is funded",
+ * because /about answers the first and not the second. Asking a question the
+ * destination does not answer is worse than not raising it: "how is this
+ * funded" puts the thought of a hidden revenue model in the reader's head and
+ * then abandons them with it.
  */
 export default function Independence({ className = "" }: { className?: string }) {
   return (
@@ -26,7 +32,7 @@ export default function Independence({ className = "" }: { className?: string })
       commission or referral fee from anyone who does. No provider pays to appear here, and being
       listed isn&apos;t a recommendation.{" "}
       <Link href="/about" className="font-medium text-accent hover:underline">
-        How this is funded and where every rate comes from
+        Where every rate comes from
       </Link>
       .
     </p>
