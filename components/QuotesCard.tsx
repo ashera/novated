@@ -362,9 +362,11 @@ export default function QuotesCard({
               Compare all
             </Link>
           )}
-          {/* Held back while the card is empty: the button belongs after the
-              explanation there, not above it. */}
-          {lease.quotes.length > 0 && (
+          {/* Held back while the card is empty — the button belongs after the
+              explanation there, not above it — and once one is locked in,
+              because by then the shopping is over. The card already says how
+              to reopen it: unlock, and go back to comparing. */}
+          {lease.quotes.length > 0 && !locked && (
             <button
               type="button"
               onClick={addQuote}

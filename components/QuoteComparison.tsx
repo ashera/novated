@@ -46,6 +46,10 @@ export default function QuoteComparison({
 
   /** Same as the quotes card: a new quote, then straight to typing it in.
    *  Linking to a bare /decode opened the FIRST existing quote instead. */
+  /** Settled on one already. Adding another here would be the same
+   *  invitation the quotes card withdraws once a decision is made. */
+  const locked = Boolean(lease.lockedQuoteId);
+
   const addQuote = () => {
     track("Add a quote", { from: "comparison", existing: lease.quotes.length });
     // Deliberately unnamed: a pre-filled "Quote 3" looks like an answer,
@@ -139,13 +143,26 @@ export default function QuoteComparison({
               them prints.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={addQuote}
-            className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
-          >
-            Add another quote
-          </button>
+          {/* The second Add button on the site, and it needs the same rule:
+              once a quote is locked in the shopping is over, and inviting
+              another one contradicts the decision the lease is recording. */}
+          {locked ? (
+            <p className="shrink-0 text-xs text-muted">
+              You&apos;ve settled on one.{" "}
+              <Link href="/" className="font-medium text-accent hover:underline">
+                Unlock it
+              </Link>{" "}
+              to add another.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={addQuote}
+              className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
+            >
+              Add another quote
+            </button>
+          )}
         </div>
 
         {store.adopted > 0 && (
