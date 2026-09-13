@@ -4,9 +4,11 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AdminTabs from "@/components/AdminTabs";
-import { verifyParam } from "@/app/actions/admin";
+import { updateParam, verifyParam } from "@/app/actions/admin";
 import { markSourceUpdated } from "@/app/actions/sources";
 import type { ReviewData } from "@/lib/refdata";
+import { driftByCategory } from "@/lib/au/drift";
+import { fmtParamValue } from "@/lib/au/params";
 
 export default function ReviewDigest({
   email,
@@ -105,6 +107,81 @@ export default function ReviewDigest({
               </Link>
             </div>
           </section>
+
+          {/* What we serve, against what the source says. First, because
+              unlike everything else on this page it is not a reminder to look
+              at something — it is a number that is wrong right now. */}
+          {data.drift.length > 0 && (
+            <section className="mb-6 rounded-2xl border border-danger/40 bg-panel p-6">
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <h2 className="font-semibold text-danger-text">
+                  {data.drift.length === 1
+                    ? "1 parameter disagrees with the source"
+                    : `${data.drift.length} parameters disagree with the source`}
+                </h2>
+                <Link href="/admin" className="text-sm font-medium text-accent hover:underline">
+                  Open parameters →
+                </Link>
+              </div>
+              <p className="mb-4 max-w-2xl text-sm text-subtle">
+                The site serves what is stored here, not what is in{" "}
+                <code className="rounded bg-panel-2 px-1 py-0.5 text-xs">config.ts</code>. A fix
+                made in code does not arrive on its own — these are the ones that haven&apos;t.
+                Adopting writes the code value to this version and logs it; leave it if the stored
+                figure is a deliberate override.
+              </p>
+              <div className="space-y-4">
+                {driftByCategory(data.drift).map(([category, rows]) => (
+                  <div key={category}>
+                    <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+                      {category}
+                    </div>
+                    <div className="space-y-2">
+                      {rows.map((d) => (
+                        <div
+                          key={d.key}
+                          className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-danger/40 px-4 py-3"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-medium text-ink">{d.label}</div>
+                            <div className="text-xs text-muted">
+                              <code>{d.path}</code>
+                            </div>
+                          </div>
+                          <div className="ml-auto flex items-baseline gap-2 text-sm tabular-nums">
+                            <span className="text-danger-text line-through">
+                              {fmtParamValue(d.active, d.unit)}
+                            </span>
+                            <span aria-hidden className="text-muted">
+                              →
+                            </span>
+                            <span className="font-semibold text-success-text">
+                              {fmtParamValue(d.expected, d.unit)}
+                            </span>
+                          </div>
+                          {data.versionId && (
+                            <button
+                              onClick={() =>
+                                run(
+                                  () =>
+                                    updateParam(data.versionId as string, d.key, d.expected),
+                                  `${d.label} set to ${fmtParamValue(d.expected, d.unit)}.`,
+                                )
+                              }
+                              disabled={pending}
+                              className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:border-success/40 hover:text-success-text disabled:opacity-60"
+                            >
+                              Adopt
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Sources to refresh */}
           {(data.staleSources.length > 0 || data.dueSources.length > 0) && (

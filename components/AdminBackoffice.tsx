@@ -10,7 +10,7 @@ import {
   verifyParam,
 } from "@/app/actions/admin";
 import AdminTabs from "@/components/AdminTabs";
-import { PARAM_CATEGORIES, type Unit } from "@/lib/au/params";
+import { PARAM_CATEGORIES, fmtParamValue, type Unit } from "@/lib/au/params";
 import { fmtCurrency } from "@/lib/au/format";
 
 interface Meta {
@@ -61,12 +61,7 @@ function fromDisplay(unit: Unit, display: string): number {
 function unitSuffix(unit: Unit): string {
   return unit === "percent" || unit === "percentPoint" ? "%" : "";
 }
-function formatValue(unit: Unit, value: number): string {
-  if (unit === "percent") return `${+(value * 100).toFixed(3)}%`;
-  if (unit === "percentPoint") return `${+value.toFixed(3)}%`;
-  if (unit === "aud") return fmtCurrency(value);
-  return String(+value.toFixed(4));
-}
+const formatValue = (unit: Unit, value: number) => fmtParamValue(value, unit);
 function relDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-AU", {
     day: "numeric",

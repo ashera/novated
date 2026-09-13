@@ -9,7 +9,7 @@ import {
   type SourceForm,
 } from "@/app/actions/sources";
 import AdminTabs from "@/components/AdminTabs";
-import type { Unit } from "@/lib/au/params";
+import { fmtParamValue, type Unit } from "@/lib/au/params";
 import type { Staleness } from "@/lib/au/staleness";
 
 interface ProvidedParam {
@@ -38,16 +38,9 @@ interface SourceView {
   staleness: Staleness;
 }
 
-function fmtVal(unit: Unit, value: number): string {
-  if (unit === "percent") return `${+(value * 100).toFixed(3)}%`;
-  if (unit === "aud")
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      maximumFractionDigits: 0,
-    }).format(value);
-  return String(+value.toFixed(4));
-}
+// Was a near-copy that had no percentPoint branch, so a rate stored as 7.5
+// rendered without its per-cent sign.
+const fmtVal = (unit: Unit, value: number) => fmtParamValue(value, unit);
 function fmtDate(iso: string | null): string {
   if (!iso) return "never";
   return new Date(iso).toLocaleDateString("en-AU", {

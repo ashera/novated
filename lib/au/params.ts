@@ -4,6 +4,7 @@
 // config object (by dot/index path).
 
 import { AU_STATES, DEFAULT_CONFIG, type EngineConfig } from "./config";
+import { fmtCurrency } from "./format";
 
 // "percent" values are STORED as a fraction (0.47) and edited as a percentage;
 // "percentPoint" values are stored as the percentage number itself (7.5).
@@ -349,4 +350,19 @@ export function configToRows(config: EngineConfig): ParamRow[] {
     const value = getByPath(config, d.path);
     return { ...d, value: Number.isNaN(value) ? getByPath(DEFAULT_CONFIG, d.path) : value };
   });
+}
+
+/**
+ * A parameter value as a human reads it, given its unit.
+ *
+ * "percent" is stored as a fraction and shown as a percentage; "percentPoint"
+ * is stored as the percentage already. Getting that backwards turns 47% into
+ * 0.47% and nobody notices, which is why it lives in one place rather than
+ * being rewritten beside each table that needs it.
+ */
+export function fmtParamValue(value: number, unit: Unit): string {
+  if (unit === "percent") return `${+(value * 100).toFixed(3)}%`;
+  if (unit === "percentPoint") return `${+value.toFixed(3)}%`;
+  if (unit === "aud") return fmtCurrency(value);
+  return String(+value.toFixed(4));
 }

@@ -3,6 +3,7 @@ import { query } from "./db";
 import { DEFAULT_CONFIG, reviveConfig, type EngineConfig } from "./au/config";
 import { configToRows } from "./au/params";
 import { computeStaleness } from "./au/staleness";
+import { findDrift, type Divergence } from "./au/drift";
 import { SOURCE_SEEDS } from "./au/sources";
 
 export interface ParamMeta {
@@ -164,6 +165,9 @@ export interface ReviewData {
   flaggedParams: FlaggedParam[];
   staleSources: SourceAttention[];
   dueSources: SourceAttention[];
+  /** Parameters where what we serve disagrees with what config.ts says.
+   *  Not staleness — staleness is about dates. This is about values. */
+  drift: Divergence[];
   dueTotal: number; // total distinct items needing attention
 }
 
@@ -180,6 +184,7 @@ export async function buildReviewData(): Promise<ReviewData> {
     flaggedParams: [],
     staleSources: [],
     dueSources: [],
+    drift: [],
     dueTotal: 0,
   };
   if (!active) return empty;
@@ -230,8 +235,11 @@ export async function buildReviewData(): Promise<ReviewData> {
     else if (st.state === "due") dueSources.push(item);
   }
 
+  // What the site serves, against what the source says it should.
+  const drift = findDrift(active.data);
+
   const dueTotal =
-    flaggedCount + neverVerifiedCount + staleSources.length + dueSources.length;
+    flaggedCount + neverVerifiedCount + staleSources.length + dueSources.length + drift.length;
 
   return {
     activeFY: active.financial_year,
@@ -243,6 +251,7 @@ export async function buildReviewData(): Promise<ReviewData> {
     flaggedParams,
     staleSources,
     dueSources,
+    drift,
     dueTotal,
   };
 }
