@@ -23,6 +23,7 @@ import { track } from "@/lib/analytics";
 import { useLease } from "./useLease";
 import LeaseBar from "./LeaseBar";
 import QuoteIdentity from "./QuoteIdentity";
+import RateWorking from "./RateWorking";
 import { SAMPLE_QUOTE } from "@/lib/au/sampleQuote";
 import {
   applyQuoteEdit,
@@ -599,6 +600,10 @@ export default function QuoteDecoder({
                     </p>
                   </div>
                 </div>
+                {/* The rate is the figure a provider is most likely to push
+                    back on, so the working sits with it — four numbers off
+                    their own quote, in an order somebody can read out. */}
+                <RateWorking quote={quote} decode={decode} noun={freqWord} />
               </section>
             ) : (
               <section className="rounded-xl border border-warning/40 bg-warning-subtle p-5">

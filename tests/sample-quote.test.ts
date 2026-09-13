@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_CONFIG } from "@/lib/au/config";
-import { decodeQuote } from "@/lib/au/quote";
+import { CYCLES_PER_YEAR, decodeQuote } from "@/lib/au/quote";
+import { annuityPayment } from "@/lib/au/novated";
 import {
   SAMPLE_GAP,
   SAMPLE_ITEM_TOTAL,
@@ -91,5 +92,44 @@ describe("The sample quote", () => {
     const keys = decoded.findings.map((f) => f.key);
     expect(keys).toContain("reconciliation");
     expect(keys.some((k) => k.includes("rate") || k === "interest")).toBe(true);
+  });
+});
+
+/**
+ * The working shown beside the rate has to be the sum that produced it.
+ *
+ * It exists to be read out to a provider, so "your calculator is wrong" has
+ * to be answerable with arithmetic the provider can check on their own
+ * figures. A breakdown that merely agreed with the headline most of the time
+ * would be worse than none: it would be wrong in the one conversation it was
+ * built for.
+ */
+describe("The working behind the rate", () => {
+  const decoded = decodeQuote(SAMPLE_QUOTE, config);
+
+  it("reconciles: repaid, plus the residual, less the amount borrowed", () => {
+    const perYear = CYCLES_PER_YEAR[SAMPLE_QUOTE.frequency];
+    const payments = Math.round((perYear * SAMPLE_QUOTE.termMonths) / 12);
+    const repaid = SAMPLE_QUOTE.lines.finance! * payments;
+    const shown = repaid + decoded.residualExGst! - decoded.amountFinanced!;
+    // The same quantity the engine reports, arrived at the way the card
+    // explains it rather than the way the engine happens to compute it.
+    expect(shown).toBeCloseTo(decoded.totalInterest!, 0);
+  });
+
+  it("strips the GST off the residual, because the finance is written without it", () => {
+    expect(decoded.residualExGst!).toBeCloseTo(SAMPLE_QUOTE.residualIncGst! / 1.1, 6);
+    expect(decoded.residualExGst!).toBeLessThan(SAMPLE_QUOTE.residualIncGst!);
+  });
+
+  // The claim the card makes in bold: only one rate fits. If a rate a point
+  // either side produced the same payment the sentence would be a lie.
+  it("is the only rate that produces this payment", () => {
+    const monthly = decoded.monthlyFinancePayment!;
+    const at = (r: number) =>
+      annuityPayment(decoded.amountFinanced!, decoded.residualExGst!, r, SAMPLE_QUOTE.termMonths);
+    expect(at(decoded.impliedRatePct!)).toBeCloseTo(monthly, 2);
+    expect(at(decoded.impliedRatePct! + 1)).toBeGreaterThan(monthly + 10);
+    expect(at(decoded.impliedRatePct! - 1)).toBeLessThan(monthly - 10);
   });
 });
