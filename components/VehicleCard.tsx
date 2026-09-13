@@ -322,7 +322,11 @@ export default function VehicleCard(p: VehicleCardProps) {
 
         {p.readOnlyVehicle ? (
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3">
+            {/* Two up on a phone. These are eight short label/value pairs with
+                nothing to wrap — stacked one per row they made the card twice
+                as tall as it needed to be and pushed the quote itself off the
+                screen. Three across once there is room for them. */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
               <Readout label="Make" value={selected?.make ?? "Not set"} />
               <Readout label="Model" value={selected?.model ?? "Not set"} />
               <Readout
