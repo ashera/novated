@@ -117,6 +117,9 @@ export default function LeaseCalculator({
 
   const result = useMemo(() => calculateLease(inputs, config), [inputs, config]);
 
+  /** Rendered in the narrow column while deciding, and inline once settled. */
+  const quotesCard = readOnly ? null : <QuotesCard store={store} config={config} />;
+
   // Funnel signal: they have priced a real car, not just landed on the page.
   // Debounced, and only on the shape of the car — otherwise every slider tick of
   // the price would fire an event.
@@ -180,7 +183,37 @@ export default function LeaseCalculator({
             would be the most prominent wrong number on the site. */}
         {hasChosenCar(lease.vehicle) && <CostTaster result={result} config={config} />}
 
-        <div className="mb-6">
+        {/* The page reads down one column now: the car, the terms it is on,
+            then what those terms do to your pay. The quotes sit beside all of
+            it rather than between the car and the terms, because they are a
+            running tally rather than a step — you collect them over days, and
+            what you learn from one changes the term or the rate you try next.
+            Sticky for the same reason.
+
+            Locked, the inputs are no longer inputs: they are the terms of a
+            decision. The column goes rather than being greyed out — a wall of
+            disabled sliders reads as a page fighting you — and the same facts
+            come back as a summary, with the payslip under it. */}
+        <div
+          className={
+            locked
+              ? "space-y-6"
+              : // grid-cols-1 is not redundant. Without it the single implicit
+                // column below `lg` is `auto`, which sizes to MAX-content, so
+                // the panel grew to 586px inside a 390px phone and took the
+                // whole page sideways with it. The minmax(0,…) guards only
+                // apply once the two-column rule does. grid-cols-1 expands to
+                // repeat(1, minmax(0,1fr)), which clamps it to the container.
+                "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]"
+          }
+        >
+          {/* ── The quotes, alongside ──────────────────────────────── */}
+          {!locked && (
+            <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">{quotesCard}</div>
+          )}
+
+          {/* ── The car, the terms, the numbers ────────────────────── */}
+          <div className="space-y-6">
           <VehicleCard
             header={!readOnly && <LeaseBar store={store} signedIn={Boolean(user)} />}
             catalogue={catalogue}
@@ -223,29 +256,13 @@ export default function LeaseCalculator({
             state={inputs.state}
             onState={(st) => setVehicle({ state: st })}
           />
-        </div>
 
-        {!readOnly && <QuotesCard store={store} config={config} />}
-
-        {/* Locked, the inputs are no longer inputs: they are the terms of a
-            decision. The column goes rather than being greyed out — a wall of
-            disabled sliders reads as a page fighting you — and the same facts
-            come back as a summary below, with the payslip under it. */}
-        <div
-          className={
-            locked
-              ? "space-y-6"
-              : // grid-cols-1 is not redundant. Without it the single implicit
-                // column below `lg` is `auto`, which sizes to MAX-content, so
-                // the inputs panel grew to 586px inside a 390px phone and took
-                // the whole page sideways with it. The minmax(0,…) guards only
-                // apply once the two-column rule does. grid-cols-1 expands to
-                // repeat(1, minmax(0,1fr)), which clamps it to the container.
-                "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]"
-          }
-        >
+          {/* Settled, the quotes come back inline — there is no second column
+              to hold them, and the decision reads in order: the car, the quote
+              chosen, what it does to a payslip. */}
           {locked && (
             <>
+              {quotesCard}
               <LockedSummary
                 inputs={inputs}
                 result={result}
@@ -257,9 +274,9 @@ export default function LeaseCalculator({
             </>
           )}
 
-          {/* ── Inputs ─────────────────────────────────────────────── */}
+          {/* ── The terms ──────────────────────────────────────────── */}
           {!locked && (
-          <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+            <>
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
               <h2 className="text-base font-semibold text-ink">You and the term</h2>
               <div className="mt-4 space-y-5">
@@ -494,7 +511,7 @@ export default function LeaseCalculator({
                 )}
               </div>
             </section>
-          </div>
+            </>
           )}
 
           {/* ── Results ────────────────────────────────────────────── */}
@@ -705,6 +722,7 @@ export default function LeaseCalculator({
                 </span>
               )}
             </div>
+          </div>
           </div>
         </div>
 

@@ -436,10 +436,22 @@ export default function VehicleCard(p: VehicleCardProps) {
             </div>
           </>
         ) : (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
-        <div>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
+        {/* xl, not lg. Tailwind's breakpoints measure the VIEWPORT, and this
+            card no longer spans it — at 1024px the card is 600px wide, so an
+            lg split gave the fields 256px to work with and stacked them into a
+            column twice the height of the picture beside them. It splits once
+            the card is actually wide enough to be split. */}
+        {/* The picture takes whatever height the fields beside it end up
+            needing. This card used to span the page, where the two sides came
+            out about level; in a two-thirds column the fields wrap into more
+            rows and left a block of dead space under the car. Filling it costs
+            nothing, and the picture is the part worth looking at. Capped, so a
+            narrow viewport that stacks the fields into a tall column cannot
+            blow the image up to match. */}
+        <div className="flex flex-col">
           {fbtBadge && <div className="mb-2">{fbtBadge}</div>}
-          <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg border border-line bg-panel-2 sm:h-44">
+          <div className="flex min-h-[9rem] flex-1 items-center justify-center overflow-hidden rounded-lg border border-line bg-panel-2 sm:min-h-[11rem] xl:max-h-[20rem]">
             {art}
           </div>
           <h2 className="mt-3 text-lg font-semibold tracking-tight text-ink">{carName}</h2>
