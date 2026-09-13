@@ -36,6 +36,8 @@ import {
 } from "@/lib/au/lease";
 import { useLease } from "./useLease";
 import LeaseBar from "./LeaseBar";
+import Disclosures from "./Disclosures";
+import Independence from "./Independence";
 import QuotesCard from "./QuotesCard";
 import { track, trackLeasePricedConversion } from "@/lib/analytics";
 import { takeHandoff } from "@/lib/quoteHandoff";
@@ -153,6 +155,10 @@ export default function LeaseCalculator({
             post-tax split, what FBT does to it, and how the total compares with buying the
             same car another way — all on {config.financialYear} rules.
           </p>
+          {/* Before the first number, not after the last one. A reader who
+              assumes this is another provider's calculator reads everything
+              below as a pitch. */}
+          <Independence className="mt-2.5 max-w-3xl" />
         </div>
 
         <div className="mb-6">
@@ -570,6 +576,11 @@ export default function LeaseCalculator({
             </div>
           </div>
         </div>
+
+        {/* The decoder, the comparison and the printed report all carry this.
+            The calculator produces the largest figures on the site and was
+            the only one without it. */}
+        <Disclosures config={config} />
       </main>
     </>
   );
