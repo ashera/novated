@@ -16,6 +16,7 @@ import PayslipImpact from "./PayslipImpact";
 import LockedSummary from "./LockedSummary";
 import EarlyExit from "./EarlyExit";
 import SuperImpact from "./SuperImpact";
+import CostTaster from "./CostTaster";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import {
@@ -162,6 +163,13 @@ export default function LeaseCalculator({
               below as a pitch. */}
           <Independence className="mt-2.5 max-w-3xl" />
         </div>
+
+        {/* Immediately under the question it answers. Below the car card it
+            landed 1.16 screens down on a phone, which is no better than not
+            being there — the card is over a thousand pixels tall once it
+            stacks. Every input has a workable default, so there is a real
+            figure available before anybody is asked to confirm anything. */}
+        <CostTaster result={result} config={config} />
 
         <div className="mb-6">
           <VehicleCard
@@ -423,7 +431,10 @@ export default function LeaseCalculator({
 
           {/* ── Results ────────────────────────────────────────────── */}
           <div className="space-y-6">
-            <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
+            <section
+              id="the-numbers"
+              className="scroll-mt-20 rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]"
+            >
               <div className="grid gap-3 sm:grid-cols-3">
                 <StatCard
                   label={`Costs you per ${cycleLabel}`}
