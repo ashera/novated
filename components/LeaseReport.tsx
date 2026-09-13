@@ -333,6 +333,31 @@ export default function LeaseReport({
         </p>
       </Section>
 
+      {r.superannuation.forgone > 0 && (
+        <Section title="What it does to your super">
+          <Table
+            rows={[
+              ["Employer super without the lease", fmtCurrency(r.superannuation.before)],
+              ["Employer super with it", fmtCurrency(r.superannuation.after)],
+              ["Contributions never made, a year", fmtCurrency(r.superannuation.forgone)],
+              [
+                `Over ${term.years} years`,
+                fmtCurrency(r.superannuation.forgone * term.years),
+              ],
+            ]}
+            emphasiseLast={2}
+          />
+          <p className="mt-3 text-sm text-subtle">
+            A car salary sacrifice reduces the ordinary earnings the{" "}
+            {config.super.guaranteeRatePct}% guarantee is calculated on, so the employer&apos;s
+            contribution falls. That is lawful and it appears on no payslip. Some employment
+            agreements provide for super on pre-packaging salary — worth checking. These figures
+            are deliberately excluded from every cost total above: contributions go in taxed at
+            15% and are preserved until retirement, so they are not the same thing as pay.
+          </p>
+        </Section>
+      )}
+
       <Section title="Compared with buying it another way">
         <Table
           rows={[

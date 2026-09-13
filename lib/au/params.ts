@@ -235,6 +235,9 @@ export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   ...evPhaseDescriptors(),
 
   // GST and luxury car tax
+  { key: "super_guarantee_rate", label: "Super guarantee rate", category: "Superannuation", path: "super.guaranteeRatePct", unit: "percentPoint", sourceKey: "ato-super-guarantee" },
+  { key: "super_max_base", label: "Maximum contribution base", category: "Superannuation", path: "super.maxContributionBase", unit: "aud", sourceKey: "ato-super-guarantee" },
+
   { key: "gst_rate", label: "GST rate", category: "GST & luxury car tax", path: "gst.rate", unit: "percent", sourceKey: "ato-gst-cars" },
   { key: "gst_car_limit", label: "Car limit (GST credit + depreciation cap)", category: "GST & luxury car tax", path: "gst.carLimit", unit: "aud", sourceKey: "ato-gst-cars" },
   { key: "lct_rate", label: "Luxury car tax rate", category: "GST & luxury car tax", path: "lct.rate", unit: "percent", sourceKey: "ato-lct" },
@@ -297,6 +300,7 @@ export const PARAM_CATEGORIES: string[] = [
   "GST & luxury car tax",
   "Lease terms",
   "Resale & depreciation",
+  "Superannuation",
   "Running costs",
   "Quote benchmarks",
 ];

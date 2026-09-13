@@ -88,6 +88,16 @@ export const SOURCE_SEEDS: SourceSeed[] = [
       "How fast a car loses value, by fuel type. The softest numbers in the reference data and the only ones that are a forecast rather than a published rule: the spread between individual models is wider than the difference between the classes, so every figure derived from these is shown as a range.",
   },
   {
+    key: "ato-super-guarantee",
+    name: "Super guarantee rate and maximum contribution base",
+    organisation: "Australian Taxation Office",
+    url: "https://www.ato.gov.au/tax-rates-and-codes/key-superannuation-rates-and-thresholds/super-guarantee",
+    updateFrequency: "Annually (1 July)",
+    reviewIntervalDays: 365,
+    description:
+      "The rate an employer must contribute, and the earnings ceiling above which no contribution is owed. A novated lease reduces the earnings both are measured on, which is the only reason they are here.",
+  },
+  {
     key: "ato-lct",
     name: "Luxury car tax rate and thresholds",
     organisation: "Australian Taxation Office",

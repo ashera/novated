@@ -192,6 +192,15 @@ export interface LeaseInputs {
    * which leaves every lease saved before we asked answering as it did.
    */
   commencementDate?: string;
+  /**
+   * Whether the employer calculates super on salary BEFORE the sacrifice.
+   *
+   * They are not obliged to — a car sacrifice lawfully reduces the earnings
+   * the guarantee is worked out on — but some employment agreements say they
+   * will, and it is worth thousands over a lease. Absent means they don't,
+   * which is both the default position and the one that costs the employee.
+   */
+  employerPaysSuperOnPreSacrifice?: boolean;
 }
 
 export interface AnnualRunningCosts {
@@ -287,6 +296,62 @@ export interface OwnershipComparison {
   savingVsCash: number;
 }
 
+/**
+ * What the lease does to the employer's super contributions.
+ *
+ * `forgone` is not cash and must never be added to a cash total. It is
+ * contributions that are never made: money that would have gone into super,
+ * taxed at 15% on the way in and locked up until preservation age. Worth less
+ * than the same number in the hand today, worth more after decades of
+ * compounding, and worth nothing at all to somebody already above the
+ * contribution base. Presented on its own, never folded into net cost.
+ */
+export interface SuperOutcome {
+  /** Guarantee payable with no lease. */
+  before: number;
+  /** Guarantee payable once the pre-tax deduction reduces the earnings. */
+  after: number;
+  /** The contributions never made. Zero when the employer pays on
+   *  pre-sacrifice salary, or when the earnings ceiling absorbs it. */
+  forgone: number;
+  /** True when the maximum contribution base is doing the work — the salary
+   *  is high enough that reducing it changes nothing. */
+  cappedOut: boolean;
+  /** True when the employer has agreed to pay on pre-sacrifice salary. */
+  protectedByAgreement: boolean;
+}
+
+/**
+ * Super before and after the sacrifice.
+ *
+ * The ceiling is why this is not the rate times the deduction. Above the
+ * maximum contribution base no guarantee is owed at all, so someone on
+ * $400,000 can sacrifice twenty thousand and lose nothing, and someone just
+ * above the line loses only the part that drops them under it.
+ */
+export function assessSuper(
+  salary: number,
+  preTaxAnnual: number,
+  inputs: Pick<LeaseInputs, "employerPaysSuperOnPreSacrifice">,
+  config: EngineConfig,
+): SuperOutcome {
+  const rate = config.super.guaranteeRatePct / 100;
+  const cap = config.super.maxContributionBase;
+  // Earnings above the ceiling attract nothing, so both sides clamp to it.
+  const guaranteeOn = (earnings: number) => Math.max(0, Math.min(earnings, cap)) * rate;
+
+  const before = guaranteeOn(salary);
+  const protectedByAgreement = inputs.employerPaysSuperOnPreSacrifice === true;
+  const after = protectedByAgreement ? before : guaranteeOn(salary - preTaxAnnual);
+  return {
+    before,
+    after,
+    forgone: Math.max(0, before - after),
+    cappedOut: !protectedByAgreement && salary - preTaxAnnual >= cap,
+    protectedByAgreement,
+  };
+}
+
 export interface LeaseResult {
   inputs: LeaseInputs;
   finance: LeaseFinance;
@@ -304,6 +369,9 @@ export interface LeaseResult {
    * post-tax contribution comes out; that is the next line on the payslip.
    */
   payslip: { before: TakeHome; after: TakeHome };
+  /** What the arrangement does to employer super. Deliberately NOT part of
+   *  any cash total — see SuperOutcome. */
+  superannuation: SuperOutcome;
   comparison: OwnershipComparison;
   /** Whole-of-term totals, residual excluded (it's a separate decision). */
   term: {
@@ -1054,12 +1122,20 @@ export function calculateLease(
     );
   }
 
+  const superannuation = assessSuper(inputs.salary, preTaxAnnual, inputs, config);
+  if (superannuation.forgone > 0) {
+    warnings.push(
+      `Your employer's super contributions fall by ${fmt(superannuation.forgone)} a year, because a car sacrifice reduces the earnings the guarantee is worked out on. That is lawful and it does not show on a payslip. Some employment agreements say super is paid on your salary before packaging — worth checking, because over ${inputs.termYears} years it is ${fmt(superannuation.forgone * inputs.termYears)} of contributions never made.`,
+    );
+  }
+
   return {
     inputs,
     finance,
     running,
     fbt,
     package: pkg,
+    superannuation,
     perPayCycle: {
       preTax: preTaxAnnual / cycles,
       postTax: postTaxAnnual / cycles,

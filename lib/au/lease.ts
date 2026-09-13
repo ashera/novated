@@ -107,6 +107,9 @@ export interface ScenarioSpec {
   /** What the cash would earn if it weren't spent on the car. Only the
    *  "paid in cash" column uses it. */
   opportunityRatePct?: number;
+  /** Whether the employer works super out on salary before packaging. Rare
+   *  enough to be worth asking, valuable enough to be worth asking about. */
+  employerPaysSuperOnPreSacrifice?: boolean;
   /** How often this person is paid. Display only. */
   payCycle?: PayCycle;
   /**

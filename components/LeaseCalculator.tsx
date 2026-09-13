@@ -15,6 +15,7 @@ import StatExplainer from "./StatExplainer";
 import PayslipImpact from "./PayslipImpact";
 import LockedSummary from "./LockedSummary";
 import EarlyExit from "./EarlyExit";
+import SuperImpact from "./SuperImpact";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import {
@@ -475,6 +476,17 @@ export default function LeaseCalculator({
               config={config}
               opportunityRatePct={lease.scenario.opportunityRatePct}
               onOpportunityRate={readOnly ? undefined : (v) => set("opportunityRatePct", v)}
+            />
+
+            {/* Between the payslip and the exit card, because it belongs with
+                the other thing nobody is shown: a cost that is real, lawful
+                and invisible on every document the user will ever be handed. */}
+            <SuperImpact
+              result={result}
+              config={config}
+              onEmployerPays={
+                readOnly ? undefined : (v) => set("employerPaysSuperOnPreSacrifice", v || undefined)
+              }
             />
 
             {/* Straight after the comparison, because the comparison assumes

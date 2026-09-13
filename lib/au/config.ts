@@ -200,6 +200,32 @@ export interface DepreciationConfig {
   floorPct: number;
 }
 
+/**
+ * Superannuation guarantee.
+ *
+ * Here because a novated lease quietly reduces it. The change that stopped
+ * salary sacrifice eroding super from 1 January 2020 covers amounts sacrificed
+ * INTO super; sacrifice to a car is expressly outside it, and the Payday Super
+ * rules that began on 1 July 2026 kept it that way — qualifying earnings
+ * exclude non-super salary sacrifice. So the employer's obligation is
+ * calculated on the reduced salary, lawfully, and the difference never
+ * appears on a payslip.
+ *
+ * The maximum contribution base is why this is not simply "rate times
+ * deduction". Above it no super is owed at all, so a high earner may sacrifice
+ * twenty thousand dollars and lose nothing — and someone just above the line
+ * loses only the part that drops them below it. From 1 July 2026 it is an
+ * annual figure rather than a quarterly one, which is the only reason it can
+ * be modelled honestly from an annual salary.
+ */
+export interface SuperConfig {
+  /** The super guarantee rate. 12% from 1 July 2025 and legislated to stay. */
+  guaranteeRatePct: number;
+  /** Earnings above this attract no super guarantee at all. Annual from
+   *  1 July 2026 under Payday Super. */
+  maxContributionBase: number;
+}
+
 export const AU_STATES = ["NSW", "VIC", "QLD", "SA", "WA", "TAS", "NT", "ACT"] as const;
 export type AuState = (typeof AU_STATES)[number];
 
@@ -243,6 +269,7 @@ export interface RunningCostConfig {
 export interface EngineConfig {
   financialYear: string;
   depreciation: DepreciationConfig;
+  super: SuperConfig;
   tax: TaxConfig;
   fbt: FbtConfig;
   gst: GstConfig;
@@ -318,6 +345,8 @@ export const DEFAULT_CONFIG: EngineConfig = {
     maxSpread: 0.3,
     floorPct: 0.08,
   },
+
+  super: { guaranteeRatePct: 12, maxContributionBase: 270_830 },
 
   gst: { rate: 0.1, carLimit: 69_674 },
 
@@ -446,6 +475,9 @@ export function withDefaults(data: EngineConfig): EngineConfig {
         opportunityRatePct: DEFAULT_CONFIG.benchmarks.opportunityRatePct,
       },
     };
+  }
+  if (out.super == null) {
+    out = { ...out, super: DEFAULT_CONFIG.super };
   }
   if (out.depreciation == null) {
     out = { ...out, depreciation: DEFAULT_CONFIG.depreciation };
