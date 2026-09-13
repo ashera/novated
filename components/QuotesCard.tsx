@@ -242,10 +242,19 @@ export default function QuotesCard({
         </div>
       </div>
 
-      {!locked && activeId && lease.quotes.some((q) => q.id === activeId) && (
-        <p className="mt-1 text-xs text-muted">
-          The figures below are modelled on the quote marked active. Open another and choose
-          &ldquo;See what this lease saves you&rdquo; to switch.
+      {/* What the two buttons on each row actually do. They read as near
+          synonyms — both sound like "pick this one" — and the difference
+          between them is the difference between comparing and deciding, so
+          it gets said rather than inferred. It also answers the question the
+          row raises before it is asked: why some quotes have no button yet. */}
+      {!locked && lease.quotes.length > 0 && (
+        <p className="mt-1.5 text-xs leading-relaxed text-muted">
+          <strong className="font-semibold text-subtle">Use this one</strong> models the figures
+          below on that quote — its rate, its budgets and its fees — so you can see what each
+          provider really costs you. It appears once there is enough on a quote to work the rate
+          out.{" "}
+          <strong className="font-semibold text-subtle">Lock it in</strong> once you have chosen:
+          the page stops comparing and becomes the payslip you can expect. Both can be undone.
         </p>
       )}
 
@@ -256,8 +265,10 @@ export default function QuotesCard({
         </p>
       ) : locked ? (
         <>
-          <p className="mt-2 text-xs text-muted">
-            The one you&apos;ve settled on. Everything below the line is what it was chosen over.
+          <p className="mt-2 text-xs leading-relaxed text-muted">
+            The one you&apos;ve settled on.{" "}
+            {others.length > 0 && "Everything below the line is what it was chosen over. "}
+            Unlock it to go back to comparing — nothing is sent anywhere either way.
           </p>
           <ul>{row(locked, false)}</ul>
 
