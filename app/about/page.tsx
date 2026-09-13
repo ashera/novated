@@ -45,15 +45,37 @@ export default async function AboutPage() {
         <p className="mt-3 text-subtle">{SITE_DESCRIPTION}</p>
       </header>
 
+      {/* The origin and the funding, in that order and in the first person.
+          Four negative claims about what we don't earn leave a reader
+          wondering what the catch is; the answer is that there isn't a
+          business here, and the only convincing way to say so is plainly. */}
       <section className="mt-8">
         <h2 className="text-lg font-semibold text-ink">Why it exists</h2>
         <p className="mt-2 text-sm leading-relaxed text-subtle">
+          I built this for myself. I was weighing up a novated lease, found the decision much
+          harder than it looked, and could not get a straight answer to what it would actually
+          cost me — so I worked it out properly and put the working on a page. Friends who were
+          in the same position asked to use it, which seemed like a good reason to make it
+          available to everyone.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-subtle">
           Almost every novated lease calculator online is run by a company that earns a commission
           on the lease. Their numbers are not necessarily wrong, but they are built to make the
           answer look good, and the two figures that decide whether a lease is actually worth it —
           the interest rate and the residual — are usually the two that are hardest to find.
           This tool has no provider relationships and sells nothing. It shows the mechanism, then
           shows your numbers.
+        </p>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-ink">How it&apos;s paid for</h2>
+        <p className="mt-2 text-sm leading-relaxed text-subtle">
+          It isn&apos;t a business. There are no ads, no commissions, no referral fees and nothing
+          to buy, and your figures are not sold or passed to a provider. It costs a domain and a
+          small server, which I pay for, and that is the entire budget. If that ever changes it
+          will be said here first — an independence claim is worth nothing if it is quietly
+          allowed to go stale.
         </p>
       </section>
 
