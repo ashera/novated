@@ -111,6 +111,9 @@ function Chip({
 export interface VehicleCardProps {
   /** Rendered as a strip across the top, above the artwork. */
   header?: React.ReactNode;
+  /** Numbered heading for the editing shape. Omitted where the card is a
+   *  record rather than a step — the decoder, and a locked-in lease. */
+  stepHeading?: React.ReactNode;
   /** Show the car as settled facts. Delivery stays editable — it belongs to
    *  the quote, not the car, and part-year FBT turns on it. */
   readOnlyVehicle?: boolean;
@@ -326,6 +329,9 @@ export default function VehicleCard(p: VehicleCardProps) {
         <div className="border-b border-line px-4 py-3 sm:px-5">{p.header}</div>
       )}
       <div className="p-4 sm:p-5">
+        {p.stepHeading && !p.readOnlyVehicle && (
+          <div className="mb-4">{p.stepHeading}</div>
+        )}
         {/*
           Two shapes, because the card is doing two different jobs.
           Editing, the artwork is the subject and the controls run beside it,
@@ -454,8 +460,21 @@ export default function VehicleCard(p: VehicleCardProps) {
           <div className="flex min-h-[9rem] flex-1 items-center justify-center overflow-hidden rounded-lg border border-line bg-panel-2 sm:min-h-[11rem] xl:max-h-[20rem]">
             {art}
           </div>
-          <h2 className="mt-3 text-lg font-semibold tracking-tight text-ink">{carName}</h2>
-          {carSpec && <p className="text-sm text-muted">{carSpec}</p>}
+          {/* A caption for the picture, not a heading — it names whichever
+              car is in the frame. It was an h2 only because it used to be the
+              card's one heading; with a numbered step above it that made two
+              h2s in a card and a heading outline that read "The vehicle",
+              "Your car".
+
+              And when nothing is chosen it says "Your car", which under a
+              heading that already says "The vehicle" is a line telling you
+              nothing twice. Named cars still earn their caption. */}
+          {(selected || customName) && (
+            <>
+              <p className="mt-3 text-lg font-semibold tracking-tight text-ink">{carName}</p>
+              {carSpec && <p className="text-sm text-muted">{carSpec}</p>}
+            </>
+          )}
         </div>
 
         <div className="space-y-4">

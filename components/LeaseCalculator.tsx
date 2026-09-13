@@ -10,6 +10,7 @@ import PayPacketSplit from "./PayPacketSplit";
 import CostComparisonChart from "./CostComparisonChart";
 import InfoBlastBanner from "./InfoBlastBanner";
 import VehicleCard from "./VehicleCard";
+import StepHeading from "./StepHeading";
 import DeductionExplainer from "./DeductionExplainer";
 import StatExplainer from "./StatExplainer";
 import PayslipImpact from "./PayslipImpact";
@@ -216,6 +217,7 @@ export default function LeaseCalculator({
           <div className="space-y-6">
           <VehicleCard
             header={!readOnly && <LeaseBar store={store} signedIn={Boolean(user)} />}
+            stepHeading={!locked && <StepHeading step={1}>The vehicle</StepHeading>}
             catalogue={catalogue}
             vehicleId={inputs.vehicleId}
             onVehicle={(v) =>
@@ -278,7 +280,7 @@ export default function LeaseCalculator({
           {!locked && (
             <>
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <h2 className="text-base font-semibold text-ink">You and the term</h2>
+              <StepHeading step={2}>Your salary and lease term</StepHeading>
               <div className="mt-4 space-y-5">
                 <Field
                   label="Gross salary"
@@ -366,7 +368,7 @@ export default function LeaseCalculator({
             </section>
 
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <h2 className="text-base font-semibold text-ink">The lease</h2>
+              <StepHeading step={3}>The lease</StepHeading>
               <div className="mt-4 space-y-5">
                 <Field
                   label="Interest rate"
