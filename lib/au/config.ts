@@ -218,12 +218,13 @@ export const DEFAULT_CONFIG: EngineConfig = {
   lct: {
     rate: 0.33,
     thresholdFuelEfficient: 91_661,
-    thresholdOther: 80_567,
+    // 2026-27. Was left at the 2025-26 figure of 80,567 through an indexation
+    // the fuel-efficient threshold got and this one didn't.
+    thresholdOther: 80_809,
     // Back to the year the EV exemption started — earlier years can't qualify
-    // on the date test anyway, so there is nothing to look up. FLAGGED FOR
-    // VERIFICATION against the ATO's published series: these decide whether a
-    // second-hand EV is exempt, and being generous by a few hundred dollars
-    // would hand someone an exemption they don't have.
+    // on the date test anyway, so there is nothing to look up. Checked against
+    // the ATO's published series on 13 September 2026; the freeze in 2025-26
+    // is real and not a copied-down value.
     thresholdFuelEfficientByYear: {
       "2022-23": 84_916,
       "2023-24": 89_332,
