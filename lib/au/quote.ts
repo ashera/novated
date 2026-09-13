@@ -744,6 +744,9 @@ export function quoteToLeaseInputs(
     firstRegisteredDate: quote.firstRegisteredDate,
     firstRetailPrice: quote.firstRetailPrice,
     purchasedFrom: quote.purchasedFrom,
+    // A quote is priced for a lease starting when the car is delivered, so
+    // that is the date its FBT treatment is fixed by.
+    commencementDate: quote.firstHeldDate,
     termYears: years,
     annualKm: quote.annualKm ?? base.annualKm,
     state: quote.state,

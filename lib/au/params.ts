@@ -113,6 +113,43 @@ function historicLctDescriptors(): ParamDescriptor[] {
   }));
 }
 
+/**
+ * The electric car concession, phase by phase.
+ *
+ * Editable for the same reason every other rate is: these dates and bands
+ * were announced in a Budget and will be amended before they commence, and a
+ * lease priced against a superseded schedule is wrong in the most expensive
+ * direction. The dates themselves aren't numbers so they stay in the config
+ * where an admin can see them; what is exposed here is what each phase costs
+ * — the price cap and the statutory rate.
+ */
+function evPhaseDescriptors(): ParamDescriptor[] {
+  const rows: ParamDescriptor[] = [];
+  DEFAULT_CONFIG.fbt.evExemption.phases.forEach((phase, i) => {
+    if (phase.fullExemptUpTo != null) {
+      rows.push({
+        key: `ev_phase_${i}_full_exempt_upto`,
+        label: `EV concession from ${phase.from}: full exemption up to`,
+        category: "Fringe benefits tax",
+        path: `fbt.evExemption.phases.${i}.fullExemptUpTo`,
+        unit: "aud",
+        sourceKey: "ato-fbt-cars",
+      });
+    }
+    if (phase.discountedStatutoryRate != null) {
+      rows.push({
+        key: `ev_phase_${i}_discounted_rate`,
+        label: `EV concession from ${phase.from}: statutory rate above that`,
+        category: "Fringe benefits tax",
+        path: `fbt.evExemption.phases.${i}.discountedStatutoryRate`,
+        unit: "percent",
+        sourceKey: "ato-fbt-cars",
+      });
+    }
+  });
+  return rows;
+}
+
 export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   ...taxBracketDescriptors(),
 
@@ -134,6 +171,8 @@ export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   { key: "fbt_gross_up_2", label: "Type 2 gross-up rate", category: "Fringe benefits tax", path: "fbt.grossUpType2", unit: "count", sourceKey: "ato-fbt-rates" },
   { key: "fbt_statutory_rate", label: "Statutory formula percentage", category: "Fringe benefits tax", path: "fbt.statutoryRate", unit: "percent", sourceKey: "ato-fbt-cars" },
   { key: "fbt_reporting_threshold", label: "Reportable fringe benefits threshold", category: "Fringe benefits tax", path: "fbt.reportingThreshold", unit: "aud", sourceKey: "ato-fbt-rates" },
+
+  ...evPhaseDescriptors(),
 
   // GST and luxury car tax
   { key: "gst_rate", label: "GST rate", category: "GST & luxury car tax", path: "gst.rate", unit: "percent", sourceKey: "ato-gst-cars" },

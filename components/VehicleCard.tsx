@@ -137,6 +137,9 @@ export interface VehicleCardProps {
   config?: EngineConfig;
   /** This price was entered before we asked what was inside it. */
   priceNeedsBreakdown?: boolean;
+  /** When the lease commences. Decides which phase of the electric car
+   *  concession applies, so the badge is wrong without it. */
+  commencementDate?: string;
 
   annualKm: number | undefined;
   onAnnualKm: (v: number | undefined) => void;
@@ -232,6 +235,7 @@ export default function VehicleCard(p: VehicleCardProps) {
             condition: p.condition,
             firstRegisteredDate: p.firstRegisteredDate,
             firstRetailPrice: p.firstRetailPrice,
+            commencementDate: p.commencementDate,
           },
           p.config,
         )
@@ -250,10 +254,10 @@ export default function VehicleCard(p: VehicleCardProps) {
    * so it goes across the top instead — in a 13rem column it wrapped to five
    * lines and set the height of the whole card.
    */
-  const fbtBadge = exemption?.exempt ? (
+  const fbtBadge = exemption && (exemption.exempt || exemption.discount > 0) ? (
             <div
               className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${
-                exemption.unverified
+                exemption.unverified || !exemption.exempt
                   ? "border-warning/40 bg-warning-subtle"
                   : "border-success/40 bg-success-subtle"
               }`}
@@ -262,7 +266,7 @@ export default function VehicleCard(p: VehicleCardProps) {
                 viewBox="0 0 20 20"
                 aria-hidden="true"
                 className={`mt-0.5 h-4 w-4 shrink-0 ${
-                  exemption.unverified ? "fill-warning" : "fill-success"
+                  exemption.unverified || !exemption.exempt ? "fill-warning" : "fill-success"
                 }`}
               >
                 <path d="M10 1.6a8.4 8.4 0 1 0 0 16.8 8.4 8.4 0 0 0 0-16.8Zm4.03 6.2-4.9 5.2a.95.95 0 0 1-1.38 0L5.97 10.8a.95.95 0 0 1 1.38-1.3l1.09 1.16 4.21-4.47a.95.95 0 1 1 1.38 1.3Z" />
@@ -272,10 +276,24 @@ export default function VehicleCard(p: VehicleCardProps) {
                   that it is trusted at a glance. */}
               <p
                 className={`text-[12px] leading-snug ${
-                  exemption.unverified ? "text-warning-text" : "text-success-text"
+                  exemption.unverified || !exemption.exempt
+                    ? "text-warning-text"
+                    : "text-success-text"
                 }`}
               >
-                {exemption.unverified ? (
+                {/* Three answers now, not two. From April 2027 an electric car
+                    over $75,000 is neither exempt nor fully taxed, and the
+                    middle one is the state most cars worth leasing land in. */}
+                {!exemption.exempt ? (
+                  <>
+                    <strong className="font-semibold">
+                      {(exemption.discount * 100).toFixed(0)}% off the FBT on this car.
+                    </strong>{" "}
+                    Battery-electric, but above the full-exemption price for a lease starting{" "}
+                    {exemption.phaseFrom} — so the FBT is discounted rather than removed, and
+                    there is still an employee contribution to make.
+                  </>
+                ) : exemption.unverified ? (
                   <>
                     <strong className="font-semibold">Probably no FBT on this car.</strong>{" "}
                     {exemption.unverified}

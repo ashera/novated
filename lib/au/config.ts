@@ -31,6 +31,30 @@ export interface TaxConfig {
   helpBands: { upTo: number; rate: number }[];
 }
 
+/**
+ * One period of the electric car concession.
+ *
+ * Two price bands, both measured on the car's cost:
+ *
+ *   - at or under `fullExemptUpTo`, the statutory rate is nil and no FBT is
+ *     payable. `null` means the whole eligible range, which is what the
+ *     original exemption was; `0` means the band is gone.
+ *   - above that and up to the fuel-efficient LCT threshold,
+ *     `discountedStatutoryRate` applies. `null` means there is no such band.
+ *
+ * Above the threshold there is no concession and the standard statutory rate
+ * applies, in every phase.
+ */
+export interface EvPhase {
+  /** ISO date this phase applies from. */
+  from: string;
+  /** Price at or under which the car is fully exempt. Null = the whole
+   *  eligible range; 0 = no full exemption in this phase. */
+  fullExemptUpTo: number | null;
+  /** Statutory rate between that cap and the LCT threshold. Null = no band. */
+  discountedStatutoryRate: number | null;
+}
+
 export interface FbtConfig {
   /** FBT rate applied to the grossed-up taxable value. */
   rate: number;
@@ -42,14 +66,37 @@ export interface FbtConfig {
   statutoryRate: number;
   /** Reportable fringe benefits below this grossed-up value aren't reported. */
   reportingThreshold: number;
-  /** Zero/low-emissions vehicles under the LCT fuel-efficient threshold, first
-   *  held and used on or after this date, are exempt from FBT. */
+  /**
+   * The electric car concession, which is no longer a single exemption.
+   *
+   * It began as one — a battery-electric car under the fuel-efficient LCT
+   * threshold, first held and used from 1 July 2022, paid no FBT at all. The
+   * 2026 Budget turned it into a schedule: the full exemption narrows to cars
+   * at or under $75,000 from 1 April 2027, and from 1 April 2029 becomes a
+   * 25% discount for everything under the threshold.
+   *
+   * Modelled as a STATUTORY RATE rather than as a discount, because that is
+   * how the law delivers it and because it makes every case one number: 0%
+   * is the exemption, 15% is the 25% discount (15/20), 20% is no concession.
+   * An "exempt" flag could not express the middle.
+   *
+   * Which phase applies is fixed when the arrangement commences and then
+   * follows it for life — a lease signed before a phase change keeps its
+   * treatment. Materially changing it (refinancing, extending, swapping the
+   * car) starts a new arrangement under the rules of the day.
+   */
   evExemption: {
     enabled: boolean;
+    /** The car must have been first held and used on or after this date. A
+     *  fact about the CAR, not about the driver: a 2021 example can never
+     *  qualify, however many times it changes hands. */
     firstHeldFrom: string; // ISO date
     /** Plug-in hybrids stopped qualifying on this date (existing binding
      *  commitments continue). */
     phevEligibleUntil: string;
+    /** Newest last. The phase in force when the lease commenced is the one
+     *  that applies to it. */
+    phases: EvPhase[];
   };
 }
 
@@ -207,6 +254,16 @@ export const DEFAULT_CONFIG: EngineConfig = {
       enabled: true,
       firstHeldFrom: "2022-07-01",
       phevEligibleUntil: "2025-04-01",
+      // 2026 Budget. Sources: ATO "Electric car discount — more sustainable
+      // fringe benefits tax treatment of electric cars"; PwC and BDO budget
+      // alerts. The middle band is described in the press as both a "25%
+      // discount" and a "75%" figure — they are the same thing counted from
+      // opposite ends, and 15/20 is what the law actually does.
+      phases: [
+        { from: "2022-07-01", fullExemptUpTo: null, discountedStatutoryRate: null },
+        { from: "2027-04-01", fullExemptUpTo: 75_000, discountedStatutoryRate: 0.15 },
+        { from: "2029-04-01", fullExemptUpTo: 0, discountedStatutoryRate: 0.15 },
+      ],
     },
   },
 
@@ -313,6 +370,18 @@ export function withDefaults(data: EngineConfig): EngineConfig {
   }
   if (out.fbt.evExemption == null) {
     out = { ...out, fbt: { ...out.fbt, evExemption: DEFAULT_CONFIG.fbt.evExemption } };
+  }
+  if (out.fbt.evExemption.phases == null) {
+    out = {
+      ...out,
+      fbt: {
+        ...out.fbt,
+        evExemption: {
+          ...out.fbt.evExemption,
+          phases: DEFAULT_CONFIG.fbt.evExemption.phases,
+        },
+      },
+    };
   }
   if (out.lct.thresholdFuelEfficientByYear == null) {
     out = {

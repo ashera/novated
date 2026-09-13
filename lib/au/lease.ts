@@ -107,6 +107,16 @@ export interface ScenarioSpec {
   /** How often this person is paid. Display only. */
   payCycle?: PayCycle;
   /**
+   * When the lease commences.
+   *
+   * On the scenario rather than the vehicle, because it is a fact about the
+   * ARRANGEMENT: the same car leased a year apart can be taxed differently
+   * now that the electric car concession is a schedule, and the phase a lease
+   * starts under follows it for life. Not to be confused with the vehicle's
+   * firstRegisteredDate, which is about the car's own history.
+   */
+  commencementDate?: string;
+  /**
    * The quote these figures were taken from, if any.
    *
    * The id and not the numbers: the label and the solved rate are derived
@@ -398,6 +408,7 @@ export function applyScenarioFromQuote(
       runningCostOverrides: inputs.runningCostOverrides,
       adminFeeAnnual: inputs.adminFeeAnnual,
       termYears: inputs.termYears,
+      commencementDate: inputs.commencementDate ?? lease.scenario.commencementDate,
       fromQuoteId: quoteId,
     },
     // Modelling a different quote means the decision is being reconsidered, so

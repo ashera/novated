@@ -331,6 +331,7 @@ export default function QuoteDecoder({
             consumption={quote.consumptionPer100km}
             onRoadCosts={lease.vehicle.onRoadCosts}
             config={config}
+            commencementDate={lease.scenario.commencementDate}
             condition={lease.vehicle.condition}
             firstRegisteredDate={lease.vehicle.firstRegisteredDate}
             firstRetailPrice={lease.vehicle.firstRetailPrice}

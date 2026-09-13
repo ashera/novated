@@ -26,7 +26,7 @@
 // service costs across the term, so a saving shown is a saving in money the user
 // recognises today.
 
-import type { AuState, EngineConfig, RunningCostConfig } from "./config";
+import type { AuState, EngineConfig, EvPhase, RunningCostConfig } from "./config";
 import { takeHome, marginalRelief, type TakeHome } from "./tax";
 
 export type FbtMethod = "ecm" | "employer-pays";
@@ -175,6 +175,15 @@ export interface LeaseInputs {
   /** Who the financier buys it from. A private seller charges no GST, so
    *  there is no credit to claim and the whole price is financed. */
   purchasedFrom?: PurchaseChannel;
+  /**
+   * When the lease itself commences.
+   *
+   * Which phase of the electric car concession the arrangement is locked into
+   * for its life, and nothing else. Absent, the engine assumes the config's
+   * own financial year, which is what modelling a lease today means — and
+   * which leaves every lease saved before we asked answering as it did.
+   */
+  commencementDate?: string;
 }
 
 export interface AnnualRunningCosts {
@@ -596,11 +605,34 @@ export interface ExemptionFacts {
   condition?: CarCondition;
   firstRegisteredDate?: string;
   firstRetailPrice?: number;
+  /**
+   * When the novated lease itself commences.
+   *
+   * Not a fact about the car: this decides WHICH set of rules the arrangement
+   * is grandfathered into, now that the concession is a schedule rather than a
+   * permanent exemption. Absent, we assume it commences in the config's own
+   * financial year — which is what somebody modelling a lease today is doing,
+   * and which keeps every lease saved before we asked answering as it did.
+   */
+  commencementDate?: string;
 }
 
 export interface FbtExemptionCheck {
+  /** True only when no FBT is payable at all — a nil statutory rate. */
   exempt: boolean;
-  /** Why not, in a sentence — null when it is exempt. */
+  /**
+   * The statutory percentage to apply to this car's base value.
+   *
+   * The whole concession expressed as one number, because that is how the law
+   * delivers it: nil is the full exemption, 15% is the 25% discount, and the
+   * standard rate is no concession at all. A boolean could not express the
+   * middle band, and from April 2027 the middle band is where most electric
+   * cars worth leasing will sit.
+   */
+  statutoryRate: number;
+  /** What the concession takes off the FBT, as a fraction. 0 when none. */
+  discount: number;
+  /** Why it is not exempt, in a sentence — null when it is. */
   blockedBy: string | null;
   /**
    * Exempt on everything we could check, but something we couldn't.
@@ -610,36 +642,67 @@ export interface FbtExemptionCheck {
    * and a green badge that means "probably" has to say so.
    */
   unverified: string | null;
+  /** The phase that decided it, so the interface can say which rules a lease
+   *  is locked into. */
+  phaseFrom: string | null;
+}
+
+/** The start of an Australian financial year labelled like "2026-27". */
+function financialYearStart(label: string): Date {
+  const year = Number(label.slice(0, 4));
+  return new Date(Date.UTC(Number.isFinite(year) ? year : 1970, 6, 1));
 }
 
 /**
- * Whether the car itself is exempt from FBT.
+ * Which phase of the electric car concession an arrangement falls under.
  *
- * Kept out of {@link assessFbt} because the exemption is a fact about the car,
- * not about a particular salary or term, and the interface needs to say so
- * next to the car — a whole assessment is a lot of machinery to run to put a
- * badge on a picture, and running it twice is how the badge and the numbers
- * end up disagreeing.
+ * Fixed at commencement and then followed for the life of the lease, so a car
+ * leased today keeps today's treatment even once the rules move under it.
+ * That is the actual law, and it is also why the commencement date stopped
+ * being an optional nicety the moment the Budget passed.
+ */
+function evPhaseFor(commencement: Date, config: EngineConfig): EvPhase | null {
+  let found: EvPhase | null = null;
+  for (const phase of config.fbt.evExemption.phases ?? []) {
+    if (commencement >= new Date(`${phase.from}T00:00:00Z`)) found = phase;
+  }
+  return found;
+}
+
+/**
+ * How this car is treated for FBT.
  *
- * Three conditions, and all of them bite:
+ * Kept out of {@link assessFbt} because the treatment is a fact about the car
+ * and the day it is leased, not about a particular salary or term, and the
+ * interface needs to say so next to the car — a whole assessment is a lot of
+ * machinery to run to put a badge on a picture, and running it twice is how
+ * the badge and the numbers end up disagreeing.
+ *
+ * Four conditions, and all of them bite:
  *
  *   - battery-electric only. A plug-in hybrid lost eligibility on 1 April 2025
  *     and a conventional hybrid never had it.
  *   - first held and used on or after 1 July 2022. This is about the CAR, not
  *     about this driver: a car somebody was driving in 2021 can never become
- *     exempt, however many times it is sold afterwards. It is the condition
- *     second-hand buyers are caught by, and the reason the app has to ask
- *     whether the car is new.
+ *     exempt, however many times it is sold afterwards.
  *   - at or under the luxury car tax threshold for fuel-efficient vehicles at
  *     its FIRST retail sale — the threshold of that year, not this one. For a
  *     used car both halves of that test are historical, so it needs what the
  *     car sold for new, which the buyer may simply not know.
+ *   - and which phase of the concession the lease commences in. From 1 April
+ *     2027 the full exemption only reaches cars at or under $75,000; above
+ *     that the FBT is discounted rather than removed, and from 1 April 2029
+ *     the discount is all there is.
  */
 export function checkFbtExemption(f: ExemptionFacts, config: EngineConfig): FbtExemptionCheck {
+  const standard = config.fbt.statutoryRate;
   const no = (blockedBy: string): FbtExemptionCheck => ({
     exempt: false,
+    statutoryRate: standard,
+    discount: 0,
     blockedBy,
     unverified: null,
+    phaseFrom: null,
   });
   const ev = config.fbt.evExemption;
   if (!ev.enabled) return no("The electric vehicle exemption isn't in force.");
@@ -651,54 +714,87 @@ export function checkFbtExemption(f: ExemptionFacts, config: EngineConfig): FbtE
   if (f.fuelType !== "electric") return no("Only battery-electric cars are exempt.");
 
   const preOwned = isPreOwned(f.condition);
+  let unverified: string | null = null;
+  // The price the cap is measured on, and the threshold it is measured against.
+  let testPrice = f.vehiclePrice;
+  let threshold = config.lct.thresholdFuelEfficient;
 
-  if (!preOwned) {
-    // A new car is being first retailed now, so today's price and today's
-    // threshold are the right two numbers.
-    return f.vehiclePrice > config.lct.thresholdFuelEfficient
-      ? no(
-          `Its price is above the ${config.lct.thresholdFuelEfficient.toLocaleString("en-AU")} luxury car tax threshold for fuel-efficient vehicles.`,
-        )
-      : { exempt: true, blockedBy: null, unverified: null };
-  }
-
-  if (!f.firstRegisteredDate) {
-    return no(
-      "We need the date it was first registered: the exemption only covers cars first held and used from " +
-        `${ev.firstHeldFrom}, and that is about the car rather than about you.`,
-    );
-  }
-  const registered = new Date(`${f.firstRegisteredDate}T00:00:00Z`);
-  if (Number.isNaN(registered.getTime())) {
-    return no("We couldn't read the date it was first registered.");
-  }
-  if (registered < new Date(`${ev.firstHeldFrom}T00:00:00Z`)) {
-    return no(
-      `It was first registered on ${f.firstRegisteredDate}, before the exemption started on ${ev.firstHeldFrom}. That is fixed to the car, so no later owner can claim it.`,
-    );
-  }
-
-  // Both halves of the price test are historical for a used car.
-  const threshold = fuelEfficientThresholdFor(registered, config);
-  if (f.firstRetailPrice == null || threshold == null) {
-    return {
-      exempt: true,
-      blockedBy: null,
-      unverified:
+  if (preOwned) {
+    if (!f.firstRegisteredDate) {
+      return no(
+        "We need the date it was first registered: the exemption only covers cars first held and used from " +
+          `${ev.firstHeldFrom}, and that is about the car rather than about you.`,
+      );
+    }
+    const registered = new Date(`${f.firstRegisteredDate}T00:00:00Z`);
+    if (Number.isNaN(registered.getTime())) {
+      return no("We couldn't read the date it was first registered.");
+    }
+    if (registered < new Date(`${ev.firstHeldFrom}T00:00:00Z`)) {
+      return no(
+        `It was first registered on ${f.firstRegisteredDate}, before the exemption started on ${ev.firstHeldFrom}. That is fixed to the car, so no later owner can claim it.`,
+      );
+    }
+    const thenThreshold = fuelEfficientThresholdFor(registered, config);
+    if (f.firstRetailPrice == null || thenThreshold == null) {
+      unverified =
         f.firstRetailPrice == null
           ? "The price cap is measured on what the car sold for new, which we don't have. Everything else about it qualifies."
-          : `We don't hold the fuel-efficient threshold for ${financialYearOf(registered)}, so we couldn't check the price cap.`,
-    };
+          : `We don't hold the fuel-efficient threshold for ${financialYearOf(registered)}, so we couldn't check the price cap.`;
+    } else {
+      testPrice = f.firstRetailPrice;
+      threshold = thenThreshold;
+    }
   }
-  if (f.firstRetailPrice > threshold) {
+
+  if (unverified == null && testPrice > threshold) {
     return no(
-      `It sold for more than the ${threshold.toLocaleString("en-AU")} fuel-efficient threshold that applied when it was new, which is the test — not today's price.`,
+      preOwned
+        ? `It sold for more than the ${threshold.toLocaleString("en-AU")} fuel-efficient threshold that applied when it was new, which is the test — not today's price.`
+        : `Its price is above the ${threshold.toLocaleString("en-AU")} luxury car tax threshold for fuel-efficient vehicles.`,
     );
   }
-  return { exempt: true, blockedBy: null, unverified: null };
+
+  // Eligible. What it actually gets depends on when the lease starts and
+  // which price band it falls in under the phase in force then.
+  const asked = f.commencementDate
+    ? new Date(`${f.commencementDate}T00:00:00Z`)
+    : financialYearStart(config.financialYear);
+  const commencement = Number.isNaN(asked.getTime())
+    ? financialYearStart(config.financialYear)
+    : asked;
+  const phase = evPhaseFor(commencement, config);
+  const exemptOutright = (phaseFrom: string | null): FbtExemptionCheck => ({
+    exempt: true,
+    statutoryRate: 0,
+    discount: 1,
+    blockedBy: null,
+    unverified,
+    phaseFrom,
+  });
+  if (!phase) return exemptOutright(null);
+
+  const cap = phase.fullExemptUpTo;
+  if (cap == null || f.vehiclePrice <= cap) return exemptOutright(phase.from);
+
+  if (phase.discountedStatutoryRate != null) {
+    return {
+      exempt: false,
+      statutoryRate: phase.discountedStatutoryRate,
+      discount: standard > 0 ? 1 - phase.discountedStatutoryRate / standard : 0,
+      blockedBy:
+        `From ${phase.from} the full exemption only reaches electric cars at or under ` +
+        `${cap.toLocaleString("en-AU")}. Above that, up to the luxury car tax threshold, the FBT ` +
+        `is discounted rather than removed.`,
+      unverified,
+      phaseFrom: phase.from,
+    };
+  }
+  return no(`The concession does not reach this car from ${phase.from}.`);
 }
 
-/** The exemption as a plain yes/no, for callers that only branch on it. */
+/** Exempt outright — no FBT at all. Anything needing the discounted middle
+ *  band wants the whole check, which is why this stayed its own function. */
 export function isFbtExemptVehicle(f: ExemptionFacts, config: EngineConfig): boolean {
   return checkFbtExemption(f, config).exempt;
 }
@@ -711,9 +807,20 @@ export function assessFbt(
   // Base value is the GST-INCLUSIVE cost of the car to the provider (the LCT is
   // included; on-road costs like registration and stamp duty are not).
   const baseValue = finance.priceInclGst;
-  const taxableValue = baseValue * config.fbt.statutoryRate;
 
+  // The statutory percentage is no longer a constant. An eligible electric car
+  // draws nil, or 15% once the concession narrows in 2027; everything else
+  // draws the standard 20%. Taking it from the check means the discounted
+  // middle band flows through the taxable value, the employee contribution,
+  // the FBT payable and the reportable amount without any of them knowing the
+  // concession exists.
   const check = checkFbtExemption(inputs, config);
+  const taxableValue = baseValue * check.statutoryRate;
+  // What the taxable value WOULD be with no concession at all. An exempt car
+  // still has one: the exemption removes the FBT, not the reporting, and the
+  // reportable amount is worked out as though the car were taxed normally.
+  // Reading the reportable figure off a nil rate would quietly delete it.
+  const notionalTaxableValue = baseValue * config.fbt.statutoryRate;
 
   if (check.exempt) {
     return {
@@ -722,20 +829,29 @@ export function assessFbt(
         ? `Battery-electric vehicle first registered on ${inputs.firstRegisteredDate}, after the exemption started, and under the luxury car tax threshold for fuel-efficient vehicles — exempt from FBT.`
         : "Battery-electric vehicle under the luxury car tax threshold for fuel-efficient vehicles — exempt from FBT.",
       baseValue,
-      taxableValue,
+      taxableValue: notionalTaxableValue,
       employeeContribution: 0,
       fbtPayable: 0,
       // An exempt car benefit is still a reportable fringe benefit: it doesn't
       // add to taxable income, but it counts towards income tests (Medicare levy
       // surcharge, HELP repayment income, family assistance).
-      reportableFringeBenefit: taxableValue * config.fbt.grossUpType2,
+      reportableFringeBenefit: notionalTaxableValue * config.fbt.grossUpType2,
     };
   }
+
+  // The discounted band is not an exemption: FBT is genuinely payable on a
+  // smaller taxable value, so the employee contribution that cancels it is
+  // smaller too, and everything downstream follows from `taxableValue`.
+  const discounted = check.discount > 0;
+
+  const concession = discounted
+    ? `Electric car discount: the statutory percentage is ${(check.statutoryRate * 100).toFixed(0)}% instead of ${(config.fbt.statutoryRate * 100).toFixed(0)}%, so the taxable value is ${(check.discount * 100).toFixed(0)}% lower than it would otherwise be.`
+    : null;
 
   if (inputs.fbtMethod === "ecm") {
     return {
       exempt: false,
-      exemptReason: null,
+      exemptReason: concession,
       baseValue,
       taxableValue,
       employeeContribution: taxableValue,
@@ -747,7 +863,7 @@ export function assessFbt(
   const fbtPayable = taxableValue * config.fbt.grossUpType1 * config.fbt.rate;
   return {
     exempt: false,
-    exemptReason: null,
+    exemptReason: concession,
     baseValue,
     taxableValue,
     employeeContribution: 0,
@@ -844,9 +960,49 @@ export function calculateLease(
   // cap on a new car, but just as often a used one's registration date.
   if (inputs.fuelType === "electric" && config.fbt.evExemption.enabled) {
     const exemption = checkFbtExemption(inputs, config);
-    if (!exemption.exempt) {
+
+    /**
+     * The concession stopped being permanent, so a lease that has it needs to
+     * be told it keeps it.
+     *
+     * This is the reassuring half of the 2026 Budget and the half nobody
+     * reports: the treatment is fixed at commencement and follows the lease
+     * for its life. Somebody signing a five-year lease today reads that the
+     * exemption is being abolished in 2027 and reasonably assumes their own
+     * deal changes underneath them. It does not — unless they refinance,
+     * extend, or swap the car, which starts a new arrangement under whatever
+     * the rules are then. That last part is the bit worth knowing before you
+     * do it, not after.
+     */
+    const phases = config.fbt.evExemption.phases ?? [];
+    const commencedUnder = exemption.phaseFrom;
+    const laterPhase = phases.find((ph) => commencedUnder != null && ph.from > commencedUnder);
+    if (exemption.exempt && laterPhase && !exemption.unverified) {
+      warnings.push(
+        `The electric car FBT exemption narrows from ${laterPhase.from}, but your lease keeps the treatment it starts with for its whole term. Refinancing it, extending it, or changing the car would start a new arrangement under the rules of the day — worth knowing before you do any of those, rather than after.`,
+      );
+    }
+
+    // The discounted band. Not an exemption and not full FBT, and it is where
+    // most electric cars worth leasing will sit from April 2027.
+    if (!exemption.exempt && exemption.discount > 0) {
+      const contribution = fbt.employeeContribution > 0 ? fbt.employeeContribution : fbt.fbtPayable;
+      const cap = phases.find((ph) => ph.from === exemption.phaseFrom)?.fullExemptUpTo ?? 0;
+      // The last phase has no full-exemption band at all. Describing that as
+      // "cars at or under $0" is technically what the number says and
+      // nonsense to read.
+      const narrowing =
+        cap > 0
+          ? `the full FBT exemption only reaches electric cars at or under ${fmt(cap)}`
+          : "the full FBT exemption is gone";
+      warnings.push(
+        `From ${exemption.phaseFrom}, ${narrowing}. This one gets the ${(exemption.discount * 100).toFixed(0)}% discount instead — the statutory percentage is ${(exemption.statutoryRate * 100).toFixed(0)}% rather than ${(config.fbt.statutoryRate * 100).toFixed(0)}% — which still leaves ${fmt(contribution)} a year to find, where an exempt car would leave nothing.`,
+      );
+    }
+
+    if (!exemption.exempt && exemption.discount === 0) {
       warnings.push(`The FBT exemption does not apply to this car. ${exemption.blockedBy}`);
-    } else if (exemption.unverified) {
+    } else if (exemption.exempt && exemption.unverified) {
       warnings.push(
         `We've treated this car as FBT exempt, but there's one condition we couldn't check. ${exemption.unverified} Worth confirming before you rely on it — if it turns out not to qualify, that's ${fmt(finance.priceInclGst * config.fbt.statutoryRate)} of taxable value a year.`,
       );

@@ -190,6 +190,7 @@ export default function LeaseCalculator({
             onPurchase={(b) => setVehicle(b)}
             config={config}
             priceNeedsBreakdown={!readOnly && priceNeedsBreakdown(lease.vehicle)}
+            commencementDate={lease.scenario.commencementDate}
             condition={lease.vehicle.condition}
             firstRegisteredDate={lease.vehicle.firstRegisteredDate}
             firstRetailPrice={lease.vehicle.firstRetailPrice}
@@ -294,6 +295,31 @@ export default function LeaseCalculator({
                     ))}
                   </div>
                 </div>
+
+                {/*
+                  Only meaningful for an electric car, and only since the 2026
+                  Budget — but for those it decides everything. The concession
+                  is a schedule now, and the phase a lease commences under
+                  follows it for its whole life, so the same car started a year
+                  apart can be taxed completely differently. Asked here rather
+                  than assumed, and hidden where it would change nothing.
+                */}
+                {inputs.fuelType === "electric" && (
+                  <label className="block">
+                    <span className="text-sm font-medium text-ink">Lease starts</span>
+                    <input
+                      type="date"
+                      disabled={readOnly}
+                      value={lease.scenario.commencementDate ?? ""}
+                      onChange={(e) => set("commencementDate", e.target.value || undefined)}
+                      className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent disabled:opacity-60"
+                    />
+                    <span className="mt-1 block text-[11px] leading-snug text-muted">
+                      The electric car FBT rules change on set dates, and a lease keeps whatever
+                      applied when it started. Leave blank to assume it starts this financial year.
+                    </span>
+                  </label>
+                )}
               </div>
             </section>
 
