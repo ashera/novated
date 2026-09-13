@@ -91,7 +91,7 @@ export default function RateWorking({
     {
       label: "And still owe",
       value: fmtCurrency(residualEx),
-      body: `The residual at the end. Quoted as ${fmtCurrency(quote.residualIncGst ?? 0)} with GST in it; the finance is written over the amount without.`,
+      body: `That is the residual — the lump due when the lease ends. Your quote states it as ${fmtCurrency(quote.residualIncGst ?? 0)} with GST included, and the finance is calculated on what is left once the GST comes out.`,
     },
     {
       label: "So the finance costs",
