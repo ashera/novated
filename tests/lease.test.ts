@@ -9,6 +9,7 @@ import {
   activateQuote,
   applyScenarioFromQuote,
   lockQuote,
+  hasChosenCar,
   quoteIsNamed,
   removeQuote,
   lockedQuote,
@@ -841,5 +842,38 @@ describe("Removing a quote", () => {
     const empty = removeQuote(removeQuote(lease, a.id), b.id);
     expect(empty.quotes).toEqual([]);
     expect(empty.lockedQuoteId).toBeUndefined();
+  });
+});
+
+/**
+ * The lease always has a car, because the engine needs one to compute
+ * anything. That default is fine as a starting point and dangerous as an
+ * answer: anything stating a figure as though it were the reader's own has to
+ * know whether they actually chose the thing it was worked out on.
+ */
+describe("Knowing whether a car was chosen", () => {
+  it("says no for an untouched lease", () => {
+    expect(hasChosenCar(defaultVehicle())).toBe(false);
+  });
+
+  it("says yes once one is picked from the catalogue", () => {
+    expect(hasChosenCar({ ...defaultVehicle(), vehicleId: "tesla-model-y" })).toBe(true);
+  });
+
+  it("says yes for a car we don't stock", () => {
+    expect(hasChosenCar({ ...defaultVehicle(), make: "Skoda", model: "Enyaq" })).toBe(true);
+  });
+
+  // Typing over the price is a choice too, even without naming the car.
+  it("says yes once the price is changed from the default", () => {
+    expect(hasChosenCar({ ...defaultVehicle(), price: 62_000 })).toBe(true);
+  });
+
+  it("is not fooled by retyping the default price", () => {
+    expect(hasChosenCar({ ...defaultVehicle(), price: defaultVehicle().price })).toBe(false);
+  });
+
+  it("treats whitespace as not having named anything", () => {
+    expect(hasChosenCar({ ...defaultVehicle(), make: "   ", model: "  " })).toBe(false);
   });
 });

@@ -239,6 +239,26 @@ export function isCustomVehicle(v: VehicleSpec): boolean {
 }
 
 /**
+ * Has anybody actually said what the car is?
+ *
+ * The lease always has a car, because the engine needs one to compute
+ * anything — an untouched lease carries a $55,000 electric default. That is
+ * fine as a starting point and dangerous as an answer: every figure derived
+ * from it is a confident number about a car the reader never chose.
+ *
+ * So anything that states a result as though it were theirs checks this
+ * first. Three ways to have chosen: picked one from the catalogue, described
+ * one we don't stock, or simply typed a price over the default.
+ */
+export function hasChosenCar(v: VehicleSpec): boolean {
+  return (
+    Boolean(v.vehicleId) ||
+    isCustomVehicle(v) ||
+    (v.price != null && v.price !== defaultVehicle().price)
+  );
+}
+
+/**
  * Does this lease's price need breaking down?
  *
  * The price field used to be a single box labelled "also Drive Away Price",

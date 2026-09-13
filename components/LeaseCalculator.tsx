@@ -30,6 +30,7 @@ import {
 import type { EngineConfig } from "@/lib/au/config";
 import {
   applyScenarioFromQuote,
+  hasChosenCar,
   leaseToInputs,
   lockedQuote,
   priceNeedsBreakdown,
@@ -167,9 +168,13 @@ export default function LeaseCalculator({
         {/* Immediately under the question it answers. Below the car card it
             landed 1.16 screens down on a phone, which is no better than not
             being there — the card is over a thousand pixels tall once it
-            stacks. Every input has a workable default, so there is a real
-            figure available before anybody is asked to confirm anything. */}
-        <CostTaster result={result} config={config} />
+            stacks.
+
+            Only once there is a car, though. Every other input has a default
+            worth computing from; the car does not. Leading with "it costs you
+            $354 a fortnight" for a $55,000 electric default nobody picked
+            would be the most prominent wrong number on the site. */}
+        {hasChosenCar(lease.vehicle) && <CostTaster result={result} config={config} />}
 
         <div className="mb-6">
           <VehicleCard

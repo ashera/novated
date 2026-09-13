@@ -29,6 +29,7 @@ import {
   applyQuoteEdit,
   withLeaseVehicle,
   defaultVehicle,
+  hasChosenCar,
   leaseToQuote,
   newQuoteSpec,
   type Lease,
@@ -110,8 +111,7 @@ export default function QuoteDecoder({
    * until there is a car, and the example stays on screen as what it is — a
    * demonstration.
    */
-  const needsCar =
-    !lease.vehicle.vehicleId && lease.vehicle.price === defaultVehicle().price;
+  const needsCar = !hasChosenCar(lease.vehicle);
   const readOnly = locked || needsCar;
   // A worked example is only right for someone who has told us nothing yet.
   // Once they have described a car, showing the example's car instead would
