@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,6 +18,7 @@ import {
 import type { EngineConfig } from "@/lib/au/config";
 import { fmtDate } from "@/lib/au/format";
 import type { UseLease } from "./useLease";
+import { track } from "@/lib/analytics";
 import SampleQuote from "./SampleQuote";
 
 /**
@@ -120,11 +121,44 @@ export default function QuotesCard({
    *  been sent one. Offered from the steps, where the question arises. */
   const [showingSample, setShowingSample] = useState(false);
 
+  /**
+   * Whether anybody ever gets this far down the page.
+   *
+   * The decoder is the thing this site does that nothing else does, and until
+   * now its only door was a card most of the way down the calculator — with
+   * no way of knowing how many people ever saw it. Rendering is not seeing,
+   * so this fires on the card actually entering the viewport, once per visit,
+   * and pairs with the click event below: the ratio between them is the only
+   * honest measure of whether the card is doing its job.
+   */
+  const cardRef = useRef<HTMLElement | null>(null);
+  const seen = useRef(false);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting || seen.current) continue;
+          seen.current = true;
+          track("Quotes card seen", { quotes: lease.quotes.length });
+          io.disconnect();
+        }
+      },
+      { threshold: 0.4 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+    // Once per mount: the count is a snapshot at first sight, not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** Model this quote in the figures below, without a trip to the decoder.
    *  Only offered where the quote solves — see activateQuote. */
   const activate = (id: string) => store.update((l) => activateQuote(l, id, config));
 
   const addQuote = () => {
+    track("Add a quote", { from: "quotes-card", existing: lease.quotes.length });
     // Unnamed on purpose — see the note in QuoteComparison.addQuote.
     const spec = newQuoteSpec("", lease.scenario.termYears * 12);
     store.update((l) => ({ ...l, quotes: [...l.quotes, spec] }));
@@ -151,6 +185,21 @@ export default function QuotesCard({
         </li>
       ))}
     </ol>
+  );
+
+  /** The steps, folded. Shown in both states so the teaching is always one
+   *  click away and never a wall. */
+  const stepsDisclosure = (
+    <details
+      className="group mt-2.5"
+      onToggle={(e) => e.currentTarget.open && track("Quote steps opened")}
+    >
+      <summary className="cursor-pointer list-none text-xs font-medium text-accent hover:underline">
+        <span className="group-open:hidden">How getting quotes works</span>
+        <span className="hidden group-open:inline">Hide how getting quotes works</span>
+      </summary>
+      {steps}
+    </details>
   );
 
   const locked = lockedId ? (lease.quotes.find((q) => q.id === lockedId) ?? null) : null;
@@ -296,7 +345,10 @@ export default function QuotesCard({
   };
 
   return (
-    <section className="mb-6 rounded-xl border border-line bg-panel px-4 py-3.5 shadow-[var(--shadow-card)] sm:px-5">
+    <section
+      ref={cardRef}
+      className="mb-6 rounded-xl border border-line bg-panel px-4 py-3.5 shadow-[var(--shadow-card)] sm:px-5"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <h2 className="text-base font-semibold text-ink">
           Analyse quotes/estimates from leasing providers
@@ -348,28 +400,16 @@ export default function QuotesCard({
         </p>
       )}
 
-      {lease.quotes.length > 0 && (
-        <details className="group mt-2">
-          <summary className="cursor-pointer list-none text-xs font-medium text-accent hover:underline">
-            <span className="group-open:hidden">How getting quotes works</span>
-            <span className="hidden group-open:inline">Hide how getting quotes works</span>
-          </summary>
-          {steps}
-          <button
-            type="button"
-            onClick={() => setShowingSample(true)}
-            className="mt-2.5 rounded border border-line bg-panel-2 px-3 py-1.5 text-xs font-medium text-ink transition hover:border-accent hover:text-accent"
-          >
-            See what a quote looks like
-          </button>
-        </details>
-      )}
+      {lease.quotes.length > 0 && stepsDisclosure}
 
       {lease.quotes.length === 0 ? (
+        /* Compact, and deliberately so. This card sits above the first number
+           the page produces, and five numbered steps there read as preamble —
+           which is the thing people scroll past fastest. The steps have not
+           gone anywhere; they are one click below, where somebody who wants
+           them will look. */
         <div className="mt-3 rounded-lg border border-line bg-panel-2 px-4 py-3.5">
-          <h3 className="text-sm font-semibold text-ink">How getting quotes works</h3>
-          {steps}
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <button
               type="button"
               onClick={addQuote}
@@ -377,11 +417,14 @@ export default function QuotesCard({
             >
               + Add a quote
             </button>
-            {/* The obvious next question from step 3, answered before they
-                have to go and get a quote to find out. */}
+            {/* The obvious next question, answered before they have to go and
+                get a quote to find out. */}
             <button
               type="button"
-              onClick={() => setShowingSample(true)}
+              onClick={() => {
+                setShowingSample(true);
+                track("Sample quote opened", { from: "quotes-card" });
+              }}
               className="rounded border border-line bg-panel px-3.5 py-2 text-sm font-medium text-ink transition hover:border-accent hover:text-accent"
             >
               See what one looks like
@@ -390,6 +433,7 @@ export default function QuotesCard({
               Got one in front of you? Adding it takes a couple of minutes.
             </span>
           </div>
+          {stepsDisclosure}
         </div>
       ) : locked ? (
         <>

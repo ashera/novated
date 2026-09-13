@@ -1,11 +1,14 @@
 import Link from "next/link";
 
-// Sitewide footer navigation. Every link here is public and indexable — the
-// per-user surfaces (report, account, admin) live in the top bar's account
-// menu, and the decoder is reached from the calculator rather than listed as
-// a destination of its own.
+// Sitewide footer navigation. The per-user surfaces (report, account, admin)
+// live in the top bar's account menu.
+//
+// The decoder is listed here as well as in the top bar. It was previously in
+// neither, reachable only from a card on the calculator — which meant the
+// feature that most distinguishes this site depended on one link on one page.
 const LINKS = [
   { href: "/", label: "Your leases" },
+  { href: "/decode", label: "Decode a quote" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/faq", label: "FAQ" },
   { href: "/about", label: "About & sources" },

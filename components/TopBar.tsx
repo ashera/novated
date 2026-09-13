@@ -13,10 +13,15 @@ export interface TopBarUser {
   isAdmin: boolean;
 }
 
-// The decoder is deliberately absent: it is opened from the calculator, which
-// is the site's single entry point, not jumped to from anywhere in the shell.
+// The decoder used to be absent from here on the grounds that it is opened
+// from the calculator, which was the site's one entry point. That stopped
+// being true: the content pages are the ones search engines land people on,
+// and somebody arriving on the FAQ with a provider's quote in their hand had
+// no route to the tool that reads it. One door on one page is a single point
+// of failure for the feature nobody else has.
 const NAV = [
   { href: "/", label: "Your leases" },
+  { href: "/decode", label: "Decode a quote" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/faq", label: "FAQ" },
   { href: "/about", label: "About" },

@@ -10,6 +10,7 @@ import { compareQuotes } from "@/lib/au/quote";
 import type { EngineConfig } from "@/lib/au/config";
 import { useLease } from "./useLease";
 import { leaseToQuote, newQuoteSpec, quoteLabel } from "@/lib/au/lease";
+import { track } from "@/lib/analytics";
 
 /** A row of the comparison table. `best` marks the winning column, where one
  *  can honestly be named. */
@@ -46,6 +47,7 @@ export default function QuoteComparison({
   /** Same as the quotes card: a new quote, then straight to typing it in.
    *  Linking to a bare /decode opened the FIRST existing quote instead. */
   const addQuote = () => {
+    track("Add a quote", { from: "comparison", existing: lease.quotes.length });
     // Deliberately unnamed: a pre-filled "Quote 3" looks like an answer,
     // so it got left alone and every quote in the list was called Quote N.
     const spec = newQuoteSpec("", lease.scenario.termYears * 12);
