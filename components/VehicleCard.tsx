@@ -624,6 +624,13 @@ export default function VehicleCard(p: VehicleCardProps) {
             />
           </div>
 
+          {/* The four blocks below are chip rows and a date — none of them
+              fills a column on a wide screen, so stacked they left half the
+              card empty and pushed everything after it down. Paired up they
+              read as what they are: two facts about the car, then two about
+              the arrangement. Still one per row on a phone. */}
+          <div className="grid items-start gap-x-6 gap-y-4 lg:grid-cols-2">
+
           <div>
             <span className="text-sm font-medium text-ink">
               Fuel type
@@ -648,7 +655,12 @@ export default function VehicleCard(p: VehicleCardProps) {
               New is the default and needs nothing else; the follow-ups only
               appear once someone says otherwise. */}
           {p.onCarHistory && (
-            <div>
+            /* Once it expands it is no longer a chip row, and holding it in
+               half the width both squeezes its three fields into a stack and
+               stretches the cell beside it to match. Full width, laid across,
+               and the gap it leaves next to Fuel type is one row rather than
+               the height of the whole panel. */
+            <div className={preOwned ? "lg:col-span-2" : undefined}>
               <span className="text-sm font-medium text-ink">Condition</span>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {CONDITIONS.map((c) => (
@@ -670,8 +682,8 @@ export default function VehicleCard(p: VehicleCardProps) {
               )}
 
               {preOwned && (
-                <div className="mt-3 space-y-3 rounded-lg border border-line bg-panel-2 p-3">
-                  <label className="block max-w-xs">
+                <div className="mt-3 grid items-start gap-x-5 gap-y-3 rounded-lg border border-line bg-panel-2 p-3 sm:grid-cols-3">
+                  <label className="block">
                     <span className="text-sm font-medium text-ink">First registered</span>
                     <input
                       type="date"
@@ -743,7 +755,7 @@ export default function VehicleCard(p: VehicleCardProps) {
           )}
 
           {p.onFirstHeldDate && (
-            <label className="block max-w-xs">
+            <label className="block">
               <span className="text-sm font-medium text-ink">Expected delivery</span>
               <input
                 type="date"
@@ -758,6 +770,8 @@ export default function VehicleCard(p: VehicleCardProps) {
               </span>
             </label>
           )}
+
+          </div>
         </div>
         )}
       </div>
