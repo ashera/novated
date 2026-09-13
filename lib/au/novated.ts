@@ -275,8 +275,14 @@ export interface PackageBreakdown {
 }
 
 export interface OwnershipComparison {
-  /** Buying the same car with a car loan, from take-home pay. */
-  loan: { annualRepayment: number; totalRepaid: number; totalCost: number };
+  /**
+   * Buying the same car with a car loan, from take-home pay.
+   *
+   * `ratePct` is the rate actually used, carried on the result so the pages
+   * that name it read it rather than re-deriving it. Three of them used to
+   * hold their own copy of the formula.
+   */
+  loan: { ratePct: number; annualRepayment: number; totalRepaid: number; totalCost: number };
   /**
    * Buying it outright with cash.
    *
@@ -1189,7 +1195,26 @@ export function compareOwnership(
   const priceInclGst = finance.priceInclGst;
   const runningInclGst = running.total * (1 + config.gst.rate);
 
-  const loanRate = inputs.comparisonLoanRatePct ?? inputs.interestRatePct + 1.5;
+  /*
+   * The same rate the decoder benchmarks quotes against.
+   *
+   * This used to be the lease's own rate plus 1.5, on the reasoning that a
+   * personal loan prices above a novated lease. It biased every comparison
+   * towards the lease and did it worst exactly where it mattered most: the
+   * loan was pinned above the lease rate, so a terrible quote made the loan
+   * look equally terrible and the lease kept its advantage. The one finding a
+   * reader most needs — this rate is bad enough that a bank loan beats it —
+   * could not appear at any rate.
+   *
+   * It also contradicted the decoder, which measures the same quote against
+   * benchmarks.loanRatePct and says so in words. Two pages, two different
+   * ideas of what a car loan costs.
+   *
+   * No risk premium replaces it. A secured car loan is secured on this same
+   * car, and the gap between a lease rate and a loan rate is mostly the
+   * provider's margin rather than the borrower's credit.
+   */
+  const loanRate = inputs.comparisonLoanRatePct ?? config.benchmarks.loanRatePct;
   // Same balloon as the lease residual, so the two are compared like for like:
   // both leave the buyer holding the car with the same amount still owing.
   const monthly = annuityPayment(priceInclGst, finance.residual, loanRate, years * 12);
@@ -1212,7 +1237,7 @@ export function compareOwnership(
   const leaseTotal = leaseNetAnnualCost * years + residualSettled;
 
   return {
-    loan: { annualRepayment: monthly * 12, totalRepaid, totalCost: loanTotal },
+    loan: { ratePct: loanRate, annualRepayment: monthly * 12, totalRepaid, totalCost: loanTotal },
     cash: { upfront: priceInclGst, foregone, totalCost: cashTotal },
     lease: { totalCost: leaseTotal },
     residualSettled,

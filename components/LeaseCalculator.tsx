@@ -492,6 +492,8 @@ export default function LeaseCalculator({
               config={config}
               opportunityRatePct={lease.scenario.opportunityRatePct}
               onOpportunityRate={readOnly ? undefined : (v) => set("opportunityRatePct", v)}
+              loanRatePct={lease.scenario.comparisonLoanRatePct}
+              onLoanRate={readOnly ? undefined : (v) => set("comparisonLoanRatePct", v)}
             />
 
             {/* Between the payslip and the exit card, because it belongs with

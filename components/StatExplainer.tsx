@@ -44,7 +44,6 @@ export default function StatExplainer({
   const cycles = PAY_CYCLES_PER_YEAR[cycle];
   const noun = cycle === "weekly" ? "week" : cycle === "monthly" ? "month" : "fortnight";
   const gstPct = (config.gst.rate * 100).toFixed(0);
-  const loanRate = inputs.comparisonLoanRatePct ?? inputs.interestRatePct + 1.5;
   const years = term.years;
 
   return (
@@ -127,7 +126,7 @@ export default function StatExplainer({
           </p>
           <div>
             <InlineExplainer
-              label={`Car loan at ${loanRate.toFixed(2)}%`}
+              label={`Car loan at ${comparison.loan.ratePct.toFixed(2)}%`}
               value={fmtCurrency(comparison.loan.totalCost)}
             >
               {fmtCurrency(comparison.loan.totalRepaid)} of repayments on the full{" "}
@@ -136,8 +135,11 @@ export default function StatExplainer({
               year of running costs with GST on them, paid from take-home pay.
               <br />
               <br />
-              The rate defaults to {inputs.interestRatePct.toFixed(2)}% + 1.5, on the basis that
-              a personal car loan usually prices above a novated lease. You can set it yourself.
+              The rate defaults to {config.benchmarks.loanRatePct.toFixed(2)}% — a comparable
+              secured car loan, the same benchmark a quote&apos;s finance rate is judged against.
+              It deliberately doesn&apos;t track the lease rate: if it did, a poor lease rate
+              would drag the loan up with it and this comparison could never tell you a bank beat
+              your quote. Put your own loan quote in below and it uses that instead.
             </InlineExplainer>
             <InlineExplainer label="This lease" value={fmtCurrency(comparison.lease.totalCost)}>
               What the lease costs after the tax relief is counted, over {years} years.

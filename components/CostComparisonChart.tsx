@@ -27,6 +27,8 @@ export default function CostComparisonChart({
   config,
   opportunityRatePct,
   onOpportunityRate,
+  loanRatePct,
+  onLoanRate,
 }: {
   result: LeaseResult;
   /** Passed through to the paydown chart, which needs the depreciation
@@ -36,6 +38,11 @@ export default function CostComparisonChart({
    *  comparison without offering to change the assumption. */
   opportunityRatePct?: number;
   onOpportunityRate?: (v: number | undefined) => void;
+  /** The rate the loan column is costed at. Omit the setter to show the
+   *  comparison without offering to change it — the printed report has no
+   *  controls. */
+  loanRatePct?: number;
+  onLoanRate?: (v: number | undefined) => void;
 }) {
   const c = result.comparison;
   const years = result.inputs.termYears;
@@ -139,6 +146,30 @@ export default function CostComparisonChart({
           buried in a settings column. Zero is a real answer: somebody whose
           alternative is a transaction account earning nothing really is
           giving nothing up. */}
+      {onLoanRate && (
+        <label className="mt-3 flex flex-wrap items-baseline gap-2 text-xs text-muted">
+          <span>Costing the loan column at</span>
+          <span className="inline-flex items-baseline gap-1 rounded-md border border-line bg-panel-2 px-2 py-1 focus-within:border-accent">
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="30"
+              value={loanRatePct ?? config.benchmarks.loanRatePct}
+              onChange={(e) => {
+                const n = parseFloat(e.target.value);
+                onLoanRate(Number.isNaN(n) ? undefined : Math.max(0, n));
+              }}
+              className="w-14 bg-transparent text-right text-xs font-semibold tabular-nums text-ink outline-none"
+            />
+            <span>%</span>
+          </span>
+          <span>
+            a year — a comparable secured car loan. Been quoted one? Use that figure instead.
+          </span>
+        </label>
+      )}
+
       {onOpportunityRate && (
         <label className="mt-3 flex flex-wrap items-baseline gap-2 text-xs text-muted">
           <span>If you kept the cash instead, it would earn</span>

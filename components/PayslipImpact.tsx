@@ -157,7 +157,6 @@ export default function PayslipImpact({
   // year is explaining a different number than the one clicked on.
   const preTaxRow = per(pkg.preTaxAnnual);
   const postTaxCycle = per(pkg.postTaxAnnual);
-  const loanRate = inputs.comparisonLoanRatePct ?? inputs.interestRatePct + 1.5;
 
   const hasHelp = payslip.before.help > 0 || payslip.after.help > 0;
   const helpRose = payslip.after.help > payslip.before.help + 0.5;
@@ -359,7 +358,7 @@ export default function PayslipImpact({
             same car yourself, out of what&apos;s left after tax.
           </p>
           <dl className="mt-2.5 space-y-1 text-sm">
-            <Line label={`Car loan at ${loanRate.toFixed(2)}%`} value={alt.loan} />
+            <Line label={`Car loan at ${comparison.loan.ratePct.toFixed(2)}%`} value={alt.loan} />
             {alt.running > 0 && <Line label="Running costs, with GST" value={alt.running} />}
             <Line label={`From your take-home pay`} value={altTotal} strong rule />
           </dl>

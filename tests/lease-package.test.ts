@@ -333,10 +333,70 @@ describe("What the stat explainers promise", () => {
     );
   });
 
-  it("versus a loan: defaults the loan rate to the lease rate plus 1.5", () => {
+  it("versus a loan: defaults the loan rate to the car loan benchmark", () => {
     const r = run({ interestRatePct: 7 });
-    const explicit = run({ interestRatePct: 7, comparisonLoanRatePct: 8.5 });
+    const explicit = run({ interestRatePct: 7, comparisonLoanRatePct: config.benchmarks.loanRatePct });
+    expect(r.comparison.loan.ratePct).toBe(config.benchmarks.loanRatePct);
     expect(r.comparison.loan.totalRepaid).toBeCloseTo(explicit.comparison.loan.totalRepaid, 6);
+  });
+
+  it("versus a loan: an explicit rate is used as given", () => {
+    const r = run({ comparisonLoanRatePct: 11 });
+    expect(r.comparison.loan.ratePct).toBe(11);
+  });
+
+  /**
+   * The comparison must be able to say the lease lost.
+   *
+   * The loan rate used to be the lease's own rate plus 1.5, so a terrible
+   * quote dragged the loan up with it and the lease kept its advantage no
+   * matter how bad it got. The one finding a reader most needs — this rate is
+   * bad enough that a bank beats it — could not appear at any rate, on a site
+   * whose whole claim is that it has no stake in the answer.
+   */
+  it("versus a loan: the loan rate does not follow the lease rate", () => {
+    const cheap = run({ interestRatePct: 5 });
+    const dear = run({ interestRatePct: 15 });
+    expect(cheap.comparison.loan.ratePct).toBe(dear.comparison.loan.ratePct);
+    expect(cheap.comparison.loan.totalCost).toBeCloseTo(dear.comparison.loan.totalCost, 6);
+  });
+
+  it("versus a loan: a bad enough lease rate loses to the loan", () => {
+    // At some rate the lease must stop winning. If it never does, whatever
+    // the inputs, the comparison is decorative.
+    expect(run({ fuelType: "petrol", interestRatePct: 20 }).comparison.savingVsLoan).toBeLessThan(0);
+    expect(run({ interestRatePct: 30 }).comparison.savingVsLoan).toBeLessThan(0);
+  });
+
+  /**
+   * How much a bad rate an exemption buys you.
+   *
+   * The default car is an FBT-exempt EV and survives a much worse finance
+   * rate than a petrol car does before a loan overtakes it — the exemption is
+   * simply worth more than the interest. Worth pinning, because it is the
+   * honest shape of the trade: an exemption is not a licence to accept any
+   * rate, it just moves the point where accepting one stops paying.
+   */
+  it("versus a loan: an exempt car tolerates a worse rate than a packaged petrol one", () => {
+    const at = (o: Partial<LeaseInputs>) => run({ interestRatePct: 20, ...o }).comparison.savingVsLoan;
+    expect(at({})).toBeGreaterThan(0); // exempt EV still ahead at 20%
+    expect(at({ fuelType: "petrol" })).toBeLessThan(0); // petrol already behind
+  });
+
+  it("versus a loan: a worse lease rate never widens the lease's lead", () => {
+    let previous = Infinity;
+    for (const interestRatePct of [4, 6, 8, 10, 12, 14, 16]) {
+      const saving = run({ interestRatePct }).comparison.savingVsLoan;
+      expect(saving).toBeLessThan(previous);
+      previous = saving;
+    }
+  });
+
+  // The decoder tells people a comparable secured car loan costs
+  // benchmarks.loanRatePct and names the figure. Costing this column at
+  // anything else makes the two pages disagree about the same loan.
+  it("versus a loan: uses the same benchmark the decoder quotes", () => {
+    expect(run().comparison.loan.ratePct).toBe(config.benchmarks.loanRatePct);
   });
 
   it("residual: is the stated percentage of the amount financed", () => {

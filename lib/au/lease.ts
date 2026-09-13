@@ -103,6 +103,10 @@ export interface ScenarioSpec {
   runningCostOverrides?: Partial<AnnualRunningCosts>;
   adminFeeAnnual?: number;
   establishmentFee?: number;
+  /** What the "car loan" column is costed at. Defaults to the same secured
+   *  car loan benchmark the decoder judges a quote's finance rate against —
+   *  deliberately NOT the lease's own rate, which would let a poor quote drag
+   *  its own comparison up with it. */
   comparisonLoanRatePct?: number;
   /** What the cash would earn if it weren't spent on the car. Only the
    *  "paid in cash" column uses it. */
