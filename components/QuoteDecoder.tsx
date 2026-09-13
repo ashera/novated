@@ -248,7 +248,11 @@ export default function QuoteDecoder({
         {/* The way back. This page is only ever reached from Your leases, so it
             needs a visible return — the browser's back button is not an
             interface. */}
-        <div className="mb-6 flex items-start justify-between gap-4">
+        {/* Stacked on a phone. Side by side, the back link is shrink-0 and
+            whitespace-nowrap — so it keeps its full width and the paragraph
+            takes what's left, which at 390px is two thirds of the column and
+            six lines of wrapping. */}
+        <div className="mb-6 flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4">
           <div className="max-w-3xl">
             <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
               Decode your novated lease quote
@@ -272,7 +276,7 @@ export default function QuoteDecoder({
           </div>
           <Link
             href="/"
-            className="mt-1 shrink-0 whitespace-nowrap rounded-md border border-line bg-panel px-3 py-1.5 text-sm font-medium text-ink shadow-[var(--shadow-card)] transition hover:border-accent hover:text-accent"
+            className="shrink-0 whitespace-nowrap rounded-md border border-line bg-panel px-3 py-1.5 text-sm font-medium text-ink shadow-[var(--shadow-card)] transition hover:border-accent hover:text-accent sm:mt-1"
           >
             ← Your leases
           </Link>

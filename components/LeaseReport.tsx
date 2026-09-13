@@ -81,7 +81,10 @@ export default function LeaseReport({
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-8 print:px-0 print:py-0">
-      <div className="mb-6 flex items-start justify-between gap-4 border-b border-line pb-5">
+      {/* Stacked on a phone, same as the decoder's header: side by side, the
+          heading gets two thirds of a 390px column and the back link wraps
+          across three lines. It is print:hidden, so paper is unaffected. */}
+      <div className="mb-6 flex flex-col items-start gap-3 border-b border-line pb-5 sm:flex-row sm:justify-between sm:gap-4">
         <div>
           <Logo />
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">{scenarioName}</h1>
@@ -93,7 +96,7 @@ export default function LeaseReport({
         </div>
         <Link
           href="/"
-          className="rounded border border-line bg-panel px-3 py-1.5 text-sm font-medium text-ink transition hover:bg-panel-2 print:hidden"
+          className="shrink-0 whitespace-nowrap rounded border border-line bg-panel px-3 py-1.5 text-sm font-medium text-ink transition hover:bg-panel-2 print:hidden"
         >
           Back to your leases
         </Link>
