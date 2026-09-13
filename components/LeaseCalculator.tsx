@@ -469,7 +469,7 @@ export default function LeaseCalculator({
             </section>
 
             <PayPacketSplit result={result} />
-            <CostComparisonChart result={result} />
+            <CostComparisonChart result={result} config={config} />
 
             {/* Breakdown */}
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">

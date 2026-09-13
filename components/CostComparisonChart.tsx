@@ -14,6 +14,7 @@ import {
 import { fmtCompact, fmtCurrency } from "@/lib/au/format";
 import type { LeaseResult } from "@/lib/au/novated";
 import PaydownChart from "./PaydownChart";
+import type { EngineConfig } from "@/lib/au/config";
 
 /**
  * Total cost over the lease term, three ways. Each column funds the SAME car
@@ -21,7 +22,15 @@ import PaydownChart from "./PaydownChart";
  * only thing that differs is how it is paid for — which is the comparison a
  * novated lease actually needs to win or lose on.
  */
-export default function CostComparisonChart({ result }: { result: LeaseResult }) {
+export default function CostComparisonChart({
+  result,
+  config,
+}: {
+  result: LeaseResult;
+  /** Passed through to the paydown chart, which needs the depreciation
+   *  curves to draw what the car is likely to be worth. */
+  config: EngineConfig;
+}) {
   const c = result.comparison;
   const years = result.inputs.termYears;
 
@@ -114,7 +123,7 @@ export default function CostComparisonChart({ result }: { result: LeaseResult })
       {/* Which is what the second chart is about: where that residual comes
           from, and why the debt does not simply run down to nothing. */}
       <div className="mt-5 border-t border-line pt-4">
-        <PaydownChart result={result} />
+        <PaydownChart result={result} config={config} />
       </div>
     </section>
   );

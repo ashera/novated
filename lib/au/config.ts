@@ -162,6 +162,33 @@ export interface LctConfig {
   thresholdFuelEfficientByYear: Record<string, number>;
 }
 
+/**
+ * How fast a car loses its value.
+ *
+ * The only forecast in this file. Everything else is a published rule; this is
+ * an observation of a market, and the spread between models dwarfs the class
+ * average — after two years an average Australian EV retained 68.7% of its
+ * price, but a Model 3 retained 54% and a BYD Seal 78%. Hence `spread`: no
+ * figure derived from these is shown without a band around it.
+ *
+ * Hybrids are the least certain of the three. Published 2026 figures put their
+ * first-year loss near 2%, which reflects a supply squeeze rather than
+ * anything durable, so the value here is deliberately more pessimistic than
+ * the source and should be revisited rather than trusted.
+ */
+export interface DepreciationConfig {
+  /** Lost in the first year, as a fraction of the car's price. */
+  firstYearPct: Record<"electric" | "hybrid" | "other", number>;
+  /** Declining-balance rate for each year after the first. */
+  annualPct: Record<"electric" | "hybrid" | "other", number>;
+  /** How far either side of the curve one model plausibly lands, per year. */
+  spread: number;
+  /** The band stops widening here, or five years out it says nothing. */
+  maxSpread: number;
+  /** A car is never worth less than this fraction of what it cost. */
+  floorPct: number;
+}
+
 export const AU_STATES = ["NSW", "VIC", "QLD", "SA", "WA", "TAS", "NT", "ACT"] as const;
 export type AuState = (typeof AU_STATES)[number];
 
@@ -204,6 +231,7 @@ export interface RunningCostConfig {
 
 export interface EngineConfig {
   financialYear: string;
+  depreciation: DepreciationConfig;
   tax: TaxConfig;
   fbt: FbtConfig;
   gst: GstConfig;
@@ -265,6 +293,19 @@ export const DEFAULT_CONFIG: EngineConfig = {
         { from: "2029-04-01", fullExemptUpTo: 0, discountedStatutoryRate: 0.15 },
       ],
     },
+  },
+
+  // ESTIMATES, and labelled as such wherever they surface. Sourced from
+  // published Australian resale data (2026): EVs lose about 25% in the first
+  // year against roughly 15% for petrol, and retain about 60% after three.
+  // The spread between models is wider than the difference between these
+  // classes, which is why nothing shows one of these numbers alone.
+  depreciation: {
+    firstYearPct: { electric: 0.25, hybrid: 0.1, other: 0.15 },
+    annualPct: { electric: 0.105, hybrid: 0.09, other: 0.13 },
+    spread: 0.09,
+    maxSpread: 0.3,
+    floorPct: 0.08,
   },
 
   gst: { rate: 0.1, carLimit: 69_674 },
@@ -382,6 +423,9 @@ export function withDefaults(data: EngineConfig): EngineConfig {
         },
       },
     };
+  }
+  if (out.depreciation == null) {
+    out = { ...out, depreciation: DEFAULT_CONFIG.depreciation };
   }
   if (out.lct.thresholdFuelEfficientByYear == null) {
     out = {

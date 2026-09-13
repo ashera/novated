@@ -150,6 +150,66 @@ function evPhaseDescriptors(): ParamDescriptor[] {
   return rows;
 }
 
+/**
+ * The depreciation curves.
+ *
+ * Exposed for editing more urgently than anything else on this list. These are
+ * the only numbers in the reference data that are a forecast rather than a
+ * rule, they move with the market rather than with a Budget, and the EV figure
+ * in particular has been moving fast in both directions.
+ */
+function depreciationDescriptors(): ParamDescriptor[] {
+  const rows: ParamDescriptor[] = [];
+  const label: Record<string, string> = {
+    electric: "Electric",
+    hybrid: "Hybrid",
+    other: "Petrol & diesel",
+  };
+  for (const cls of ["electric", "hybrid", "other"] as const) {
+    rows.push({
+      key: `depreciation_first_year_${cls}`,
+      label: `${label[cls]} — lost in the first year`,
+      category: "Resale & depreciation",
+      path: `depreciation.firstYearPct.${cls}`,
+      unit: "percent",
+      sourceKey: "au-depreciation",
+    });
+    rows.push({
+      key: `depreciation_annual_${cls}`,
+      label: `${label[cls]} — lost each year after`,
+      category: "Resale & depreciation",
+      path: `depreciation.annualPct.${cls}`,
+      unit: "percent",
+      sourceKey: "au-depreciation",
+    });
+  }
+  rows.push({
+    key: "depreciation_spread",
+    label: "Spread between models, per year",
+    category: "Resale & depreciation",
+    path: "depreciation.spread",
+    unit: "percent",
+    sourceKey: "au-depreciation",
+  });
+  rows.push({
+    key: "depreciation_max_spread",
+    label: "Widest the spread gets",
+    category: "Resale & depreciation",
+    path: "depreciation.maxSpread",
+    unit: "percent",
+    sourceKey: "au-depreciation",
+  });
+  rows.push({
+    key: "depreciation_floor",
+    label: "Floor — never worth less than",
+    category: "Resale & depreciation",
+    path: "depreciation.floorPct",
+    unit: "percent",
+    sourceKey: "au-depreciation",
+  });
+  return rows;
+}
+
 export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   ...taxBracketDescriptors(),
 
@@ -184,6 +244,8 @@ export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   ...historicLctDescriptors(),
 
   ...residualDescriptors(),
+
+  ...depreciationDescriptors(),
 
   // Lease conventions
   { key: "lease_default_term", label: "Default lease term", category: "Lease terms", path: "lease.defaultTermYears", unit: "count", sourceKey: "market-lease-terms" },
@@ -233,6 +295,7 @@ export const PARAM_CATEGORIES: string[] = [
   "Fringe benefits tax",
   "GST & luxury car tax",
   "Lease terms",
+  "Resale & depreciation",
   "Running costs",
   "Quote benchmarks",
 ];

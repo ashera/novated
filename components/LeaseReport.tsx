@@ -156,7 +156,7 @@ export default function LeaseReport({
       </Section>
 
       <Section title="How the finance is paid down">
-        <PaydownChart result={r} />
+        <PaydownChart result={r} config={config} />
         <table className="mt-5 w-full text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">

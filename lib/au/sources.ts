@@ -78,6 +78,16 @@ export const SOURCE_SEEDS: SourceSeed[] = [
       "Eligibility for the FBT exemption on zero and low-emissions vehicles, including the end of plug-in hybrid eligibility on 1 April 2025.",
   },
   {
+    key: "au-depreciation",
+    name: "Australian vehicle resale and depreciation data",
+    organisation: "Published market data (Redbook, Datium, industry reporting)",
+    url: "https://www.budgetdirect.com.au/car-insurance/guides/car-buying/car-depreciation.html",
+    updateFrequency: "Continuously — a market, not a rule",
+    reviewIntervalDays: 180,
+    description:
+      "How fast a car loses value, by fuel type. The softest numbers in the reference data and the only ones that are a forecast rather than a published rule: the spread between individual models is wider than the difference between the classes, so every figure derived from these is shown as a range.",
+  },
+  {
     key: "ato-lct",
     name: "Luxury car tax rate and thresholds",
     organisation: "Australian Taxation Office",
