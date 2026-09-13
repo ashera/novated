@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/", label: "Your leases" },
   { href: "/decode", label: "Decode a quote" },
   { href: "/how-it-works", label: "How it works" },
+  { href: "/choose-your-provider", label: "Choosing a provider" },
   { href: "/glossary", label: "Glossary" },
   { href: "/faq", label: "FAQ" },
   { href: "/about", label: "About & sources" },

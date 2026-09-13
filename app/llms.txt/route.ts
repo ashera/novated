@@ -17,6 +17,7 @@ ${SITE_NAME} (${SITE_URL}) is a free, browser-based tool that explains how Austr
 - [Lease calculator](${SITE_URL}/): enter your salary and the car, see the pre-tax/post-tax split and the total cost.
 - [How it works](${SITE_URL}/how-it-works): the mechanism, step by step — novation, salary sacrifice, FBT, the residual.
 - [FAQ](${SITE_URL}/faq): plain-English answers to the common questions.
+- [Choosing a provider](${SITE_URL}/choose-your-provider): whether you can use a novated lease provider your employer hasn't signed with — who decides, what is typical by employer type, and what to ask payroll.
 - [Glossary](${SITE_URL}/glossary): every term that appears on a novated lease quote, defined — including the other names different providers print for the same line.
 - [About](${SITE_URL}/about): methodology, data sources and assumptions.
 

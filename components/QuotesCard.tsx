@@ -62,11 +62,13 @@ const STATUS_STYLE: Record<QuoteStatus, { label: string; className: string }> = 
  * quote looks like a price and is really a bundle; and the fourth is the
  * reason this card exists at all.
  */
-const STEPS: { title: string; body: string }[] = [
+const STEPS: { title: string; body: string; href?: string; linkLabel?: string }[] = [
   {
     title: "Check what your employer allows.",
     body:
       "The payments come out of payroll, so your employer has to agree to the arrangement. Most have a provider they already work with, and some let you bring your own — worth asking, because it is the difference between one quote and several.",
+    href: "/choose-your-provider",
+    linkLabel: "Work out whether you can",
   },
   {
     title: "Ask for a quote on a specific car.",
@@ -181,6 +183,18 @@ export default function QuotesCard({
           </span>
           <span>
             <strong className="font-semibold text-ink">{step.title}</strong> {step.body}
+            {step.href && (
+              <>
+                {" "}
+                <Link
+                  href={step.href}
+                  className="font-semibold text-accent hover:underline"
+                  onClick={() => track("BYO checker opened", { from: "quotes-card" })}
+                >
+                  {step.linkLabel} →
+                </Link>
+              </>
+            )}
           </span>
         </li>
       ))}
