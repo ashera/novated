@@ -275,6 +275,15 @@ export default function QuoteDecoder({
                 </>
               )}
             </p>
+            {/* Every field below names the other things providers call it, but
+                that only helps once you know what the thing IS. */}
+            <p className="mt-1.5 text-xs text-muted">
+              Stuck on a word on their quote?{" "}
+              <Link href="/glossary" className="font-semibold text-accent hover:underline">
+                Look it up in the glossary
+              </Link>
+              .
+            </p>
           </div>
           <Link
             href="/"

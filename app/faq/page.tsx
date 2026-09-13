@@ -48,7 +48,11 @@ export default function FaqPage() {
           <Link href="/" className="font-medium text-accent hover:underline">
             Bring it to the calculator →
           </Link>{" "}
-          — we&apos;ll find the interest rate it doesn&apos;t print.
+          — we&apos;ll find the interest rate it doesn&apos;t print. Stuck on a word rather than a
+          question?{" "}
+          <Link href="/glossary" className="font-medium text-accent hover:underline">
+            The glossary defines every term on a quote →
+          </Link>
         </p>
       </header>
 
