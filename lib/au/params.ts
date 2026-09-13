@@ -240,6 +240,10 @@ export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   { key: "super_max_base", label: "Maximum contribution base", category: "Superannuation", path: "super.maxContributionBase", unit: "aud", sourceKey: "ato-super-guarantee" },
 
   { key: "gst_rate", label: "GST rate", category: "GST & luxury car tax", path: "gst.rate", unit: "percent", sourceKey: "ato-gst-cars" },
+  { key: "fbt_cap_hospital", label: "FBT cap — hospitals and ambulance (grossed up)", category: "Fringe benefits tax", path: "fbt.cappedEmployers.grossedUpCap.hospital", unit: "aud", sourceKey: "ato-fbt-caps" },
+  { key: "fbt_cap_pbi", label: "FBT cap — PBIs and health promotion charities (grossed up)", category: "Fringe benefits tax", path: "fbt.cappedEmployers.grossedUpCap.pbi", unit: "aud", sourceKey: "ato-fbt-caps" },
+  { key: "fbt_cap_rebatable", label: "FBT cap — rebatable employers (grossed up)", category: "Fringe benefits tax", path: "fbt.cappedEmployers.grossedUpCap.rebatable", unit: "aud", sourceKey: "ato-fbt-caps" },
+  { key: "fbt_rebate_rate", label: "Rebatable employer FBT rebate", category: "Fringe benefits tax", path: "fbt.cappedEmployers.rebateRate", unit: "percent", sourceKey: "ato-fbt-caps" },
   { key: "gst_car_limit", label: "Car limit (GST credit + depreciation cap)", category: "GST & luxury car tax", path: "gst.carLimit", unit: "aud", sourceKey: "ato-gst-cars" },
   { key: "lct_rate", label: "Luxury car tax rate", category: "GST & luxury car tax", path: "lct.rate", unit: "percent", sourceKey: "ato-lct" },
   { key: "lct_threshold_fe", label: "LCT threshold — fuel-efficient vehicles", category: "GST & luxury car tax", path: "lct.thresholdFuelEfficient", unit: "aud", sourceKey: "ato-lct" },

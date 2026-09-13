@@ -21,10 +21,14 @@ import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import {
   calculateLease,
+  capFor,
+  capSpendable,
   effectivePayCycle,
+  isCappedEmployer,
   PAY_CYCLES_PER_YEAR,
   PAY_CYCLE_LABEL,
   PAY_CYCLE_NOUN,
+  type EmployerFbtStatus,
   type PayCycle,
 } from "@/lib/au/novated";
 import type { EngineConfig } from "@/lib/au/config";
@@ -392,6 +396,59 @@ export default function LeaseCalculator({
                     </span>
                   </span>
                 </label>
+
+                {/* Who you work for changes the answer rather than refining it:
+                    inside a cap there is no FBT to cancel, so the post-tax
+                    contribution this site would otherwise tell you to make is
+                    money for nothing. Asked, not assumed — most people who
+                    have a cap have already spent it on rent or a mortgage. */}
+                <div>
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
+                    Who you work for
+                    <InfoTip text="Public hospitals, ambulance services, public benevolent institutions and health promotion charities pay no FBT up to an annual cap. Inside it there is nothing to cancel, so no post-tax contribution is needed." />
+                  </span>
+                  <select
+                    value={inputs.employerFbtStatus ?? "ordinary"}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      set("employerFbtStatus", e.target.value as EmployerFbtStatus)
+                    }
+                    className="mt-2 w-full min-w-0 rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
+                  >
+                    <option value="ordinary">An ordinary employer</option>
+                    <option value="hospital">Hospital, health service or ambulance</option>
+                    <option value="pbi">Charity or benevolent institution</option>
+                    <option value="rebatable">Other non-profit (FBT-rebatable)</option>
+                  </select>
+
+                  {isCappedEmployer(inputs.employerFbtStatus) && (
+                    <label className="mt-3 block">
+                      <span className="text-sm font-medium text-ink">
+                        Already packaged each year
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted">
+                        Rent, mortgage or everyday living expenses through your packaging
+                        provider. Your cap is{" "}
+                        {fmtCurrency(
+                          capSpendable(capFor(inputs.employerFbtStatus ?? "ordinary", config), config),
+                        )}{" "}
+                        a year — whatever is left of it can absorb the car instead.
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="500"
+                        value={inputs.capUsedSpendable ?? 0}
+                        disabled={readOnly}
+                        onChange={(e) => {
+                          const n = parseFloat(e.target.value);
+                          set("capUsedSpendable", Number.isNaN(n) ? undefined : Math.max(0, n));
+                        }}
+                        className="mt-2 w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm tabular-nums text-ink focus:border-accent focus:outline-none disabled:opacity-60"
+                      />
+                    </label>
+                  )}
+                </div>
 
                 {!fbt.exempt && (
                   <div>

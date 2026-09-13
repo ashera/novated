@@ -68,6 +68,16 @@ export const SOURCE_SEEDS: SourceSeed[] = [
       "The flat 20% statutory percentage, base value rules, and how an employee contribution reduces the taxable value.",
   },
   {
+    key: "ato-fbt-caps",
+    name: "FBT concessions for not-for-profits — capping thresholds",
+    organisation: "Australian Taxation Office",
+    url: "https://www.ato.gov.au/non-profit-organisations/getting-started/is-my-organisation-entitled-to-fbt-concessions",
+    updateFrequency: "As the law changes — unindexed since 2015-16",
+    reviewIntervalDays: 365,
+    description:
+      "The $17,000 grossed-up cap for public and non-profit hospitals and public ambulance services, the $30,000 cap for public benevolent institutions and health promotion charities, and the 47% rebate for rebatable employers. The caps are legislated as grossed-up amounts and tested using the type 2 factor, which is why staff know them as $9,010 and $15,900.",
+  },
+  {
     key: "ato-ev-exemption",
     name: "Electric vehicles exemption",
     organisation: "Australian Taxation Office",

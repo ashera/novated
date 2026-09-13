@@ -21,6 +21,7 @@ import type { BodyType, Vehicle } from "./vehicles";
 import type {
   AnnualRunningCosts,
   CarCondition,
+  EmployerFbtStatus,
   FbtMethod,
   FuelType,
   LeaseInputs,
@@ -100,6 +101,11 @@ export interface ScenarioSpec {
   includeRunningCosts: boolean;
   fbtMethod: FbtMethod;
   hasHelpDebt?: boolean;
+  /** Ordinary unless they work for a hospital, ambulance service, PBI,
+   *  health promotion charity or other rebatable non-profit. */
+  employerFbtStatus?: EmployerFbtStatus;
+  /** Spendable dollars of the annual FBT cap already used on other packaging. */
+  capUsedSpendable?: number;
   runningCostOverrides?: Partial<AnnualRunningCosts>;
   adminFeeAnnual?: number;
   establishmentFee?: number;

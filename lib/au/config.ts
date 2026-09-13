@@ -64,6 +64,8 @@ export interface FbtConfig {
   grossUpType2: number;
   /** Statutory formula percentage — a flat 20% of base value since 2014. */
   statutoryRate: number;
+  /** Annual FBT caps for employers that are exempt or rebatable. */
+  cappedEmployers: CappedEmployerConfig;
   /** Reportable fringe benefits below this grossed-up value aren't reported. */
   reportingThreshold: number;
   /**
@@ -187,6 +189,30 @@ export interface LctConfig {
  * anything durable, so the value here is deliberately more pessimistic than
  * the source and should be revisited rather than trusted.
  */
+/**
+ * Employers whose fringe benefits are capped rather than simply taxed.
+ *
+ * Public hospitals, public ambulance services, public benevolent institutions
+ * and health promotion charities do not pay FBT on benefits to an employee up
+ * to an annual ceiling. Rebatable employers — certain other non-profits — pay
+ * it and get part of it back.
+ *
+ * Two things about these numbers are easy to get wrong and both matter.
+ *
+ * They are legislated as GROSSED-UP amounts, and the cap test uses the TYPE 2
+ * factor whether or not the employer claimed a GST credit. That is why the
+ * figures staff actually recognise are the quotients: $17,000 / 1.8868 is the
+ * $9,010 a hospital worker calls their cap, and $30,000 / 1.8868 is the
+ * $15,900 a charity worker calls theirs. Store the legislated figure, show the
+ * familiar one.
+ */
+export interface CappedEmployerConfig {
+  /** Grossed-up annual cap, by employer kind. */
+  grossedUpCap: Record<"hospital" | "pbi" | "rebatable", number>;
+  /** Share of gross FBT a rebatable employer gets back, within the cap. */
+  rebateRate: number;
+}
+
 export interface DepreciationConfig {
   /** Lost in the first year, as a fraction of the car's price. */
   firstYearPct: Record<"electric" | "hybrid" | "other", number>;
@@ -315,6 +341,11 @@ export const DEFAULT_CONFIG: EngineConfig = {
     grossUpType1: 2.0802,
     grossUpType2: 1.8868,
     statutoryRate: 0.2,
+    cappedEmployers: {
+      // Unindexed since 2015-16; a change would be legislated, not automatic.
+      grossedUpCap: { hospital: 17_000, pbi: 30_000, rebatable: 30_000 },
+      rebateRate: 0.47,
+    },
     reportingThreshold: 2_000,
     evExemption: {
       enabled: true,
@@ -451,6 +482,15 @@ export function withDefaults(data: EngineConfig): EngineConfig {
   }
   if (out.tax.brackets == null) {
     out = { ...out, tax: { ...out.tax, brackets: DEFAULT_CONFIG.tax.brackets } };
+  }
+  // Stored configs written before capped employers existed have no such key,
+  // and the site reads the stored row — so without this a health employee's
+  // cap would be undefined in production and defined in every test.
+  if (out.fbt.cappedEmployers == null) {
+    out = {
+      ...out,
+      fbt: { ...out.fbt, cappedEmployers: DEFAULT_CONFIG.fbt.cappedEmployers },
+    };
   }
   if (out.fbt.evExemption == null) {
     out = { ...out, fbt: { ...out.fbt, evExemption: DEFAULT_CONFIG.fbt.evExemption } };

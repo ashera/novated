@@ -191,11 +191,13 @@ describe("The sector notes explain rather than rule", () => {
     expect(SECTOR_NOTE.government).toMatch(/rather than a rule/i);
   });
 
-  // Health and charity employees are modelled on ordinary rules today — their
-  // caps are backlog item 13. Saying so where they are reading is the honest
-  // move, and this test is what will notice when 13 ships.
-  it("admits the FBT caps are not modelled yet for health and charity employees", () => {
+  // This used to hold an admission that the caps were not modelled. They are
+  // now, so the note points at the control instead — and the test moved with
+  // it rather than being deleted, because the obligation to say something
+  // useful to this group did not go away.
+  it("sends health and charity employees to the cap control now that it exists", () => {
     expect(SECTOR_NOTE["health-charity"]).toMatch(/caps/i);
-    expect(SECTOR_NOTE["health-charity"]).toMatch(/still on the list|not yet/i);
+    expect(SECTOR_NOTE["health-charity"]).toMatch(/calculator/i);
+    expect(SECTOR_NOTE["health-charity"]).not.toMatch(/still on the list|not yet/i);
   });
 });

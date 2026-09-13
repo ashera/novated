@@ -89,7 +89,7 @@ export const SECTOR_NOTE: Record<EmployerKind, string> = {
   government:
     "Packaging is usually bought through a procurement panel, and the contract often names who sits on it. That is a purchasing decision rather than a rule about leases — and panels get re-tendered, sometimes with more than one provider on them, so which arrangement is current matters more than what a colleague was told two years ago.",
   "health-charity":
-    "Public hospitals and registered charities package under separate FBT caps, and whoever administers those caps usually administers the lease as well. That bundling is the reason bringing your own is less common here — not a law. It also means the numbers on this site are not yet the whole story for you: the caps interact with a lease, and that is still on the list to model.",
+    "Public hospitals and registered charities package under separate FBT caps, and whoever administers those caps usually administers the lease as well. That bundling is the reason bringing your own is less common here — not a law. Tell the calculator who you work for and how much of your cap you already use: whatever is left can absorb the car instead, and where it does there is no fringe benefits tax to cancel and no post-tax contribution to make.",
   "large-corporate":
     "Most have one or two providers on a panel. Exclusivity there is a commercial arrangement, not a legal requirement, and plenty of employers will accept an outside provider as long as the paperwork is their standard deed and payroll doesn't have to do anything unusual.",
   "small-medium":

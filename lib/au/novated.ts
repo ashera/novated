@@ -30,6 +30,38 @@ import type { AuState, EngineConfig, EvPhase, RunningCostConfig } from "./config
 import { takeHome, marginalRelief, type TakeHome } from "./tax";
 
 export type FbtMethod = "ecm" | "employer-pays";
+
+/**
+ * Whether the employer pays FBT like everyone else, or is capped.
+ *
+ * "hospital" covers public and non-profit hospitals and public ambulance
+ * services; "pbi" covers public benevolent institutions and health promotion
+ * charities; "rebatable" covers the other non-profits, which pay the tax and
+ * get part of it back rather than being exempt.
+ */
+export type EmployerFbtStatus = "ordinary" | "hospital" | "pbi" | "rebatable";
+
+export const CAPPED_EMPLOYERS = ["hospital", "pbi", "rebatable"] as const;
+
+export function isCappedEmployer(s: EmployerFbtStatus | undefined): boolean {
+  return s != null && s !== "ordinary";
+}
+
+/**
+ * What the cap is worth in the money people actually talk about.
+ *
+ * The legislated figure is grossed up; the number on a packaging provider's
+ * brochure is that divided by the type 2 factor — $9,010 and $15,900. Both
+ * refer to the same cap and quoting the wrong one at somebody is how this
+ * gets confusing, so the conversion lives in one place.
+ */
+export function capSpendable(grossedUpCap: number, config: EngineConfig): number {
+  return grossedUpCap / config.fbt.grossUpType2;
+}
+
+export function capFor(status: EmployerFbtStatus, config: EngineConfig): number {
+  return status === "ordinary" ? 0 : config.fbt.cappedEmployers.grossedUpCap[status];
+}
 export type FuelType = "petrol" | "diesel" | "electric" | "phev" | "hybrid";
 
 /**
@@ -132,6 +164,13 @@ export interface LeaseInputs {
    *  the lease as well, rather than paying for them yourself out of take-home. */
   includeRunningCosts: boolean;
   fbtMethod: FbtMethod;
+  /** Ordinary unless they work somewhere with an FBT cap. */
+  employerFbtStatus?: EmployerFbtStatus;
+  /** What they already package each year against the cap, in spendable
+   *  dollars — mortgage, rent, everyday living expenses. Most people who have
+   *  a cap have already spent it, which is why it is asked rather than
+   *  assumed either way. */
+  capUsedSpendable?: number;
   hasHelpDebt?: boolean;
   /** Override any modelled running cost with a real quote. */
   runningCostOverrides?: Partial<AnnualRunningCosts>;
@@ -232,6 +271,35 @@ export interface FbtOutcome {
   /** Grossed-up value shown on the employee's payment summary. Exempt EVs are
    *  still reportable, which matters for income-tested obligations. */
   reportableFringeBenefit: number;
+  /** Set for an employee of a capped employer — how their cap absorbed the car. */
+  cap?: CapOutcome;
+}
+
+/**
+ * How a capped employer's annual ceiling absorbed this car.
+ *
+ * The point of modelling it: within the cap there is no FBT to cancel, so
+ * there is nothing for an employee contribution to do. Post-tax dollars get no
+ * relief at all, so paying them to cancel a tax that was never going to be
+ * charged is a pure loss — and that is what this site would have told a
+ * hospital employee to do before this existed.
+ */
+export interface CapOutcome {
+  status: EmployerFbtStatus;
+  /** Legislated grossed-up ceiling for this kind of employer. */
+  grossedUpCap: number;
+  /** Grossed-up value already used on other packaging this FBT year. */
+  used: number;
+  /** Grossed-up room left before the car is counted. */
+  available: number;
+  /** Grossed-up value of the car benefit. */
+  carGrossedUp: number;
+  /** The part of the car that fitted inside the cap. */
+  sheltered: number;
+  /** The part that did not, and is taxed or contributed against as usual. */
+  excess: number;
+  /** True when the whole car fitted — no contribution and no FBT at all. */
+  fullyCovered: boolean;
 }
 
 export interface LeaseFinance {
@@ -935,23 +1003,86 @@ export function assessFbt(
   // smaller too, and everything downstream follows from `taxableValue`.
   const discounted = check.discount > 0;
 
+  /*
+   * A capped employer changes what the contribution is for.
+   *
+   * Hospitals, ambulance services, PBIs and health promotion charities pay no
+   * FBT on an employee's benefits up to an annual ceiling. Inside that ceiling
+   * there is no tax to cancel — so an employee contribution cancels nothing
+   * and buys nothing, while costing post-tax dollars that attract no relief at
+   * all. Told to use ECM regardless, a hospital worker with cap room left
+   * would hand over thousands of already-taxed dollars for no reason.
+   *
+   * The catch is that most of them have no room: the cap is normally spent on
+   * mortgage or rent through a packaging provider before a car is considered.
+   * So the room is asked for rather than assumed, and with none the answer
+   * comes out exactly as it did before.
+   *
+   * The cap is tested on the grossed-up value using the type 2 factor,
+   * whatever gross-up the FBT itself would use.
+   */
+  const status = inputs.employerFbtStatus ?? "ordinary";
+  let cap: CapOutcome | undefined;
+  let taxedTaxableValue = taxableValue;
+
+  if (isCappedEmployer(status)) {
+    const grossedUpCap = capFor(status, config);
+    const used = Math.max(0, inputs.capUsedSpendable ?? 0) * config.fbt.grossUpType2;
+    const available = Math.max(0, grossedUpCap - used);
+    const carGrossedUp = taxableValue * config.fbt.grossUpType2;
+    const sheltered = Math.min(carGrossedUp, available);
+    const excess = carGrossedUp - sheltered;
+    cap = {
+      status,
+      grossedUpCap,
+      used,
+      available,
+      carGrossedUp,
+      sheltered,
+      excess,
+      fullyCovered: excess <= 0 && carGrossedUp > 0,
+    };
+    // Only an EXEMPT employer's cap removes tax. A rebatable employer pays
+    // and gets part of it back, so its taxable value is untouched here and
+    // the rebate is applied to the FBT further down.
+    if (status !== "rebatable") {
+      taxedTaxableValue = excess / config.fbt.grossUpType2;
+    }
+  }
+  /** True where the cap genuinely removes the tax, rather than refunding it. */
+  const capExempts = cap != null && cap.status !== "rebatable";
+
   const concession = discounted
     ? `Electric car discount: the statutory percentage is ${(check.statutoryRate * 100).toFixed(0)}% instead of ${(config.fbt.statutoryRate * 100).toFixed(0)}%, so the taxable value is ${(check.discount * 100).toFixed(0)}% lower than it would otherwise be.`
     : null;
 
   if (inputs.fbtMethod === "ecm") {
+    // Contribute only against the part the cap did not absorb. Inside the cap
+    // the contribution would cancel a tax nobody was going to charge.
+    // The contribution cancels whatever is left to tax, so nothing is payable
+    // either way — including for a rebatable employer, where contributing the
+    // full value leaves no FBT for a rebate to apply to.
     return {
       exempt: false,
       exemptReason: concession,
       baseValue,
       taxableValue,
-      employeeContribution: taxableValue,
+      employeeContribution: taxedTaxableValue,
       fbtPayable: 0,
-      reportableFringeBenefit: 0, // contributions reduce the taxable value to nil
+      // What the contribution cancelled stops being reportable. What an exempt
+      // employer's cap absorbed is still a benefit and still reported — which
+      // is exactly why health workers carry a reportable amount.
+      reportableFringeBenefit: capExempts ? cap!.sheltered : 0,
+      cap,
     };
   }
 
-  const fbtPayable = taxableValue * config.fbt.grossUpType1 * config.fbt.rate;
+  // Gross FBT on whatever is still taxable, less a rebatable employer's rebate
+  // on the part that sat inside its cap.
+  const fbtPayable = Math.max(
+    0,
+    taxedTaxableValue * config.fbt.grossUpType1 * config.fbt.rate - rebateOn(cap, config),
+  );
   return {
     exempt: false,
     exemptReason: concession,
@@ -960,7 +1091,22 @@ export function assessFbt(
     employeeContribution: 0,
     fbtPayable,
     reportableFringeBenefit: taxableValue * config.fbt.grossUpType2,
+    cap,
   };
+}
+
+/**
+ * What a rebatable employer gets back on the part inside its cap.
+ *
+ * Rebatable is not exemption: the employer pays the FBT and is refunded a
+ * share of it, so the benefit lands with the employer rather than removing
+ * the tax. Zero for every other status.
+ */
+function rebateOn(cap: CapOutcome | undefined, config: EngineConfig): number {
+  if (!cap || cap.status !== "rebatable" || cap.sheltered <= 0) return 0;
+  const gross =
+    (cap.sheltered / config.fbt.grossUpType2) * config.fbt.grossUpType1 * config.fbt.rate;
+  return gross * config.fbt.cappedEmployers.rebateRate;
 }
 
 // --- The package -----------------------------------------------------------
@@ -1035,6 +1181,48 @@ export function calculateLease(
     warnings.push(
       `This car is over the luxury car tax threshold, so roughly ${fmt(finance.luxuryCarTax)} of the price you pay is luxury car tax. The GST credit is also capped at the car limit, so not all of the GST comes back.`,
     );
+  }
+  /*
+   * The cap outcome, said out loud.
+   *
+   * Every one of these tells a health or charity employee something the
+   * ordinary model would have got wrong for them, so they belong with the
+   * engine's other warnings rather than in a card somebody might not scroll to.
+   */
+  // An exempt car is not a fringe benefit, so it consumes no cap at all. For
+  // this group that is a genuine advantage and a silent one: without saying
+  // so, somebody who set their employer and cap would watch both controls
+  // change nothing and assume they had been ignored.
+  if (fbt.exempt && isCappedEmployer(inputs.employerFbtStatus)) {
+    warnings.push(
+      `This car is exempt from FBT, so it uses none of your ${fmt(capSpendable(capFor(inputs.employerFbtStatus ?? "ordinary", config), config))} packaging cap — the whole cap stays available for rent, a mortgage or living expenses. An eligible electric car and a capped employer stack; they don't compete.`,
+    );
+  }
+  if (fbt.cap) {
+    const c = fbt.cap;
+    const spendable = (n: number) => fmt(n / config.fbt.grossUpType2);
+    if (c.status === "rebatable") {
+      warnings.push(
+        `Your employer is FBT-rebatable, which reduces the tax it pays on benefits within the ${fmt(c.grossedUpCap)} grossed-up cap — but the rebate goes to the employer, not to you. Your own position is the same as anyone else's, so the contribution below is unchanged.`,
+      );
+    } else if (c.fullyCovered) {
+      warnings.push(
+        `Your employer's FBT cap covers this car completely, so there is no fringe benefits tax to cancel and no post-tax contribution to make. That is the whole saving: post-tax dollars attract no relief, so contributing against a tax nobody was going to charge is money for nothing.`,
+      );
+    } else if (c.sheltered > 0) {
+      warnings.push(
+        `Your employer's FBT cap absorbs ${spendable(c.sheltered)} of this car, leaving ${spendable(c.excess)} to deal with the usual way. The post-tax contribution is only on that remainder.`,
+      );
+    } else {
+      warnings.push(
+        `Your FBT cap is already fully used by the ${fmt(c.used / config.fbt.grossUpType2)} a year you package, so none of it is left for this car and it is treated like any other. Packaging less elsewhere would free up room — worth checking which use of the cap is worth more to you.`,
+      );
+    }
+    if (c.sheltered > 0) {
+      warnings.push(
+        `What the cap absorbs is exempt from FBT but still reported: ${fmt(c.sheltered)} goes on your income statement as a reportable fringe benefit. It is not taxable income, but it counts towards income tests — study loan repayments, the Medicare levy surcharge and family assistance among them.`,
+      );
+    }
   }
   if (finance.luxuryCarAdjustment > 0) {
     warnings.push(
