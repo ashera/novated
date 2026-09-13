@@ -7,6 +7,7 @@ import {
   activateQuote,
   lockQuote,
   newQuoteSpec,
+  quoteIsNamed,
   quoteLabel,
   quoteStatus,
   unlockQuote,
@@ -62,7 +63,8 @@ export default function QuotesCard({
   const activate = (id: string) => store.update((l) => activateQuote(l, id, config));
 
   const addQuote = () => {
-    const spec = newQuoteSpec(`Quote ${lease.quotes.length + 1}`, lease.scenario.termYears * 12);
+    // Unnamed on purpose — see the note in QuoteComparison.addQuote.
+    const spec = newQuoteSpec("", lease.scenario.termYears * 12);
     store.update((l) => ({ ...l, quotes: [...l.quotes, spec] }));
     // Adding a quote means going and typing it in, so take them there.
     router.push(`/decode?quote=${encodeURIComponent(spec.id)}`);
@@ -77,6 +79,10 @@ export default function QuotesCard({
     const style = STATUS_STYLE[status];
     const active = q.id === activeId;
     const isLocked = q.id === lockedId;
+    // A quote with nobody's name on it can't be settled on: "I chose Untitled
+    // quote" is not a decision anyone can act on later. The engine refuses it
+    // too, so this only saves the user a dead click.
+    const named = quoteIsNamed(q);
 
     return (
       <li
@@ -123,12 +129,25 @@ export default function QuotesCard({
         {!locked && active && (
           <button
             type="button"
+            disabled={!named}
             onClick={() => setConfirming(q.id)}
-            title="Settle on this one and see what your payslip will look like"
-            className={btn}
+            title={
+              named
+                ? "Settle on this one and see what your payslip will look like"
+                : "Say who quoted it first — a locked-in quote has to be one you can name"
+            }
+            className={`${btn} ${!named ? "cursor-not-allowed opacity-50 hover:border-line hover:text-ink" : ""}`}
           >
             Lock it in
           </button>
+        )}
+        {!named && (
+          <Link
+            href={`/decode?quote=${encodeURIComponent(q.id)}`}
+            className="rounded px-1.5 py-0.5 text-[11px] font-medium text-warning-text underline decoration-warning-text/40 underline-offset-2 transition hover:decoration-warning-text"
+          >
+            Say who quoted it
+          </Link>
         )}
         {!locked && !active && status === "complete" && (
           <button

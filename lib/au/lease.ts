@@ -186,6 +186,21 @@ export function quoteLabel(spec: { label?: string }, fallback = "Untitled quote"
 }
 
 /**
+ * Has anybody said who sent this quote?
+ *
+ * A quote without a provider on it is a page of figures with no owner. The
+ * whole point of keeping several is to put them beside each other, and
+ * "Untitled quote" against "Untitled quote" compares nothing — so this is a
+ * requirement rather than a nicety, and {@link lockQuote} enforces it.
+ *
+ * It used to be dodged by pre-filling "Quote 2", which looked like an answer
+ * and so was left alone. A field nobody has filled in should look like one.
+ */
+export function quoteIsNamed(spec: { label?: string }): boolean {
+  return (spec.label ?? "").trim().length > 0;
+}
+
+/**
  * What to call the car, wherever it is shown.
  *
  * The catalogue entry when there is one, otherwise what the user told us, and
@@ -266,7 +281,7 @@ export function newLease(name = "My lease"): Lease {
  * only a default — providers quote 48 against 60 on the same car, and telling
  * them apart is most of the reason for holding two quotes at once.
  */
-export function newQuoteSpec(label = "Untitled quote", termMonths = 60): QuoteSpec {
+export function newQuoteSpec(label = "", termMonths = 60): QuoteSpec {
   return {
     id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     label,
@@ -414,7 +429,13 @@ export function activateQuote(lease: Lease, quoteId: string, config: EngineConfi
 /** Settle on the quote currently being modelled. */
 export function lockQuote(lease: Lease, quoteId: string): Lease {
   if (lease.scenario.fromQuoteId !== quoteId) return lease;
-  if (!lease.quotes.some((q) => q.id === quoteId)) return lease;
+  const spec = lease.quotes.find((q) => q.id === quoteId);
+  if (!spec) return lease;
+  // Refused here and not only in the button, because locking in is the record
+  // of a decision — and "I settled on Untitled quote" is not one. The card
+  // disables the button for the same reason, but the rule belongs with the
+  // entity rather than with one of the places that offers it.
+  if (!quoteIsNamed(spec)) return lease;
   return { ...lease, lockedQuoteId: quoteId };
 }
 

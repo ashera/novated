@@ -39,7 +39,13 @@ export default function QuoteIdentity({
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-      <ProviderPicker value={label} onChange={onLabel} providers={providers} readOnly={readOnly} />
+      <ProviderPicker
+        value={label}
+        onChange={onLabel}
+        providers={providers}
+        readOnly={readOnly}
+        required
+      />
 
       <div>
         <span className="text-sm font-medium text-ink">Figures on your quote are per</span>

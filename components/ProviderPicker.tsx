@@ -28,11 +28,16 @@ export default function ProviderPicker({
   onChange,
   providers,
   readOnly = false,
+  required = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   providers: Provider[];
   readOnly?: boolean;
+  /** Show it as the requirement it is. Quotes are identified by this name
+   *  everywhere they are listed or compared, and it used to arrive pre-filled
+   *  with "Quote 2" — which looked answered, so it stayed that way. */
+  required?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // -1 = nothing highlighted. Deliberate: with the first row pre-selected,
@@ -123,10 +128,21 @@ export default function ProviderPicker({
     }
   };
 
+  const missing = required && !readOnly && value.trim() === "";
+
   return (
     <div className="relative" ref={box}>
       <label className="block">
-        <span className="text-sm font-medium text-ink">Who quoted it</span>
+        <span className="flex items-baseline gap-2">
+          <span className="text-sm font-medium text-ink">Who quoted it</span>
+          {required && !readOnly && (
+            <span
+              className={`text-[11px] font-medium ${missing ? "text-danger-text" : "text-muted"}`}
+            >
+              Required
+            </span>
+          )}
+        </span>
         <input
           type="text"
           role="combobox"
@@ -147,9 +163,11 @@ export default function ProviderPicker({
           }}
           onFocus={() => !readOnly && setOpen(true)}
           onKeyDown={readOnly ? undefined : onKey}
-          className={`mt-1 w-full rounded-md border border-line px-2 py-1.5 text-sm text-ink outline-none ${
-            readOnly ? "bg-panel-3" : "bg-panel-2 focus:border-accent"
-          }`}
+          aria-required={required || undefined}
+          aria-invalid={missing || undefined}
+          className={`mt-1 w-full rounded-md border px-2 py-1.5 text-sm text-ink outline-none ${
+            missing ? "border-danger/50" : "border-line"
+          } ${readOnly ? "bg-panel-3" : "bg-panel-2 focus:border-accent"}`}
         />
       </label>
 
@@ -197,6 +215,12 @@ export default function ProviderPicker({
         </ul>
       )}
 
+      {missing && !error && (
+        <p className="mt-1 text-[11px] leading-snug text-danger-text">
+          Name the provider who sent it. Quotes are listed and compared by this, and one
+          can&apos;t be locked in without it.
+        </p>
+      )}
       {error && <p className="mt-1 text-[11px] text-danger-text">{error}</p>}
       {added && !error && (
         <p className="mt-1 text-[11px] text-muted">

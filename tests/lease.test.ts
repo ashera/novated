@@ -9,6 +9,7 @@ import {
   activateQuote,
   applyScenarioFromQuote,
   lockQuote,
+  quoteIsNamed,
   lockedQuote,
   unlockQuote,
   defaultScenario,
@@ -523,6 +524,29 @@ describe("Locking in a quote", () => {
     expect(lockQuote(active, "nope").lockedQuoteId).toBeUndefined();
   });
 
+  // Locking in is the record of a decision, and "I settled on Untitled quote"
+  // is not one — not to the user reading it back in six months, and not to
+  // payroll or an accountant being handed the report.
+  it("refuses to lock a quote nobody has named", () => {
+    const { a, lease } = twoQuotes();
+    const nameless = {
+      ...lease,
+      quotes: lease.quotes.map((q) => (q.id === a.id ? { ...q, label: "" } : q)),
+    };
+    const active = activateQuote(nameless, a.id, DEFAULT_CONFIG);
+    expect(lockQuote(active, a.id).lockedQuoteId).toBeUndefined();
+  });
+
+  it("refuses a name that is only whitespace", () => {
+    const { a, lease } = twoQuotes();
+    const nameless = {
+      ...lease,
+      quotes: lease.quotes.map((q) => (q.id === a.id ? { ...q, label: "   " } : q)),
+    };
+    const active = activateQuote(nameless, a.id, DEFAULT_CONFIG);
+    expect(lockQuote(active, a.id).lockedQuoteId).toBeUndefined();
+  });
+
   it("unlocks", () => {
     const { a, lease } = twoQuotes();
     const locked = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
@@ -694,5 +718,42 @@ describe("Prices stored before we asked what was in them", () => {
     const lease: Lease = { ...newLease(), vehicle: { ...defaultVehicle(), price: 62_000 } };
     const back = migrateLease(JSON.parse(JSON.stringify(lease)));
     expect(priceNeedsBreakdown(back.vehicle)).toBe(true);
+  });
+});
+
+/**
+ * A pre-filled name is worse than an empty one.
+ *
+ * Quotes used to arrive called "Quote 2", which looks like an answer — so it
+ * was left alone, and lists of quotes read as Quote 1, Quote 2, Quote 3 with
+ * nothing to tell them apart. The field now starts empty, which is what an
+ * unanswered question should look like.
+ */
+describe("Naming a quote", () => {
+  it("starts a new quote with no name at all", () => {
+    expect(newQuoteSpec().label).toBe("");
+    expect(quoteIsNamed(newQuoteSpec())).toBe(false);
+  });
+
+  it("counts a real name, and only a real name", () => {
+    expect(quoteIsNamed({ label: "Maxxia" })).toBe(true);
+    expect(quoteIsNamed({ label: "" })).toBe(false);
+    expect(quoteIsNamed({ label: "   " })).toBe(false);
+    expect(quoteIsNamed({})).toBe(false);
+  });
+
+  // Blank names still have to render somewhere: the list, the comparison, the
+  // report. The fallback is a display concern and must not look like a name
+  // anybody chose.
+  it("still has something to show for an unnamed quote", () => {
+    expect(quoteLabel(newQuoteSpec())).toBe("Untitled quote");
+    expect(quoteLabel({ label: "  " }, "Unnamed")).toBe("Unnamed");
+  });
+
+  it("keeps the name exactly as typed, spaces and all", () => {
+    // Trimming on every keystroke once ate the space in "Maxxia offer".
+    const spec = { ...newQuoteSpec(), label: "Maxxia " };
+    expect(spec.label).toBe("Maxxia ");
+    expect(quoteLabel(spec)).toBe("Maxxia");
   });
 });

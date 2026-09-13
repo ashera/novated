@@ -126,7 +126,7 @@ export default function QuoteDecoder({
   const quote: Quote = isExample
     ? EXAMPLE
     : blankAgainstTheirCar
-      ? leaseToQuote(lease, newQuoteSpec("Your quote", leaseTermMonths))
+      ? leaseToQuote(lease, newQuoteSpec("", leaseTermMonths))
       : leaseToQuote(lease, activeSpec!);
 
   /** Any edit writes back through the lease, splitting the car onto the parent
@@ -143,7 +143,7 @@ export default function QuoteDecoder({
     store.update((l) => {
       const fromLease = (q: Quote) => withLeaseVehicle(l, q);
       if (isExample || blankAgainstTheirCar) {
-        const spec = newQuoteSpec(next.label ?? "My quote", leaseTermMonths);
+        const spec = newQuoteSpec(next.label ?? "", leaseTermMonths);
         const seeded: Lease = { ...l, quotes: [...l.quotes, spec] };
         setActiveQuoteId(spec.id);
         return applyQuoteEdit(seeded, spec.id, fromLease(next));
