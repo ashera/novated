@@ -133,6 +133,17 @@ export interface BenchmarkConfig {
   insurancePctOfValue: { low: number; high: number };
   /** How far a running-cost budget may exceed our benchmark before it's flagged. */
   runningCostTolerancePct: number;
+  /**
+   * What money not spent on a car is otherwise worth, per year.
+   *
+   * Sitting in a mortgage offset it saves the home loan rate, risk-free and
+   * untaxed, which is the highest-value use most Australian households have
+   * for a spare $60,000. Someone with no mortgage and no debt would use a
+   * savings rate and pay tax on it, so this is set to a conservative figure
+   * rather than a typical offset rate, and the interface lets it be changed
+   * or zeroed.
+   */
+  opportunityRatePct: number;
 }
 
 export interface GstConfig {
@@ -388,6 +399,9 @@ export const DEFAULT_CONFIG: EngineConfig = {
     // 4.6% of vehicle value across the sampled providers, for the same class of car.
     insurancePctOfValue: { low: 1.7, high: 4.6 },
     runningCostTolerancePct: 20,
+    // Deliberately below a typical variable home loan rate: it applies to
+    // everyone by default, and overstating it would flatter the lease.
+    opportunityRatePct: 5.0,
   },
 };
 
@@ -421,6 +435,15 @@ export function withDefaults(data: EngineConfig): EngineConfig {
           ...out.fbt.evExemption,
           phases: DEFAULT_CONFIG.fbt.evExemption.phases,
         },
+      },
+    };
+  }
+  if (out.benchmarks.opportunityRatePct == null) {
+    out = {
+      ...out,
+      benchmarks: {
+        ...out.benchmarks,
+        opportunityRatePct: DEFAULT_CONFIG.benchmarks.opportunityRatePct,
       },
     };
   }

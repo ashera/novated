@@ -338,7 +338,10 @@ export default function LeaseReport({
           rows={[
             [`Novated lease — ${term.years} years`, fmtCurrency(comparison.lease.totalCost)],
             ["Car loan over the same term", fmtCurrency(comparison.loan.totalCost)],
-            ["Paid in cash", fmtCurrency(comparison.cash.totalCost)],
+            [
+              comparison.cash.foregone > 0 ? "Paid in cash, including interest forgone" : "Paid in cash",
+              fmtCurrency(comparison.cash.totalCost),
+            ],
             [
               comparison.savingVsLoan >= 0 ? "Lease saves against the loan" : "Lease costs more than the loan",
               fmtCurrency(Math.abs(comparison.savingVsLoan)),
@@ -347,10 +350,18 @@ export default function LeaseReport({
           emphasiseLast={1}
         />
         <p className="mt-3 text-sm text-subtle">
-          Every column funds the same car for the same period and leaves{" "}
-          {fmtCurrency(finance.residual)} still owing at the end, so only the funding
-          differs. Running costs are included in all three — with GST where they are paid
-          privately, without it where they are packaged.
+          Every column funds the same car for the same period and ends with you owning it
+          outright — the lease and the loan settle the {fmtCurrency(comparison.residualSettled)}{" "}
+          residual, the cash buyer paid it up front — so only the funding differs. Running costs
+          are included in all three, with GST where they are paid privately and without it where
+          they are packaged.
+          {comparison.cash.foregone > 0 && (
+            <>
+              {" "}
+              The cash column also carries {fmtCurrency(comparison.cash.foregone)} of interest
+              forgone: money spent on a car is money not left in an offset account.
+            </>
+          )}
         </p>
       </Section>
 

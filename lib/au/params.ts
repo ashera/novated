@@ -262,6 +262,7 @@ export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   { key: "bench_mgmt_high", label: "Management fee — market high", category: "Quote benchmarks", path: "benchmarks.managementFeeAnnual.high", unit: "aud", sourceKey: "market-quote-sample" },
   { key: "bench_ins_low", label: "Insurance — market low (% of value)", category: "Quote benchmarks", path: "benchmarks.insurancePctOfValue.low", unit: "percentPoint", sourceKey: "market-quote-sample" },
   { key: "bench_ins_high", label: "Insurance — market high (% of value)", category: "Quote benchmarks", path: "benchmarks.insurancePctOfValue.high", unit: "percentPoint", sourceKey: "market-quote-sample" },
+  { key: "bench_opportunity_rate", label: "What idle cash is otherwise worth", category: "Quote benchmarks", path: "benchmarks.opportunityRatePct", unit: "percentPoint", sourceKey: "market-lease-terms" },
   { key: "bench_running_tolerance", label: "Running-cost budget tolerance", category: "Quote benchmarks", path: "benchmarks.runningCostTolerancePct", unit: "percentPoint", sourceKey: "market-quote-sample" },
 
   // Running-cost benchmarks

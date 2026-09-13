@@ -114,13 +114,39 @@ describe("HELP debt interaction", () => {
 });
 
 describe("Ownership comparison", () => {
+  /**
+   * Like-for-like means all three ending in the same place: owning the car,
+   * free of it.
+   *
+   * Lease and loan both stop with the residual still owing and cash has
+   * already paid it, so comparing a lease total that excluded the residual
+   * against a cash total that included it made the lease look cheaper by
+   * exactly that amount — while the chart said "all three leave the residual
+   * owing", which was true of two of them.
+   */
   it("compares against the same car, term and residual", () => {
     const r = run();
     expect(r.comparison.cash.upfront).toBe(r.finance.priceInclGst);
+    expect(r.comparison.residualSettled).toBeCloseTo(r.finance.residual, 6);
+  });
+
+  it("ends all three columns owning the car outright", () => {
+    const r = run();
+    // Lease and loan carry the residual; cash paid it with the purchase.
     expect(r.comparison.lease.totalCost).toBeCloseTo(
-      r.package.netAnnualCost * r.inputs.termYears,
+      r.package.netAnnualCost * r.inputs.termYears + r.finance.residual,
       4,
     );
+    expect(r.comparison.loan.totalCost).toBeGreaterThan(r.comparison.loan.totalRepaid);
+  });
+
+  it("leaves the lease-versus-loan gap alone, since both owe the same residual", () => {
+    const r = run();
+    const withoutResidual =
+      r.comparison.loan.totalCost -
+      r.finance.residual -
+      (r.comparison.lease.totalCost - r.finance.residual);
+    expect(r.comparison.savingVsLoan).toBeCloseTo(withoutResidual, 6);
   });
 
   it("reports the lease as cheaper for an exempt EV on a high salary", () => {
@@ -130,12 +156,46 @@ describe("Ownership comparison", () => {
   });
 
   it("charges GST on running costs when the car is bought privately", () => {
-    const r = run({ includeRunningCosts: true });
+    const r = run({ includeRunningCosts: true, opportunityRatePct: 0 });
     const runningInclGst = r.running.total * (1 + config.gst.rate) * r.inputs.termYears;
     expect(r.comparison.cash.totalCost).toBeCloseTo(
       r.finance.priceInclGst + runningInclGst,
       4,
     );
+  });
+
+  /**
+   * Cash is not free, and this is the thing every cash-versus-finance
+   * comparison published anywhere leaves out.
+   *
+   * Sixty thousand dollars spent on a car is sixty thousand not sitting in a
+   * mortgage offset, where it would earn the home loan rate untaxed and
+   * without risk. Omitting it flattered cash for the same reason omitting the
+   * residual flattered the lease — the two corrections push opposite ways.
+   */
+  it("charges the cash column for what the money would otherwise have earned", () => {
+    const free = run({ opportunityRatePct: 0 });
+    const costed = run({ opportunityRatePct: 6 });
+    expect(free.comparison.cash.foregone).toBe(0);
+    expect(costed.comparison.cash.foregone).toBeGreaterThan(0);
+    expect(costed.comparison.cash.totalCost).toBeGreaterThan(free.comparison.cash.totalCost);
+  });
+
+  it("compounds it rather than charging simple interest", () => {
+    const r = run({ opportunityRatePct: 6 });
+    const simple = r.finance.priceInclGst * 0.06 * r.inputs.termYears;
+    expect(r.comparison.cash.foregone).toBeGreaterThan(simple);
+  });
+
+  it("leaves the loan and lease columns untouched by it", () => {
+    const free = run({ opportunityRatePct: 0 });
+    const costed = run({ opportunityRatePct: 6 });
+    expect(costed.comparison.loan.totalCost).toBeCloseTo(free.comparison.loan.totalCost, 6);
+    expect(costed.comparison.lease.totalCost).toBeCloseTo(free.comparison.lease.totalCost, 6);
+  });
+
+  it("accepts zero, because some people really do have the cash idle", () => {
+    expect(run({ opportunityRatePct: 0 }).comparison.cash.foregone).toBe(0);
   });
 
   it("makes a dearer car loan rate widen the gap in the lease's favour", () => {

@@ -470,7 +470,12 @@ export default function LeaseCalculator({
             </section>
 
             <PayPacketSplit result={result} />
-            <CostComparisonChart result={result} config={config} />
+            <CostComparisonChart
+              result={result}
+              config={config}
+              opportunityRatePct={lease.scenario.opportunityRatePct}
+              onOpportunityRate={readOnly ? undefined : (v) => set("opportunityRatePct", v)}
+            />
 
             {/* Straight after the comparison, because the comparison assumes
                 the lease runs to term and this is what happens when it

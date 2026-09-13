@@ -139,6 +139,14 @@ export interface LeaseInputs {
   establishmentFee?: number;
   /** Interest rate on the car loan the "buy it yourself" comparison uses. */
   comparisonLoanRatePct?: number;
+  /**
+   * What the money would earn if it weren't spent on a car, per year.
+   *
+   * Only the cash column uses it. Defaults to the reference data's figure;
+   * set it to zero for somebody whose alternative really is a transaction
+   * account earning nothing.
+   */
+  opportunityRatePct?: number;
   /** Where the car is registered. Registration and CTP vary materially by
    *  state; without one we use a national midpoint. */
   state?: AuState;
@@ -260,10 +268,19 @@ export interface PackageBreakdown {
 export interface OwnershipComparison {
   /** Buying the same car with a car loan, from take-home pay. */
   loan: { annualRepayment: number; totalRepaid: number; totalCost: number };
-  /** Buying it outright with cash. */
-  cash: { upfront: number; totalCost: number };
+  /**
+   * Buying it outright with cash.
+   *
+   * `foregone` is what that money would have earned had it stayed where it
+   * was — the part of a cash purchase nobody counts, and the reason the cash
+   * column used to look cheaper than it is.
+   */
+  cash: { upfront: number; foregone: number; totalCost: number };
   /** The lease, over the same term. */
   lease: { totalCost: number };
+  /** The residual, which lease and loan both still owe and cash does not.
+   *  Added to both so all three columns end in the same place. */
+  residualSettled: number;
   /** Lease total cost less the cheaper of the two alternatives. Negative = the
    *  lease is cheaper. */
   savingVsLoan: number;
@@ -1065,8 +1082,24 @@ export function calculateLease(
   };
 }
 
-/** The two alternatives a novated lease is normally weighed against, over the
- *  same term and with the same running costs, so only the funding differs. */
+/**
+ * The two alternatives a novated lease is normally weighed against.
+ *
+ * Like-for-like means all three ending in the same place: owning the car, free
+ * of it. Lease and loan both stop with the residual still owing, so the
+ * residual is added to both — a cash buyer has already paid it, and comparing
+ * a total that excludes it against one that includes it made the lease look
+ * cheaper by exactly that amount. The chart said "all three leave the residual
+ * owing", which was true of two of them.
+ *
+ * And cash is not free. Sixty thousand dollars spent on a car is sixty
+ * thousand dollars not sitting in a mortgage offset, where it would quietly
+ * earn the home loan rate, untaxed and without risk. That is the single
+ * biggest thing missing from every cash-versus-finance comparison published
+ * anywhere, and leaving it out flatters cash for the same reason leaving the
+ * residual out flattered the lease. Both corrections are here, and they push
+ * in opposite directions.
+ */
 export function compareOwnership(
   inputs: LeaseInputs,
   finance: LeaseFinance,
@@ -1086,14 +1119,27 @@ export function compareOwnership(
   const monthly = annuityPayment(priceInclGst, finance.residual, loanRate, years * 12);
   const totalRepaid = monthly * years * 12;
 
-  const loanTotal = totalRepaid + runningInclGst * years;
-  const cashTotal = priceInclGst + runningInclGst * years;
-  const leaseTotal = leaseNetAnnualCost * years;
+  // What the cash would have earned instead, compounded over the term. Zero
+  // is a legitimate answer — somebody with the money idle in a transaction
+  // account really is giving nothing up — so it is an input, not an
+  // assumption, and the interface can set it to nothing.
+  const opportunityRate =
+    (inputs.opportunityRatePct ?? config.benchmarks.opportunityRatePct) / 100;
+  const foregone =
+    opportunityRate > 0 ? priceInclGst * (Math.pow(1 + opportunityRate, years) - 1) : 0;
+
+  // Lease and loan both stop with this still owing; cash paid it up front.
+  const residualSettled = finance.residual;
+
+  const loanTotal = totalRepaid + residualSettled + runningInclGst * years;
+  const cashTotal = priceInclGst + foregone + runningInclGst * years;
+  const leaseTotal = leaseNetAnnualCost * years + residualSettled;
 
   return {
     loan: { annualRepayment: monthly * 12, totalRepaid, totalCost: loanTotal },
-    cash: { upfront: priceInclGst, totalCost: cashTotal },
+    cash: { upfront: priceInclGst, foregone, totalCost: cashTotal },
     lease: { totalCost: leaseTotal },
+    residualSettled,
     savingVsLoan: loanTotal - leaseTotal,
     savingVsCash: cashTotal - leaseTotal,
   };

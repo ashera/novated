@@ -104,6 +104,9 @@ export interface ScenarioSpec {
   adminFeeAnnual?: number;
   establishmentFee?: number;
   comparisonLoanRatePct?: number;
+  /** What the cash would earn if it weren't spent on the car. Only the
+   *  "paid in cash" column uses it. */
+  opportunityRatePct?: number;
   /** How often this person is paid. Display only. */
   payCycle?: PayCycle;
   /**
