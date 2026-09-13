@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site";
 import { BUILD_DATE } from "@/lib/version";
+import { ARTICLES } from "@/lib/articles";
 
 // Only genuinely public content pages belong here — the per-user surfaces
 // (/report, /account, /admin, share links) stay out of the index, and so does
@@ -12,6 +13,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 1 },
     { url: `${SITE_URL}/how-it-works`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE_URL}/faq`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${SITE_URL}/articles`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.8 },
+    ...ARTICLES.map((a) => ({
+      url: `${SITE_URL}/articles/${a.slug}`,
+      lastModified: BUILD_DATE,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
     { url: `${SITE_URL}/choose-your-provider`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE_URL}/glossary`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE_URL}/about`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.7 },

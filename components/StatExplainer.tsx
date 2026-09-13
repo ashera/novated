@@ -30,7 +30,16 @@ const TITLE: Record<StatKind, string> = {
   gst: "The GST you avoid",
 };
 
-export default function StatExplainer({
+/**
+ * The explanation itself, without the modal around it.
+ *
+ * Split out so an article can render exactly the same prose against a worked
+ * example. The alternative was to paste the text into a page, which would have
+ * left two copies of every explanation to keep in step — the mistake this
+ * codebase has corrected three times in a week. There is one copy, and the
+ * modal and the article are two places it is shown.
+ */
+export function StatExplainerBody({
   kind,
   result,
   config,
@@ -47,7 +56,7 @@ export default function StatExplainer({
   const years = term.years;
 
   return (
-    <Explainer title={TITLE[kind]}>
+    <>
       {kind === "cost" && (
         <>
           <p>
@@ -266,6 +275,23 @@ export default function StatExplainer({
           </div>
         </>
       )}
+    </>
+  );
+}
+
+/** The same explanation behind the help icon it has always sat behind. */
+export default function StatExplainer(props: {
+  kind: StatKind;
+  result: LeaseResult;
+  config: EngineConfig;
+}) {
+  return (
+    <Explainer title={TITLE[props.kind]}>
+      <StatExplainerBody {...props} />
     </Explainer>
   );
 }
+
+/** The heading each explanation carries, so an article can title itself the
+ *  same way the modal does rather than inventing a second name for it. */
+export { TITLE as STAT_EXPLAINER_TITLE };
