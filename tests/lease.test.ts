@@ -6,6 +6,7 @@ import {
   leaseToQuote,
   migrateLease,
   newLease,
+  decoderTarget,
   activateQuote,
   applyScenarioFromQuote,
   lockQuote,
@@ -875,5 +876,87 @@ describe("Knowing whether a car was chosen", () => {
 
   it("treats whitespace as not having named anything", () => {
     expect(hasChosenCar({ ...defaultVehicle(), make: "   ", model: "  " })).toBe(false);
+  });
+});
+
+/**
+ * What the decoder opens on.
+ *
+ * "Decode a quote" in the nav used to reopen whichever quote happened to be
+ * first, because the page inferred intent from the lease's contents rather
+ * than from what was actually asked for. Landing on figures you half
+ * recognise reads as a bug even when they are your own.
+ */
+describe("Which quote the decoder opens", () => {
+  const withCar = (): Lease => ({
+    ...newLease(),
+    vehicle: { ...newLease().vehicle, price: 61_000 },
+  });
+
+  it("opens the quote it was asked for", () => {
+    const spec = newQuoteSpec("Provider A", 60);
+    const lease: Lease = { ...withCar(), quotes: [spec] };
+    const t = decoderTarget(lease, spec.id);
+    expect(t.spec?.id).toBe(spec.id);
+    expect(t.isExample).toBe(false);
+    expect(t.blankAgainstTheirCar).toBe(false);
+  });
+
+  it("starts a new one when nothing was asked for, even with quotes on the lease", () => {
+    const a = newQuoteSpec("Provider A", 60);
+    const b = newQuoteSpec("Provider B", 60);
+    const lease: Lease = { ...withCar(), quotes: [a, b] };
+    const t = decoderTarget(lease, null);
+    expect(t.spec).toBeNull();
+    expect(t.blankAgainstTheirCar).toBe(true);
+    expect(t.isExample).toBe(false);
+  });
+
+  it("says so when it opened blank over existing quotes, so they don't look lost", () => {
+    const lease: Lease = { ...withCar(), quotes: [newQuoteSpec("Provider A", 60)] };
+    expect(decoderTarget(lease, null).hasOthers).toBe(true);
+    expect(decoderTarget(withCar(), null).hasOthers).toBe(false);
+  });
+
+  // The car belongs to the lease, not to any quote — which is why it is the
+  // one thing that survives starting over.
+  it("keeps the car when it starts a new quote", () => {
+    const lease = withCar();
+    const t = decoderTarget(lease, null);
+    expect(t.spec).toBeNull();
+    expect(leaseToQuote(lease, newQuoteSpec("", 60)).vehiclePrice).toBe(61_000);
+  });
+
+  it("shows the worked example only to someone who has told us nothing", () => {
+    expect(decoderTarget(newLease(), null).isExample).toBe(true);
+    // A car chosen is something.
+    expect(decoderTarget(withCar(), null).isExample).toBe(false);
+    // A quote is something too, even with no car.
+    const noCar: Lease = { ...newLease(), quotes: [newQuoteSpec("A", 60)] };
+    expect(decoderTarget(noCar, null).isExample).toBe(false);
+    expect(decoderTarget(noCar, null).blankAgainstTheirCar).toBe(true);
+  });
+
+  it("starts fresh rather than opening a stranger's quote when the id is stale", () => {
+    const lease: Lease = { ...withCar(), quotes: [newQuoteSpec("Provider A", 60)] };
+    const t = decoderTarget(lease, "q-does-not-exist");
+    expect(t.spec).toBeNull();
+    expect(t.blankAgainstTheirCar).toBe(true);
+  });
+
+  it("is exactly one of the three states, always", () => {
+    const a = newQuoteSpec("A", 60);
+    const leases: [string, Lease, string | null][] = [
+      ["empty", newLease(), null],
+      ["car only", withCar(), null],
+      ["quotes, no car", { ...newLease(), quotes: [a] }, null],
+      ["car and quotes", { ...withCar(), quotes: [a] }, null],
+      ["asked for one", { ...withCar(), quotes: [a] }, a.id],
+    ];
+    for (const [label, lease, id] of leases) {
+      const t = decoderTarget(lease, id);
+      const states = [t.isExample, t.blankAgainstTheirCar, Boolean(t.spec)].filter(Boolean);
+      expect(states, label).toHaveLength(1);
+    }
   });
 });

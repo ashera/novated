@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import TopBar, { type TopBarUser } from "./TopBar";
@@ -28,7 +28,7 @@ import { SAMPLE_QUOTE } from "@/lib/au/sampleQuote";
 import {
   applyQuoteEdit,
   withLeaseVehicle,
-  defaultVehicle,
+  decoderTarget,
   hasChosenCar,
   leaseToQuote,
   newQuoteSpec,
@@ -80,12 +80,40 @@ export default function QuoteDecoder({
   // The lease card links here with the quote it wants opened.
   const requestedQuoteId = useSearchParams().get("quote");
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(requestedQuoteId);
+  /**
+   * Follow the URL when it changes under us.
+   *
+   * /decode?quote=A and /decode are the same route, so moving between them
+   * reconciles rather than remounts and the initialiser above never runs
+   * again. Without this, clicking "Decode a quote" while already looking at
+   * a quote leaves that quote on screen — the same complaint as the
+   * quotes[0] fallback, by a different route. Typing into a blank form sets
+   * this state directly and does not touch the URL, so that case is
+   * untouched: the effect only fires when the requested id actually changes.
+   */
+  useEffect(() => {
+    setActiveQuoteId(requestedQuoteId);
+  }, [requestedQuoteId]);
   const [copied, setCopied] = useState(false);
   const router = useRouter();
 
-  // Which quote are we decoding? The lease's first, unless one was chosen.
-  const activeSpec =
-    lease.quotes.find((q) => q.id === activeQuoteId) ?? lease.quotes[0] ?? null;
+  /**
+   * Which quote are we decoding? Only ever the one that was asked for.
+   *
+   * This used to fall back to lease.quotes[0], which meant the nav entry —
+   * where no quote is named — silently opened whichever quote happened to be
+   * first. "Decode a quote" is an invitation to bring a new one, not to
+   * reopen an old one, and landing on somebody else's figures reads as a bug
+   * even when you recognise them. With nothing requested the page opens
+   * blank against the car, which is the state it already knew how to render.
+   *
+   * The car still carries over, because the car belongs to the lease rather
+   * than to any quote — that is the whole reason the two are stored apart.
+   */
+  const { spec: activeSpec, isExample, blankAgainstTheirCar, hasOthers } = decoderTarget(
+    lease,
+    activeQuoteId,
+  );
   /**
    * A locked quote is a decision, not a draft.
    *
@@ -113,14 +141,7 @@ export default function QuoteDecoder({
    */
   const needsCar = !hasChosenCar(lease.vehicle);
   const readOnly = locked || needsCar;
-  // A worked example is only right for someone who has told us nothing yet.
-  // Once they have described a car, showing the example's car instead would
-  // hide the very thing the lease exists to share — and showing the example's
-  // FIGURES against their car would look like their numbers.
-  const untouched =
-    !lease.vehicle.vehicleId && lease.vehicle.price === defaultVehicle().price;
-  const isExample = lease.quotes.length === 0 && untouched;
-  const blankAgainstTheirCar = lease.quotes.length === 0 && !untouched;
+
   // The term a new quote starts at. A quote is a quote for THIS lease, so five
   // years is the wrong opening guess on a three-year one.
   const leaseTermMonths = lease.scenario.termYears * 12;
@@ -614,8 +635,21 @@ export default function QuoteDecoder({
             )}
             {blankAgainstTheirCar && (
               <p className="rounded-lg border border-accent-border bg-accent-subtle px-4 py-2.5 text-sm text-ink">
-                <strong>Ready for your first quote on this car.</strong> Type in the figures from
-                the document a provider sent you and we&apos;ll take it apart.
+                <strong>
+                  Ready for {hasOthers ? "another" : "your first"} quote on this car.
+                </strong>{" "}
+                Type in the figures from the document a provider sent you and we&apos;ll take it
+                apart.
+                {hasOthers && (
+                  <>
+                    {" "}
+                    The {lease.quotes.length} you have already are on{" "}
+                    <Link href="/" className="font-semibold text-accent hover:underline">
+                      your lease
+                    </Link>
+                    , where you can reopen or compare them.
+                  </>
+                )}
               </p>
             )}
 

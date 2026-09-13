@@ -216,6 +216,49 @@ export function quoteLabel(spec: { label?: string }, fallback = "Untitled quote"
  * It used to be dodged by pre-filling "Quote 2", which looked like an answer
  * and so was left alone. A field nobody has filled in should look like one.
  */
+/** What the decoder should open on, given the lease and the id it was asked for. */
+export interface DecoderTarget {
+  /** The existing quote to edit, or null to start a fresh one. */
+  spec: QuoteSpec | null;
+  /** Show the worked example — only right for somebody who has told us nothing. */
+  isExample: boolean;
+  /** Show an empty form carrying the lease's car. */
+  blankAgainstTheirCar: boolean;
+  /** Opening blank while other quotes exist, so the page can say where they are. */
+  hasOthers: boolean;
+}
+
+/**
+ * Which quote the decoder opens, and what it shows before anything is typed.
+ *
+ * Extracted because it had two bugs in it at once and there is no way to test
+ * a component here. Both came from the same mistake — inferring intent from
+ * the lease's contents instead of from what was actually asked for.
+ *
+ * It used to fall back to the lease's first quote whenever no id was given,
+ * so "Decode a quote" in the nav silently reopened an old one. Landing on
+ * figures you half-recognise reads as a bug even when they are yours. Nothing
+ * requested now means a new quote, every time.
+ *
+ * The car is deliberately not cleared with the rest. It belongs to the lease
+ * rather than to any quote — which is the whole reason the two are stored
+ * apart — and re-entering it for each provider would be asking the same
+ * question three times.
+ */
+export function decoderTarget(lease: Lease, activeQuoteId: string | null): DecoderTarget {
+  const spec = lease.quotes.find((q) => q.id === activeQuoteId) ?? null;
+  // A worked example suits somebody with no car AND no quotes. Having quotes
+  // but no car still counts as having told us something, so that gets the
+  // blank form rather than an $85,000 demonstration.
+  const isExample = !spec && !hasChosenCar(lease.vehicle) && lease.quotes.length === 0;
+  return {
+    spec,
+    isExample,
+    blankAgainstTheirCar: !spec && !isExample,
+    hasOthers: !spec && lease.quotes.length > 0,
+  };
+}
+
 export function quoteIsNamed(spec: { label?: string }): boolean {
   return (spec.label ?? "").trim().length > 0;
 }
