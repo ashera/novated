@@ -110,7 +110,10 @@ export default function QuotesCard({
         </Link>
 
         {isLocked && (
-          <span title="The one you've settled on" className={`${pillBase} bg-success`}>
+          <span
+            title="The quote you want to move forward with"
+            className={`${pillBase} bg-success`}
+          >
             Locked in
           </span>
         )}
@@ -144,7 +147,7 @@ export default function QuotesCard({
             onClick={() => setConfirming(q.id)}
             title={
               named
-                ? "Settle on this one and see what your payslip will look like"
+                ? "Move forward with this one and see what your payslip will look like"
                 : "Say who quoted it first — a locked-in quote has to be one you can name"
             }
             className={`${btn} ${!named ? "cursor-not-allowed opacity-50 hover:border-line hover:text-ink" : ""}`}
@@ -266,7 +269,7 @@ export default function QuotesCard({
       ) : locked ? (
         <>
           <p className="mt-2 text-xs leading-relaxed text-muted">
-            The one you&apos;ve settled on.{" "}
+            The quote you want to move forward with.{" "}
             {others.length > 0 && "Everything below the line is what it was chosen over. "}
             Unlock it to go back to comparing — nothing is sent anywhere either way.
           </p>

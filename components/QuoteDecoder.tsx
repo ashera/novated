@@ -289,8 +289,9 @@ export default function QuoteDecoder({
         {readOnly && (
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-success/40 bg-success-subtle px-4 py-3">
             <p className="text-sm text-success-text">
-              <strong>This quote is locked in.</strong> It&apos;s the one you&apos;ve settled on,
-              so it&apos;s shown as it was — to change anything, unlock it on Your leases first.
+              <strong>This quote is locked in.</strong> It&apos;s the quote you want to move
+              forward with, so it&apos;s shown as it was — to change anything, unlock it on Your
+              leases first.
             </p>
             <Link
               href="/"
