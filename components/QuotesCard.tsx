@@ -26,6 +26,16 @@ import type { UseLease } from "./useLease";
  * goes on — one from each provider — so they need room to grow and a heading
  * of their own.
  *
+ * Empty, it is the only teaching surface on the page for the part of a
+ * novated lease that happens off it. Most people arriving here have never
+ * asked a leasing provider for anything and do not know that the provider is
+ * a separate business from the dealer, that a quote arrives as one number
+ * with no rate in it, or that asking three of them is normal. An empty card
+ * saying "none yet" tells someone who already knows all that where to click,
+ * and tells everyone else nothing. So the steps come first and the button
+ * comes after them — you should know what you are adding before you are
+ * asked to add it.
+ *
  * The card has two shapes. While the user is still deciding, it is a flat list
  * with one quote marked ACTIVE — whose rate, budgets and fees the figures
  * below are modelled on. Once they settle on one it becomes a decision and its
@@ -40,6 +50,43 @@ const STATUS_STYLE: Record<QuoteStatus, { label: string; className: string }> = 
   "in-progress": { label: "In progress", className: "bg-warning-subtle text-warning-text" },
   complete: { label: "Complete", className: "bg-success-subtle text-success-text" },
 };
+
+/**
+ * What a person actually has to do to get a quote, in order.
+ *
+ * Written for somebody who has never spoken to a leasing provider. The first
+ * step is the one nobody mentions and the one that decides how many quotes
+ * they can get at all; the third is the one that surprises people, because a
+ * quote looks like a price and is really a bundle; and the fourth is the
+ * reason this card exists at all.
+ */
+const STEPS: { title: string; body: string }[] = [
+  {
+    title: "Check what your employer allows.",
+    body:
+      "The payments come out of payroll, so your employer has to agree to the arrangement. Most have a provider they already work with, and some let you bring your own — worth asking, because it is the difference between one quote and several.",
+  },
+  {
+    title: "Ask for a quote on a specific car.",
+    body:
+      "Providers price a particular model at a particular price over a particular term. Give them all three and what comes back can be compared like for like.",
+  },
+  {
+    title: "Expect one number, not a breakdown.",
+    body:
+      "A quote leads with what leaves each pay — the finance, the running-cost budgets, the fees and any FBT, rolled together. The interest rate behind it is almost never printed.",
+  },
+  {
+    title: "Get more than one.",
+    body:
+      "On the same car, term and salary, providers differ by thousands over a lease. A single quote tells you what it costs, not whether it is any good.",
+  },
+  {
+    title: "Type each one in here.",
+    body:
+      "We work out the rate behind it, measure every running-cost line against the market, and give you the questions worth sending back.",
+  },
+];
 
 const pillBase =
   "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white";
@@ -80,6 +127,27 @@ export default function QuotesCard({
     // Adding a quote means going and typing it in, so take them there.
     router.push(`/decode?quote=${encodeURIComponent(spec.id)}`);
   };
+
+  /* Numbered because it genuinely is a sequence: you cannot ask for a quote
+     before you know whether your employer allows one, and you cannot compare
+     two until you have asked twice. Shared between the empty state, where it
+     is the whole card, and a disclosure once there are quotes — somebody
+     coming back a week later should not have to delete everything to read it
+     again. */
+  const steps = (
+    <ol className="mt-2.5 max-w-3xl space-y-2.5 text-sm leading-relaxed text-subtle">
+      {STEPS.map((step, i) => (
+        <li key={step.title} className="flex gap-2.5">
+          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-[11px] font-semibold tabular-nums text-accent">
+            {i + 1}
+          </span>
+          <span>
+            <strong className="font-semibold text-ink">{step.title}</strong> {step.body}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
 
   const locked = lockedId ? (lease.quotes.find((q) => q.id === lockedId) ?? null) : null;
   const others = locked ? lease.quotes.filter((q) => q.id !== locked.id) : lease.quotes;
@@ -225,9 +293,12 @@ export default function QuotesCard({
 
   return (
     <section className="mb-6 rounded-xl border border-line bg-panel px-4 py-3.5 shadow-[var(--shadow-card)] sm:px-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <h2 className="text-base font-semibold text-ink">
-          Quotes{lease.quotes.length > 0 && ` (${lease.quotes.length})`}
+          Analyse quotes/estimates from leasing providers
+          {lease.quotes.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-muted">{lease.quotes.length}</span>
+          )}
         </h2>
         <div className="flex items-center gap-3">
           {lease.quotes.length > 1 && (
@@ -235,15 +306,27 @@ export default function QuotesCard({
               Compare all
             </Link>
           )}
-          <button
-            type="button"
-            onClick={addQuote}
-            className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-accent-soft"
-          >
-            + Add a quote
-          </button>
+          {/* Held back while the card is empty: the button belongs after the
+              explanation there, not above it. */}
+          {lease.quotes.length > 0 && (
+            <button
+              type="button"
+              onClick={addQuote}
+              className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-accent-soft"
+            >
+              + Add a quote
+            </button>
+          )}
         </div>
       </div>
+
+      {lease.quotes.length === 0 && (
+        <p className="mt-1.5 max-w-3xl text-sm text-subtle">
+          A novated lease is arranged through a leasing provider, not the dealer. You ask them to
+          price the car you want and they send back a quote — some call it an estimate — showing
+          one amount coming out of each pay. This is where you take those apart.
+        </p>
+      )}
 
       {/* What the two buttons on each row actually do. They read as near
           synonyms — both sound like "pick this one" — and the difference
@@ -251,7 +334,7 @@ export default function QuotesCard({
           it gets said rather than inferred. It also answers the question the
           row raises before it is asked: why some quotes have no button yet. */}
       {!locked && lease.quotes.length > 0 && (
-        <p className="mt-1.5 text-xs leading-relaxed text-muted">
+        <p className="mt-1.5 max-w-3xl text-xs leading-relaxed text-muted">
           <strong className="font-semibold text-subtle">Use this one</strong> models the figures
           below on that quote — its rate, its budgets and its fees — so you can see what each
           provider really costs you. It appears once there is enough on a quote to work the rate
@@ -261,14 +344,36 @@ export default function QuotesCard({
         </p>
       )}
 
+      {lease.quotes.length > 0 && (
+        <details className="group mt-2">
+          <summary className="cursor-pointer list-none text-xs font-medium text-accent hover:underline">
+            <span className="group-open:hidden">How getting quotes works</span>
+            <span className="hidden group-open:inline">Hide how getting quotes works</span>
+          </summary>
+          {steps}
+        </details>
+      )}
+
       {lease.quotes.length === 0 ? (
-        <p className="mt-2 text-sm text-muted">
-          None yet. When a provider sends you one, add it here and we&apos;ll work out the
-          interest rate it doesn&apos;t print.
-        </p>
+        <div className="mt-3 rounded-lg border border-line bg-panel-2 px-4 py-3.5">
+          <h3 className="text-sm font-semibold text-ink">How getting quotes works</h3>
+          {steps}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={addQuote}
+              className="rounded bg-accent px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
+            >
+              + Add a quote
+            </button>
+            <span className="text-xs text-muted">
+              Got one in front of you? This takes a couple of minutes.
+            </span>
+          </div>
+        </div>
       ) : locked ? (
         <>
-          <p className="mt-2 text-xs leading-relaxed text-muted">
+          <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted">
             The quote you want to move forward with.{" "}
             {others.length > 0 && "Everything below the line is what it was chosen over. "}
             Unlock it to go back to comparing — nothing is sent anywhere either way.
