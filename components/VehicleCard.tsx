@@ -324,7 +324,11 @@ export default function VehicleCard(p: VehicleCardProps) {
                 card to say very little. */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
               <div className="flex shrink-0 items-center gap-3">
-                <div className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-panel-2">
+                {/* Wide rather than tall: the artwork is a car in profile, and
+                    object-contain letterboxes it in anything squarer. Big
+                    enough to recognise the car at a glance, which is the only
+                    job it has here. */}
+                <div className="flex h-20 w-32 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-panel-2 sm:h-24 sm:w-44">
                   {art}
                 </div>
                 <div className="min-w-0">
