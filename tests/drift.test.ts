@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_CONFIG, reviveConfig, type EngineConfig } from "@/lib/au/config";
-import { findDrift, driftByCategory } from "@/lib/au/drift";
+import { findDrift, driftByCategory, driftVerdict } from "@/lib/au/drift";
 import { PARAM_DESCRIPTORS, configToRows, fmtParamValue, setByPath } from "@/lib/au/params";
 
 const clone = () => structuredClone(DEFAULT_CONFIG) as EngineConfig;
@@ -127,5 +127,65 @@ describe("Presenting drift to whoever has to fix it", () => {
 
   it("is empty when there is nothing to show", () => {
     expect(driftByCategory([])).toEqual([]);
+  });
+});
+
+/**
+ * What a machine concludes, unattended.
+ *
+ * /api/refdata exists so nobody has to remember to open the backoffice. That
+ * only helps if the endpoint can fail — and the way a check like this really
+ * dies is not by going red, it is by quietly measuring nothing and staying
+ * green for a year.
+ */
+describe("The verdict a monitor acts on", () => {
+  it("passes only when something was compared and nothing diverged", () => {
+    expect(driftVerdict(0, 105)).toEqual({ ok: true, status: 200 });
+  });
+
+  it("fails on drift, with a status a monitor can alert on without reading the body", () => {
+    const v = driftVerdict(1, 105);
+    expect(v.ok).toBe(false);
+    expect(v.status).toBe(409);
+  });
+
+  // The clause the whole endpoint's credibility rests on.
+  it("fails when nothing was checked, rather than calling it clean", () => {
+    const v = driftVerdict(0, 0);
+    expect(v.ok).toBe(false);
+    expect(v.status).toBe(409);
+    expect(v.reason).toMatch(/nothing was checked/i);
+  });
+
+  it("treats a negative count as nothing checked too", () => {
+    expect(driftVerdict(0, -1).ok).toBe(false);
+  });
+
+  it("never returns 5xx for drift — the service is fine, its numbers are not", () => {
+    for (const [d, c] of [
+      [0, 105],
+      [1, 105],
+      [0, 0],
+    ] as const) {
+      expect(driftVerdict(d, c).status).toBeLessThan(500);
+    }
+  });
+});
+
+/**
+ * The count itself has to stay large.
+ *
+ * driftVerdict refuses to pass on zero, but a count that silently fell from a
+ * hundred to two would still pass while checking almost nothing. This is the
+ * backstop: the endpoint reports configToRows(DEFAULT_CONFIG).length, and that
+ * has to keep meaning "all of them".
+ */
+describe("How much the endpoint actually compares", () => {
+  it("compares every parameter the backoffice knows about", () => {
+    expect(configToRows(DEFAULT_CONFIG).length).toBe(PARAM_DESCRIPTORS.length);
+  });
+
+  it("is a number that could not collapse unnoticed", () => {
+    expect(configToRows(DEFAULT_CONFIG).length).toBeGreaterThan(50);
   });
 });

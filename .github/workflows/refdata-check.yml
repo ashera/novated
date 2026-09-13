@@ -1,0 +1,79 @@
+name: Reference-data check
+
+# Asks the live site whether it still serves the numbers the source says it
+# should, and emails on failure.
+#
+# The site reads its rates from a database row rather than from config.ts, and
+# a fix made in code does not reach that row on its own. That is not
+# hypothetical: lct.thresholdOther was verified against the ATO, corrected in
+# the source, and production kept serving the old figure until somebody
+# happened to open the backoffice. /admin/review shows the same thing, but only
+# to an admin who thinks to look. This is the version nobody has to remember.
+#
+# Weekly is deliberate. Reference data changes on budget and indexation
+# timescales, so a daily run would only train everyone to ignore the email.
+
+on:
+  schedule:
+    # Mondays, 06:00 Sydney (20:00 UTC the previous day, standard time).
+    - cron: "0 20 * * 0"
+  workflow_dispatch: {} # and on demand, from the Actions tab
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ask the live site
+        env:
+          # Overridable so a staging host can be checked the same way.
+          SITE: ${{ vars.SITE_URL || 'https://www.leasewiz.com.au' }}
+        run: |
+          set -uo pipefail
+          echo "Checking $SITE/api/refdata"
+
+          body=$(mktemp)
+          status=$(curl -sS --max-time 30 -o "$body" -w '%{http_code}' "$SITE/api/refdata") || {
+            echo "::error::Could not reach $SITE/api/refdata"
+            exit 1
+          }
+
+          echo "HTTP $status"
+          jq . "$body" || cat "$body"
+
+          # Anything other than 200 or 409 is the endpoint being absent or
+          # broken, not a reference-data problem — saying "the numbers are
+          # wrong" when the route 404s would send somebody hunting a rate that
+          # is perfectly fine.
+          if [ "$status" != "200" ] && [ "$status" != "409" ]; then
+            echo "::error::$SITE/api/refdata returned $status — endpoint missing, erroring, or the deploy has not landed."
+            exit 1
+          fi
+
+          checked=$(jq -r '.checked // 0' "$body")
+          deployed=$(jq -r '.sha // "unknown"' "$body")
+
+          # A check that silently stops checking passes forever. The endpoint
+          # already refuses to report ok on a zero count; this is the second
+          # line of the same defence, in case the count merely collapses.
+          if [ "$checked" -lt 50 ]; then
+            echo "::error::Only $checked parameters were compared — the check is not actually checking."
+            exit 1
+          fi
+
+          if [ "$status" = "409" ]; then
+            echo "::error::Live reference data disagrees with the source. Open /admin/review and Adopt, or correct config.ts if the stored value is the right one."
+            jq -r '.drift[] | "  \(.label): serving \(.serving), source says \(.expected)  [\(.path)]"' "$body" || true
+            exit 1
+          fi
+
+          # A deploy that never landed is the other silent failure. Reported
+          # rather than failed, because a push minutes before the run is a
+          # legitimate mismatch — promote it to an error if it proves quiet.
+          head=$(git rev-parse --short HEAD)
+          if [ "$deployed" != "$head" ]; then
+            echo "::warning::Deployed build is $deployed but main is at $head — check the deploy actually landed."
+          fi
+
+          echo "OK — $checked parameters compared, none adrift, build $deployed."

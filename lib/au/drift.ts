@@ -90,6 +90,33 @@ function same(a: number, b: number): boolean {
   return Math.abs(a - b) < 1e-9;
 }
 
+/** What a monitor should conclude, given a drift check's two outputs. */
+export interface DriftVerdict {
+  ok: boolean;
+  /** 200 clean, 409 when the numbers disagree with the source. */
+  status: number;
+  reason?: string;
+}
+
+/**
+ * Turning a drift check into a pass or a fail.
+ *
+ * Small enough to look like it does not need its own function, and it does,
+ * because of the `checked` clause. A check that silently stops checking passes
+ * forever: if the descriptor list ever failed to load, findDrift would return
+ * an empty array and an unguarded verdict would read that as clean while
+ * verifying nothing at all. Zero compared is a failure, not a pass.
+ *
+ * 409 rather than 500 for drift: the service is working, its numbers merely
+ * disagree with the source. A monitor alerts on any non-200 without having to
+ * read the body.
+ */
+export function driftVerdict(driftCount: number, checked: number): DriftVerdict {
+  if (checked <= 0) return { ok: false, status: 409, reason: "nothing was checked" };
+  if (driftCount > 0) return { ok: false, status: 409 };
+  return { ok: true, status: 200 };
+}
+
 /** Divergences grouped for display, worst-looking category first. */
 export function driftByCategory(rows: Divergence[]): [string, Divergence[]][] {
   const by = new Map<string, Divergence[]>();
