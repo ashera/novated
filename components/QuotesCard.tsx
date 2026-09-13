@@ -10,6 +10,7 @@ import {
   quoteIsNamed,
   quoteLabel,
   quoteStatus,
+  removeQuote,
   unlockQuote,
   type QuoteSpec,
   type QuoteStatus,
@@ -57,6 +58,16 @@ export default function QuotesCard({
   const activeId = lease.scenario.fromQuoteId;
   const lockedId = lease.lockedQuoteId;
   const [confirming, setConfirming] = useState<string | null>(null);
+  /**
+   * Which quote is one more click from being deleted.
+   *
+   * Two steps on the row rather than a modal: a quote is a page of figures
+   * somebody typed off a document, so it must not go on a stray click — but
+   * it is also the thing they came here to tidy up, and a dialog for each one
+   * makes clearing three quotes feel like an argument. The second click is
+   * the confirmation, and anywhere else cancels it.
+   */
+  const [removing, setRemoving] = useState<string | null>(null);
 
   /** Model this quote in the figures below, without a trip to the decoder.
    *  Only offered where the quote solves — see activateQuote. */
@@ -163,8 +174,45 @@ export default function QuotesCard({
         <span className="text-xs text-muted">
           {q.createdAt ? `Processed ${fmtDate(q.createdAt)}` : "Not yet processed"}
         </span>
+
+        {/* Never on the locked quote: that decision gets reconsidered by
+            unlocking, not by deleting the evidence out from under it. */}
+        {!isLocked &&
+          (removing === q.id ? (
+            <span className="ml-auto flex items-center gap-1.5">
+              <span className="text-[11px] text-danger-text">Remove this quote?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setRemoving(null);
+                  store.update((l) => removeQuote(l, q.id));
+                }}
+                className="rounded border border-danger/50 bg-danger-subtle px-2 py-0.5 text-[11px] font-semibold text-danger-text transition hover:border-danger"
+              >
+                Remove
+              </button>
+              <button
+                type="button"
+                onClick={() => setRemoving(null)}
+                className="rounded px-1.5 py-0.5 text-[11px] font-medium text-muted transition hover:text-ink"
+              >
+                Keep it
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setRemoving(q.id)}
+              title={`Remove ${quoteLabel(q)} from this lease`}
+              aria-label={`Remove ${quoteLabel(q)}`}
+              className="ml-auto rounded px-1.5 py-0.5 text-[11px] font-medium text-muted transition hover:bg-danger-subtle hover:text-danger-text"
+            >
+              Remove
+            </button>
+          ))}
+
         <span
-          className={`ml-auto rounded px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${style.className}`}
+          className={`${isLocked ? "ml-auto" : ""} rounded px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${style.className}`}
         >
           {style.label}
         </span>

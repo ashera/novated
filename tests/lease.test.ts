@@ -10,6 +10,7 @@ import {
   applyScenarioFromQuote,
   lockQuote,
   quoteIsNamed,
+  removeQuote,
   lockedQuote,
   unlockQuote,
   defaultScenario,
@@ -755,5 +756,90 @@ describe("Naming a quote", () => {
     const spec = { ...newQuoteSpec(), label: "Maxxia " };
     expect(spec.label).toBe("Maxxia ");
     expect(quoteLabel(spec)).toBe("Maxxia");
+  });
+});
+
+/**
+ * Tidying up.
+ *
+ * A quote is a page of figures somebody transcribed off a document, so
+ * throwing one away has to be deliberate — but collecting several and
+ * discarding the duds is the normal shape of shopping for a lease, so it also
+ * has to be possible without a fight.
+ */
+describe("Removing a quote", () => {
+  // Solvable, so activateQuote will actually take them — a quote with no
+  // figures on it can't be modelled, and half these tests are about what
+  // happens to the quote being modelled.
+  const solvable = (label: string, id: string, finance: number) => ({
+    ...newQuoteSpec(label),
+    id,
+    frequency: "monthly" as const,
+    termMonths: 60,
+    amountFinanced: 50_000,
+    residualIncGst: 14_065,
+    lines: { finance, insurance: 120, maintenance: 40 },
+  });
+
+  const two = () => {
+    const a = solvable("Maxxia", "q-a", 900);
+    const b = solvable("Smartleasing", "q-b", 1_100);
+    return { a, b, lease: { ...leaseWithCar(), quotes: [a, b] } as Lease };
+  };
+
+  it("removes the one asked for and leaves the rest alone", () => {
+    const { lease } = two();
+    const after = removeQuote(lease, "q-a");
+    expect(after.quotes.map((q) => q.id)).toEqual(["q-b"]);
+  });
+
+  it("ignores an id that isn't on the lease", () => {
+    const { lease } = two();
+    expect(removeQuote(lease, "nope")).toBe(lease);
+  });
+
+  // The figures on the lease are the user's inputs by the time they are
+  // looking at them. Reverting the rate and term because the quote they came
+  // from was deleted would undo work nobody asked to lose — what cannot
+  // survive is the CLAIM that they came from that quote.
+  it("keeps the figures but drops the attribution when the modelled quote goes", () => {
+    const { a, lease } = two();
+    const active = activateQuote(lease, a.id, DEFAULT_CONFIG);
+    expect(active.scenario.fromQuoteId).toBe(a.id);
+    const after = removeQuote(active, a.id);
+    expect(after.scenario.fromQuoteId).toBeUndefined();
+    expect(after.scenario.interestRatePct).toBe(active.scenario.interestRatePct);
+    expect(after.scenario.termYears).toBe(active.scenario.termYears);
+  });
+
+  it("leaves the attribution alone when a different quote goes", () => {
+    const { a, lease } = two();
+    const active = activateQuote(lease, a.id, DEFAULT_CONFIG);
+    expect(removeQuote(active, "q-b").scenario.fromQuoteId).toBe(a.id);
+  });
+
+  // Locking in is a decision, and the payslip on the lease page is built from
+  // it. Deleting it would take that away without the decision ever being
+  // revisited — so it has to be unlocked first, which is its own deliberate act.
+  it("refuses to remove the locked quote", () => {
+    const { a, lease } = two();
+    const locked = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
+    expect(locked.lockedQuoteId).toBe(a.id);
+    expect(removeQuote(locked, a.id)).toBe(locked);
+  });
+
+  it("still removes the runners-up while one is locked", () => {
+    const { a, lease } = two();
+    const locked = lockQuote(activateQuote(lease, a.id, DEFAULT_CONFIG), a.id);
+    const after = removeQuote(locked, "q-b");
+    expect(after.quotes.map((q) => q.id)).toEqual(["q-a"]);
+    expect(after.lockedQuoteId).toBe(a.id);
+  });
+
+  it("copes with removing the last one", () => {
+    const { a, b, lease } = two();
+    const empty = removeQuote(removeQuote(lease, a.id), b.id);
+    expect(empty.quotes).toEqual([]);
+    expect(empty.lockedQuoteId).toBeUndefined();
   });
 });

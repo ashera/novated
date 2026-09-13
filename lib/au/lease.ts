@@ -443,6 +443,34 @@ export function unlockQuote(lease: Lease): Lease {
   return { ...lease, lockedQuoteId: undefined };
 }
 
+/**
+ * Throw a quote away.
+ *
+ * Two rules, and both are about not leaving the lease pointing at something
+ * that no longer exists:
+ *
+ *   - a LOCKED quote is refused outright. Locking in is the record of a
+ *     decision, and the payslip on the lease page is built from it — deleting
+ *     it would take that away without the user ever revisiting the decision.
+ *     Unlock first, which is a deliberate act in its own right.
+ *   - if it was the quote being modelled, the ATTRIBUTION goes and the figures
+ *     stay. The rate, term and budgets on the lease are the user's inputs now;
+ *     silently reverting them would undo work they never asked to lose. What
+ *     can't survive is the claim that they came from a quote that is gone.
+ */
+export function removeQuote(lease: Lease, quoteId: string): Lease {
+  if (lease.lockedQuoteId === quoteId) return lease;
+  if (!lease.quotes.some((q) => q.id === quoteId)) return lease;
+  const wasModelled = lease.scenario.fromQuoteId === quoteId;
+  return {
+    ...lease,
+    quotes: lease.quotes.filter((q) => q.id !== quoteId),
+    scenario: wasModelled
+      ? { ...lease.scenario, fromQuoteId: undefined }
+      : lease.scenario,
+  };
+}
+
 /** The locked quote, if the lock is still meaningful. */
 export function lockedQuote(lease: Lease): QuoteSpec | null {
   const id = lease.lockedQuoteId;
