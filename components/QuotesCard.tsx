@@ -18,6 +18,7 @@ import {
 import type { EngineConfig } from "@/lib/au/config";
 import { fmtDate } from "@/lib/au/format";
 import type { UseLease } from "./useLease";
+import SampleQuote from "./SampleQuote";
 
 /**
  * Every quote gathered against this lease.
@@ -115,6 +116,9 @@ export default function QuotesCard({
    * the confirmation, and anywhere else cancels it.
    */
   const [removing, setRemoving] = useState<string | null>(null);
+  /** Showing what a provider's quote looks like, for somebody who has never
+   *  been sent one. Offered from the steps, where the question arises. */
+  const [showingSample, setShowingSample] = useState(false);
 
   /** Model this quote in the figures below, without a trip to the decoder.
    *  Only offered where the quote solves — see activateQuote. */
@@ -351,6 +355,13 @@ export default function QuotesCard({
             <span className="hidden group-open:inline">Hide how getting quotes works</span>
           </summary>
           {steps}
+          <button
+            type="button"
+            onClick={() => setShowingSample(true)}
+            className="mt-2.5 rounded border border-line bg-panel-2 px-3 py-1.5 text-xs font-medium text-ink transition hover:border-accent hover:text-accent"
+          >
+            See what a quote looks like
+          </button>
         </details>
       )}
 
@@ -358,7 +369,7 @@ export default function QuotesCard({
         <div className="mt-3 rounded-lg border border-line bg-panel-2 px-4 py-3.5">
           <h3 className="text-sm font-semibold text-ink">How getting quotes works</h3>
           {steps}
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
             <button
               type="button"
               onClick={addQuote}
@@ -366,8 +377,17 @@ export default function QuotesCard({
             >
               + Add a quote
             </button>
+            {/* The obvious next question from step 3, answered before they
+                have to go and get a quote to find out. */}
+            <button
+              type="button"
+              onClick={() => setShowingSample(true)}
+              className="rounded border border-line bg-panel px-3.5 py-2 text-sm font-medium text-ink transition hover:border-accent hover:text-accent"
+            >
+              See what one looks like
+            </button>
             <span className="text-xs text-muted">
-              Got one in front of you? This takes a couple of minutes.
+              Got one in front of you? Adding it takes a couple of minutes.
             </span>
           </div>
         </div>
@@ -393,6 +413,8 @@ export default function QuotesCard({
       ) : (
         <ul className="mt-3 divide-y divide-line">{lease.quotes.map((q) => row(q, false))}</ul>
       )}
+
+      {showingSample && <SampleQuote onClose={() => setShowingSample(false)} />}
 
       {pending && (
         <LockConfirm

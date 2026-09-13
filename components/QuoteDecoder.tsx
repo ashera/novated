@@ -23,6 +23,7 @@ import { track } from "@/lib/analytics";
 import { useLease } from "./useLease";
 import LeaseBar from "./LeaseBar";
 import QuoteIdentity from "./QuoteIdentity";
+import { SAMPLE_QUOTE } from "@/lib/au/sampleQuote";
 import {
   applyQuoteEdit,
   withLeaseVehicle,
@@ -33,34 +34,15 @@ import {
 } from "@/lib/au/lease";
 
 /**
- * A worked example so the page opens showing what it does, rather than as an
- * empty form. Synthetic, but built to be representative: an $85,000 EV above the
- * car limit, financed at a rate the quote never mentions, with a padded
- * maintenance budget and an unexplained gap between the listed lines and the
- * salary deduction. Clearly labelled, and one click to clear.
+ * The page opens on a worked example rather than an empty form, so it shows
+ * what it does before anyone has typed anything.
+ *
+ * The figures live in lib/au/sampleQuote.ts alongside the printed document
+ * they are supposed to have come off — the "What a quote looks like" sample.
+ * One definition, so the marked-up page and the findings on this one can
+ * never describe different numbers.
  */
-const EXAMPLE: Quote = {
-  label: "Example quote",
-  frequency: "fortnightly",
-  vehiclePrice: 85_000,
-  fuelType: "electric",
-  amountFinanced: 78_666,
-  residualIncGst: 24_342,
-  termMonths: 60,
-  salary: 130_000,
-  annualKm: 15_000,
-  statedPreTax: 900.19,
-  statedPostTax: 0,
-  lines: {
-    finance: 650.19,
-    energy: 24.23,
-    maintenance: 22.0,
-    tyres: 16.5,
-    registration: 32.0,
-    insurance: 115.0,
-    managementFee: 19.0,
-  },
-};
+const EXAMPLE: Quote = SAMPLE_QUOTE;
 
 const FREQ_WORD: Record<QuoteFrequency, string> = {
   weekly: "week",
