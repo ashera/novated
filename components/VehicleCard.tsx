@@ -241,16 +241,18 @@ export default function VehicleCard(p: VehicleCardProps) {
   // on this card — not in the hint under the price, and not in the builder.
   const claimsGstCredit = p.purchasedFrom !== "private";
 
-  return (
-    <section className="rounded-xl border border-line bg-panel shadow-[var(--shadow-card)]">
-      {p.header && (
-        <div className="border-b border-line px-4 py-3 sm:px-5">{p.header}</div>
-      )}
-      <div className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
-        <div>
-          {exemption?.exempt && (
+  /**
+   * The exemption badge, defined once and placed twice.
+   *
+   * Editing the car it belongs above the picture, where the eye lands and
+   * where changing the fuel type or the price will move it. Read-only there
+   * is nothing to change and the left column is only a thumbnail and a name,
+   * so it goes across the top instead — in a 13rem column it wrapped to five
+   * lines and set the height of the whole card.
+   */
+  const fbtBadge = exemption?.exempt ? (
             <div
-              className={`mb-2 flex items-start gap-2 rounded-lg border px-3 py-2 ${
+              className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${
                 exemption.unverified
                   ? "border-warning/40 bg-warning-subtle"
                   : "border-success/40 bg-success-subtle"
@@ -289,44 +291,54 @@ export default function VehicleCard(p: VehicleCardProps) {
                 )}
               </p>
             </div>
-          )}
-          <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg border border-line bg-panel-2 sm:h-44">
-            {art}
-          </div>
-          {selected ? (
-            <>
-              <h2 className="mt-3 text-lg font-semibold tracking-tight text-ink">
-                {selected.make} {selected.model}
-              </h2>
-              <p className="text-sm text-muted">
-                {selected.bodyType} ·{" "}
-                {selected.fuelType === "electric"
-                  ? `${selected.consumption} kWh/100km`
-                  : `${selected.consumption} L/100km`}
-              </p>
-            </>
-          ) : (
-            <>
-              <h2 className="mt-3 text-lg font-semibold tracking-tight text-ink">
-                {customName || "Your car"}
-              </h2>
-              {customName && (
-                <p className="text-sm text-muted">
-                  {p.customBodyType ?? "SUV"}
-                  {p.consumption != null && ` · ${p.consumption} ${consumptionUnit(p.fuelType)}`}
-                </p>
-              )}
-            </>
-          )}
-        </div>
+  ) : null;
 
+  // Name and spec, shared: the tall editing layout stacks them under the
+  // artwork, the settled one sets them beside a thumbnail.
+  const carName = selected ? `${selected.make} ${selected.model}` : customName || "Your car";
+  const carSpec = selected
+    ? `${selected.bodyType} · ${selected.consumption} ${consumptionUnit(selected.fuelType)}`
+    : customName
+      ? `${p.customBodyType ?? "SUV"}${p.consumption != null ? ` · ${p.consumption} ${consumptionUnit(p.fuelType)}` : ""}`
+      : null;
+
+  return (
+    <section className="rounded-xl border border-line bg-panel shadow-[var(--shadow-card)]">
+      {p.header && (
+        <div className="border-b border-line px-4 py-3 sm:px-5">{p.header}</div>
+      )}
+      <div className="p-4 sm:p-5">
+        {/*
+          Two shapes, because the card is doing two different jobs.
+          Editing, the artwork is the subject and the controls run beside it,
+          so a tall left column is right. Settled, it is a receipt: six short
+          readouts and a thumbnail, and a column layout leaves two thirds of
+          the card empty whichever side the taller content happens to land on.
+          So it becomes a band — a strip naming the car, then the facts across
+          the full width.
+        */}
         {p.readOnlyVehicle ? (
-          <div className="space-y-4">
-            {/* Two up on a phone. These are eight short label/value pairs with
-                nothing to wrap — stacked one per row they made the card twice
-                as tall as it needed to be and pushed the quote itself off the
-                screen. Three across once there is room for them. */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+          <>
+            {/* One row, not two. The strip is a thumbnail and a name and the
+                badge is a single sentence — each was taking a full row of the
+                card to say very little. */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-panel-2">
+                  {art}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="truncate text-base font-semibold tracking-tight text-ink">
+                    {carName}
+                  </h2>
+                  {carSpec && <p className="truncate text-xs text-muted">{carSpec}</p>}
+                </div>
+              </div>
+              {fbtBadge && <div className="min-w-0 flex-1">{fbtBadge}</div>}
+            </div>
+
+            <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
               <Readout label="Make" value={selected?.make ?? "Not set"} />
               <Readout label="Model" value={selected?.model ?? "Not set"} />
               <Readout
@@ -369,6 +381,23 @@ export default function VehicleCard(p: VehicleCardProps) {
                   />
                 </>
               )}
+              {/* A cell of its own in the same grid. It is the one editable
+                  thing on a settled card, and it belongs with the facts it
+                  qualifies rather than in a row by itself. */}
+              {p.onFirstHeldDate && (
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">Expected delivery</span>
+                  <input
+                    type="date"
+                    value={p.firstHeldDate ?? ""}
+                    onChange={(e) => p.onFirstHeldDate?.(e.target.value || undefined)}
+                    className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                  />
+                  <span className="mt-1 block text-[11px] leading-snug text-muted">
+                    Optional. Late in the FBT year means a part-year benefit.
+                  </span>
+                </label>
+              )}
             </div>
 
             <p className="text-[11px] text-muted">
@@ -382,25 +411,19 @@ export default function VehicleCard(p: VehicleCardProps) {
                 </>
               )}
             </p>
-
-            {p.onFirstHeldDate && (
-              <label className="block max-w-xs">
-                <span className="text-sm font-medium text-ink">Expected delivery</span>
-                <input
-                  type="date"
-                  value={p.firstHeldDate ?? ""}
-                  onChange={(e) => p.onFirstHeldDate?.(e.target.value || undefined)}
-                  className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                />
-                <span className="mt-1 block text-[11px] leading-snug text-muted">
-                  Optional, and specific to this quote. The FBT year ends 31 March, so a car
-                  delivered late in it is a fringe benefit for only part of the year — and your
-                  first-year deductions differ from the quote.
-                </span>
-              </label>
-            )}
-          </div>
+            </div>
+          </>
         ) : (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
+        <div>
+          {fbtBadge && <div className="mb-2">{fbtBadge}</div>}
+          <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg border border-line bg-panel-2 sm:h-44">
+            {art}
+          </div>
+          <h2 className="mt-3 text-lg font-semibold tracking-tight text-ink">{carName}</h2>
+          {carSpec && <p className="text-sm text-muted">{carSpec}</p>}
+        </div>
+
         <div className="space-y-4">
           {custom ? (
             /* A car we don't stock is shown as what it is rather than as two
@@ -754,24 +777,9 @@ export default function VehicleCard(p: VehicleCardProps) {
             </div>
           )}
 
-          {p.onFirstHeldDate && (
-            <label className="block">
-              <span className="text-sm font-medium text-ink">Expected delivery</span>
-              <input
-                type="date"
-                value={p.firstHeldDate ?? ""}
-                onChange={(e) => p.onFirstHeldDate?.(e.target.value || undefined)}
-                className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-              />
-              <span className="mt-1 block text-[11px] leading-snug text-muted">
-                Optional. The FBT year ends 31 March, so a car delivered late in it is a fringe
-                benefit for only part of the year — and your first-year deductions differ from the
-                quote.
-              </span>
-            </label>
-          )}
 
           </div>
+        </div>
         </div>
         )}
       </div>
