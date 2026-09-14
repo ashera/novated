@@ -210,7 +210,21 @@ export default function LeaseCalculator({
         >
           {/* ── The quotes, alongside ──────────────────────────────── */}
           {!locked && (
-            <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">{quotesCard}</div>
+            /* A sticky element taller than the room below its top offset has
+               a bottom nobody can reach. It is pinned, so no amount of page
+               scrolling brings the rest of it up — the right column just runs
+               past underneath. Collapsed this card is 426px and fine; with the
+               teaching steps opened it is 1159px, and on a 900px viewport the
+               last third of it was simply unreachable.
+
+               Bounding it to the viewport and letting it scroll itself fixes
+               that without giving up the stickiness, which is worth keeping:
+               the quotes are what the figures on the right are being judged
+               against. Short content still shows no scrollbar, so nothing
+               changes for the common case. */
+            <div className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto">
+              {quotesCard}
+            </div>
           )}
 
           {/* ── The car, the terms, the numbers ────────────────────── */}
