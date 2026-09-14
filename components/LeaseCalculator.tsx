@@ -10,7 +10,7 @@ import PayPacketSplit from "./PayPacketSplit";
 import CostComparisonChart from "./CostComparisonChart";
 import InfoBlastBanner from "./InfoBlastBanner";
 import VehicleCard from "./VehicleCard";
-import StepHeading from "./StepHeading";
+import CardHeading from "./CardHeading";
 import DeductionExplainer from "./DeductionExplainer";
 import StatExplainer from "./StatExplainer";
 import PayslipImpact from "./PayslipImpact";
@@ -217,7 +217,7 @@ export default function LeaseCalculator({
           <div className="space-y-6">
           <VehicleCard
             header={!readOnly && <LeaseBar store={store} signedIn={Boolean(user)} />}
-            stepHeading={!locked && <StepHeading step={1}>The vehicle</StepHeading>}
+            stepHeading={!locked && <CardHeading step={1}>The vehicle</CardHeading>}
             catalogue={catalogue}
             vehicleId={inputs.vehicleId}
             onVehicle={(v) =>
@@ -280,7 +280,7 @@ export default function LeaseCalculator({
           {!locked && (
             <>
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <StepHeading step={2}>You and your employer</StepHeading>
+              <CardHeading step={2}>You and your employer</CardHeading>
               <div className="mt-4 space-y-5">
                 <Field
                   label="Gross salary"
@@ -394,7 +394,7 @@ export default function LeaseCalculator({
             </section>
 
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <StepHeading step={3}>The lease</StepHeading>
+              <CardHeading step={3}>The lease</CardHeading>
               <div className="mt-4 space-y-5">
 
                 <div>
@@ -523,6 +523,18 @@ export default function LeaseCalculator({
               id="the-numbers"
               className="scroll-mt-20 rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]"
             >
+              {/* The card had no title at all: three figures and a stack of
+                  warnings, with nothing saying what it was or that it was the
+                  point of the three cards above it. Marked as the result
+                  rather than a fourth step, because it is not something to
+                  fill in — numbering it would send people hunting for an input
+                  that does not exist. */}
+              <CardHeading eyebrow="Result">What it comes to</CardHeading>
+              <p className="mt-1 mb-4 max-w-3xl text-sm text-subtle">
+                Your three answers, costed against the rules in force — and anything about them
+                worth knowing before you sign.
+              </p>
+
               <div className="grid gap-3 sm:grid-cols-3">
                 <StatCard
                   label={`Costs you per ${cycleLabel}`}
