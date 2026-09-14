@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { shrinkForUpload } from "@/lib/clientImage";
 import Link from "next/link";
 import AdminTabs from "./AdminTabs";
 import VehicleArt from "./VehicleArt";
@@ -186,16 +187,34 @@ export default function VehiclesAdmin({ vehicles }: { vehicles: VehicleRow[] }) 
       if (done) setNote(done);
       router.refresh();
       return true;
+    } catch (e) {
+      // A server action can fail without returning anything — the request is
+      // rejected before it runs (too large a body), the deploy is mid-restart,
+      // the network drops. Without this the rejection escaped, the spinner
+      // stopped, and the page said nothing: the upload appeared to finish and
+      // simply had no effect.
+      setError(
+        e instanceof Error && e.message
+          ? `That didn't go through: ${e.message}`
+          : "That didn't go through. Check the connection and try again.",
+      );
+      return false;
     } finally {
       setBusy(null);
     }
   };
 
-  const upload = (id: string, file: File) => {
-    const fd = new FormData();
-    fd.set("image", file);
-    return run(id, () => uploadVehicleImage(id, fd));
-  };
+  const upload = (id: string, file: File) =>
+    run(id, async () => {
+      // Resized here as well as on the server, for a different reason: the
+      // server action's body limit rejects an oversized request before any of
+      // our code runs, so a 20MB render could not even reach the message that
+      // would have explained it. Falls back to the original file if the
+      // browser cannot do it, and the server normalises either way.
+      const fd = new FormData();
+      fd.set("image", await shrinkForUpload(file));
+      return uploadVehicleImage(id, fd);
+    });
 
   const remove = async (v: VehicleRow) => {
     const willHide = v.source !== "admin" || v.in_use > 0;
@@ -696,7 +715,9 @@ function Editor({
                   )}
                 </div>
                 <p className="mt-1.5 text-[11px] text-muted">
-                  WebP, PNG or JPEG, under 2MB. Without one the picker draws a silhouette.
+                  WebP, PNG or JPEG. Whatever the generator gave you — it is scaled and
+                  re-encoded on upload, so the size is not yours to manage. Without one the
+                  picker draws a silhouette.
                 </p>
               </div>
             </div>
