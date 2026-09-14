@@ -1,21 +1,32 @@
 /**
  * How long a browser should refuse to speak plain http to this host.
  *
- * Deliberately short to begin with. HSTS is a promise the browser remembers
- * and will not let anyone click through: if a certificate ever fails while a
- * long max-age is cached, the site is simply unreachable for everyone who has
- * visited, for the rest of that period. So it gets earned — an hour, then a
- * day once a renewal has been watched through, then a year.
+ * NOT the authoritative value any more. Cloudflare sets HSTS at the edge for
+ * the whole zone and overwrites whatever the origin sends — verified: this
+ * file said an hour and www was observed serving 2592000. Changing the number
+ * below does not change what visitors get. That lives in the Cloudflare
+ * dashboard, under SSL/TLS → Edge Certificates → HSTS.
+ *
+ * It is kept because the edge is not the only way in. A request straight to
+ * the Railway hostname, or to this app with the proxy off, never passes
+ * through Cloudflare and would otherwise carry no HSTS at all. So this is a
+ * floor, matched to the edge value so the two cannot be read as disagreeing.
+ *
+ * Why the edge had to take it over: the apex is answered by a Cloudflare
+ * Redirect Rule and never reaches this app, so it could not be covered from
+ * here at any value — it was serving no HSTS whatsoever until the zone-level
+ * setting was turned on. (An earlier note here blamed GoDaddy's DNS. That was
+ * true once; DNS has since moved to Cloudflare.)
  *
  * No `includeSubDomains`: served from www it would only reach subdomains OF
- * www, which do not exist. The apex is answered by the registrar's forwarding
- * service and cannot be covered from here — that needs the apex pointed at
- * this app, which GoDaddy's DNS cannot do.
+ * www, which do not exist, and would read as though the apex were covered
+ * when the apex is covered by something else entirely.
  *
- * No `preload` either. Submitting to the preload list is close to permanent
- * and is not a decision to make on the way past.
+ * No `preload`. Submitting to the preload list is close to permanent and is
+ * not a decision to make on the way past — and it would have to be made at
+ * Cloudflare regardless, since that is what serves the header.
  */
-const HSTS_MAX_AGE = 60 * 60;
+const HSTS_MAX_AGE = 60 * 60 * 24 * 30;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
