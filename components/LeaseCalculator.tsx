@@ -208,13 +208,20 @@ export default function LeaseCalculator({
                 "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]"
           }
         >
-          {/* ── The quotes, alongside ──────────────────────────────── */}
-          {!locked && (
-<div className="space-y-4 lg:sticky lg:top-20 lg:self-start">{quotesCard}</div>
-          )}
-
           {/* ── The car, the terms, the numbers ────────────────────── */}
-          <div className="space-y-6">
+          {/* First in the source, and placed into the SECOND column at lg.
+              It used to be second in the source and first on screen, which
+              collapsed on a phone into quotes-before-anything-else — you had
+              to scroll past a card about collecting quotes to reach the car
+              you had not described yet.
+
+              Explicit placement rather than a CSS `order` swap. Order moves
+              what you see and not what you tab to or what a screen reader
+              reads, so it would have fixed the phone by making those two
+              disagree. This way the document says what it means — the main
+              flow, then an aside — and the sidebar's position on the left at
+              desktop is the bit that is decoration. */}
+          <div className="space-y-6 lg:col-start-2 lg:row-start-1">
           <VehicleCard
             header={!readOnly && <LeaseBar store={store} signedIn={Boolean(user)} />}
             stepHeading={!locked && <CardHeading step={1}>The vehicle</CardHeading>}
@@ -739,6 +746,13 @@ export default function LeaseCalculator({
             </div>
           </div>
           </div>
+
+          {/* ── The quotes, alongside ──────────────────────────────── */}
+          {!locked && (
+            <div className="space-y-4 lg:col-start-1 lg:row-start-1 lg:sticky lg:top-20 lg:self-start">
+              {quotesCard}
+            </div>
+          )}
         </div>
 
         {/* The decoder, the comparison and the printed report all carry this.
