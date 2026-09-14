@@ -14,6 +14,7 @@ import {
   type QuoteFrequency,
   type FindingSeverity,
 } from "@/lib/au/quote";
+import { quoteFieldChecks } from "@/lib/au/quoteChecks";
 import { stashHandoff } from "@/lib/quoteHandoff";
 import type { EngineConfig } from "@/lib/au/config";
 import VehicleCard from "./VehicleCard";
@@ -180,6 +181,16 @@ export default function QuoteDecoder({
     setQuote((q) => ({ ...q, lines: { ...q.lines, [key]: value } }));
 
   const decode = useMemo(() => decodeQuote(quote, config), [quote, config]);
+  /**
+   * Whether each figure can be true, as opposed to what it implies.
+   *
+   * Separate from the findings below and shown in a different place, because
+   * it answers a different question at a different moment: a finding is worth
+   * reading once the quote is in, and a figure that cannot be true is worth
+   * knowing before the next one is typed — everything the page derives from it
+   * is wrong until it is fixed, and nothing else on screen says so.
+   */
+  const checks = useMemo(() => quoteFieldChecks(quote, config), [quote, config]);
 
   // What the amount financed should be, given the price: the financier claims
   // the GST back, capped at the car limit. Shown beside the field so the pair
@@ -464,6 +475,7 @@ export default function QuoteDecoder({
                 <QuoteField
                   readOnly={readOnly}
                   label="Amount financed"
+                  check={checks.amountFinanced}
                   alsoCalled={["Vehicle Amount Financed", "Financed Amount"]}
                   value={quote.amountFinanced}
                   onChange={(v) => set("amountFinanced", v)}
@@ -477,6 +489,7 @@ export default function QuoteDecoder({
                 <QuoteField
                   readOnly={readOnly}
                   label="Residual"
+                  check={checks.residualIncGst}
                   alsoCalled={["Residual Value", "Balloon"]}
                   value={quote.residualIncGst}
                   onChange={(v) => set("residualIncGst", v)}
@@ -518,6 +531,7 @@ export default function QuoteDecoder({
                 <QuoteField
                   readOnly={readOnly}
                   label="Finance payment"
+                  check={checks.finance}
                   alsoCalled={["Lease Payment", "Repayments", "Lease Rental"]}
                   value={quote.lines.finance}
                   onChange={(v) => setLine("finance", v)}
@@ -572,6 +586,7 @@ export default function QuoteDecoder({
                 <QuoteField
                   readOnly={readOnly}
                   label="Management fee"
+                  check={checks.managementFee}
                   alsoCalled={["Lease Management", "Admin Fee"]}
                   value={quote.lines.managementFee}
                   onChange={(v) => setLine("managementFee", v)}

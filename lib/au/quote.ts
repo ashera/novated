@@ -160,6 +160,54 @@ function annualise(v: number, f: QuoteFrequency): number {
   return v * CYCLES_PER_YEAR[f];
 }
 
+/**
+ * The three figures the interest rate is solved from, resolved the same way
+ * every time.
+ *
+ * Two of them are not simply what somebody typed, which is why this is shared
+ * rather than repeated. The amount financed is derived from the drive-away
+ * price when the field is left blank — the form invites that, and most quotes
+ * are read that way. And the residual is entered GST-inclusive, because that
+ * is how providers quote it, but the finance is written over the ex-GST
+ * figure, so the rate is solved against residualIncGst / 1.1.
+ *
+ * Getting either wrong does not fail loudly: it produces a plausible rate that
+ * is quietly a few points out, or a per-field check that disagrees with the
+ * finding underneath it about whether the same numbers are possible.
+ */
+export interface FinanceBasis {
+  /** Stated, or derived from the drive-away price less the GST credit. */
+  amountFinanced: number | null;
+  /** True where it was derived rather than read off the quote. */
+  financedWasDerived: boolean;
+  /** The residual the finance is actually written over. */
+  residualExGst: number | null;
+  /** The finance line as a monthly amount, whatever cycle it was quoted at. */
+  monthlyFinance: number | null;
+}
+
+export function financeBasis(quote: Quote, config: EngineConfig): FinanceBasis {
+  const driveAway =
+    quote.vehiclePrice != null ? quote.vehiclePrice + (quote.onRoadCosts ?? 0) : null;
+  const creditable = Math.min(quote.vehiclePrice ?? 0, config.gst.carLimit);
+  const gstCredit = creditable - creditable / (1 + config.gst.rate);
+
+  let amountFinanced = quote.amountFinanced ?? null;
+  let financedWasDerived = false;
+  if (amountFinanced == null && driveAway != null) {
+    amountFinanced = driveAway - gstCredit;
+    financedWasDerived = true;
+  }
+
+  return {
+    amountFinanced,
+    financedWasDerived,
+    residualExGst: quote.residualIncGst != null ? quote.residualIncGst / GST : null,
+    monthlyFinance:
+      quote.lines.finance != null ? annualise(quote.lines.finance, quote.frequency) / 12 : null,
+  };
+}
+
 const money = (n: number) =>
   n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 const pct = (n: number) => `${n.toFixed(2)}%`;
@@ -189,20 +237,15 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     quote.vehiclePrice != null ? quote.vehiclePrice + (quote.onRoadCosts ?? 0) : null;
   const creditable = Math.min(quote.vehiclePrice ?? 0, config.gst.carLimit);
   const gstCredit = creditable - creditable / (1 + config.gst.rate);
-  let amountFinanced = quote.amountFinanced ?? null;
-  let financedWasDerived = false;
-  if (amountFinanced == null && driveAway != null) {
-    amountFinanced = driveAway - gstCredit;
-    financedWasDerived = true;
-  }
-
-  const residualExGst = quote.residualIncGst != null ? quote.residualIncGst / GST : null;
+  const basis = financeBasis(quote, config);
+  const amountFinanced = basis.amountFinanced;
+  const financedWasDerived = basis.financedWasDerived;
+  const residualExGst = basis.residualExGst;
   const residualPctOfFinanced =
     residualExGst != null && amountFinanced ? (residualExGst / amountFinanced) * 100 : null;
 
   // ── The rate ─────────────────────────────────────────────────────────────
-  const monthlyFinance =
-    quote.lines.finance != null ? (annualise(quote.lines.finance, f)) / 12 : null;
+  const monthlyFinance = basis.monthlyFinance;
 
   let rate: number | null = null;
   let rateBlockedBy: string | null = null;

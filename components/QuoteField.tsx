@@ -22,6 +22,7 @@ export default function QuoteField({
   placeholder,
   hint,
   readOnly = false,
+  check,
 }: {
   label: string;
   alsoCalled?: string[];
@@ -33,6 +34,14 @@ export default function QuoteField({
   hint?: string;
   /** Shown, not edited — a locked quote is a record of what a provider sent. */
   readOnly?: boolean;
+  /**
+   * A figure that cannot be true, or is unusual enough to re-read.
+   *
+   * Beside the box rather than in the findings below, because it is about
+   * what was just typed: everything the page derives from a wrong figure is
+   * confidently wrong, and there is nothing on screen to say so.
+   */
+  check?: { level: "error" | "warn"; message: string } | null;
 }) {
   return (
     <label className="block">
@@ -45,9 +54,13 @@ export default function QuoteField({
         )}
       </span>
       <span
-        className={`mt-1 flex items-center gap-1 rounded-md border border-line px-2 py-1.5 ${
-          readOnly ? "bg-panel-3" : "bg-panel-2 focus-within:border-accent"
-        }`}
+        className={`mt-1 flex items-center gap-1 rounded-md border px-2 py-1.5 ${
+          check?.level === "error"
+            ? "border-danger bg-danger-subtle"
+            : check?.level === "warn"
+              ? "border-warning bg-warning-subtle"
+              : "border-line"
+        } ${readOnly ? "bg-panel-3" : check ? "" : "bg-panel-2 focus-within:border-accent"}`}
       >
         {prefix && <span className="text-xs text-muted">{prefix}</span>}
         <input
@@ -68,7 +81,21 @@ export default function QuoteField({
         />
         {suffix && <span className="text-xs text-muted">{suffix}</span>}
       </span>
-      {hint && <span className="mt-1 block text-[11px] leading-snug text-muted">{hint}</span>}
+      {check ? (
+        <span
+          role={check.level === "error" ? "alert" : undefined}
+          className={`mt-1 flex items-start gap-1.5 text-[11px] leading-snug ${
+            check.level === "error" ? "text-danger-text" : "text-warning-text"
+          }`}
+        >
+          <span aria-hidden className="mt-px shrink-0 font-semibold">
+            {check.level === "error" ? "!" : "?"}
+          </span>
+          <span>{check.message}</span>
+        </span>
+      ) : (
+        hint && <span className="mt-1 block text-[11px] leading-snug text-muted">{hint}</span>
+      )}
     </label>
   );
 }
