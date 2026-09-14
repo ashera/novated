@@ -58,6 +58,10 @@ const pillBase =
   "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white";
 const btn =
   "rounded border border-line bg-panel-2 px-2 py-0.5 text-[11px] font-medium text-ink transition hover:border-accent hover:text-accent";
+/** The same button, as a picture of one. A span rather than a <button>, so it
+ *  is not focusable and cannot be clicked to no effect. */
+const btnSample =
+  "rounded border border-line bg-panel-2 px-2 py-0.5 text-[11px] font-medium text-ink";
 
 export default function QuotesCard({
   store,
@@ -334,22 +338,6 @@ export default function QuotesCard({
         </p>
       )}
 
-      {/* What the two buttons on each row actually do. They read as near
-          synonyms — both sound like "pick this one" — and the difference
-          between them is the difference between comparing and deciding, so
-          it gets said rather than inferred. It also answers the question the
-          row raises before it is asked: why some quotes have no button yet. */}
-      {!locked && lease.quotes.length > 0 && (
-        <p className="mt-1.5 max-w-3xl text-xs leading-relaxed text-muted">
-          <strong className="font-semibold text-subtle">Use this one</strong> models the figures
-          below on that quote — its rate, its budgets and its fees — so you can see what each
-          provider really costs you. It appears once there is enough on a quote to work the rate
-          out.{" "}
-          <strong className="font-semibold text-subtle">Lock it in</strong> once you have chosen:
-          the page stops comparing and becomes the payslip you can expect. Both can be undone.
-        </p>
-      )}
-
       {lease.quotes.length > 0 && stepsButton}
 
       {lease.quotes.length === 0 ? (
@@ -405,7 +393,44 @@ export default function QuotesCard({
           )}
         </>
       ) : (
-        <ul className="mt-3 divide-y divide-line">{lease.quotes.map((q) => row(q, false))}</ul>
+        <>
+          <ul className="mt-3 divide-y divide-line">{lease.quotes.map((q) => row(q, false))}</ul>
+
+          {/* The two buttons read as near synonyms — both sound like "pick this
+              one" — and the difference between them is the difference between
+              comparing and deciding, so it gets said rather than inferred.
+
+              It used to say it as a paragraph above the rows, and people did
+              not realise it was describing buttons: it named them before they
+              had been seen, and set them in bold text among more bold text.
+              Now it sits under the rows, titled, with each name drawn as the
+              button it refers to. */}
+          <div className="mt-3 rounded-lg border border-line bg-panel-2 px-3.5 py-3">
+            <p className="text-xs font-semibold text-ink">The two buttons on a quote</p>
+            <dl className="mt-2 space-y-2">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <dt className="shrink-0">
+                  <span className={btnSample}>Use this one</span>
+                </dt>
+                <dd className="min-w-0 flex-1 text-xs leading-relaxed text-muted">
+                  Models the figures below on that quote — its rate, its budgets and its fees —
+                  so you can see what each provider really costs you. It appears once there is
+                  enough on a quote to work the rate out.
+                </dd>
+              </div>
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <dt className="shrink-0">
+                  <span className={btnSample}>Lock it in</span>
+                </dt>
+                <dd className="min-w-0 flex-1 text-xs leading-relaxed text-muted">
+                  Once you have chosen. The page stops comparing and becomes the payslip you can
+                  expect. It sits on whichever quote the figures are currently modelled on.
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-2 text-[11px] text-muted">Either can be undone.</p>
+          </div>
+        </>
       )}
 
       {showingSample && <SampleQuote onClose={() => setShowingSample(false)} />}
