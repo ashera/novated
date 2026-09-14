@@ -60,11 +60,16 @@ export default function QuoteSteps({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4">
       <div className="fixed inset-0 bg-[#091e42]/54 backdrop-blur-sm" onClick={onClose} />
+        {/* my-auto, not my-8. Auto margins absorb a flex line's free space
+            before alignment runs, so the dialog centres when there is room and
+            falls back to top-aligned — and still scrollable — when there is
+            not. items-center would centre too, but clips the top of anything
+            taller than the viewport and puts it out of reach. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label="How getting quotes works"
-        className="relative z-10 my-8 w-full max-w-2xl rounded-xl border border-line bg-panel shadow-2xl"
+        className="relative z-10 my-auto w-full max-w-2xl rounded-xl border border-line bg-panel shadow-2xl"
       >
         {/* No flex-wrap. The sample-quote modal is max-w-4xl and its header has
             room to spare; this one is max-w-2xl, and the standfirst pushed the

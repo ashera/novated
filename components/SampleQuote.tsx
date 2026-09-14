@@ -42,7 +42,7 @@ export default function SampleQuote({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-label="What a provider's quote looks like"
-        className="relative z-10 my-8 w-full max-w-4xl rounded-xl border border-line bg-panel shadow-2xl"
+        className="relative z-10 my-auto w-full max-w-4xl rounded-xl border border-line bg-panel shadow-2xl"
       >
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-3.5">
           <div>
