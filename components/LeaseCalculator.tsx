@@ -280,7 +280,7 @@ export default function LeaseCalculator({
           {!locked && (
             <>
             <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <StepHeading step={2}>Your salary and lease term</StepHeading>
+              <StepHeading step={2}>You and your employer</StepHeading>
               <div className="mt-4 space-y-5">
                 <Field
                   label="Gross salary"
@@ -318,90 +318,6 @@ export default function LeaseCalculator({
                     same either way.
                   </p>
                 </div>
-
-                <div>
-                  <span className="text-sm font-medium text-ink">Lease term</span>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {[1, 2, 3, 4, 5].map((y) => (
-                      <button
-                        key={y}
-                        type="button"
-                        disabled={readOnly}
-                        onClick={() => set("termYears", y)}
-                        className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
-                          inputs.termYears === y
-                            ? "border-accent bg-accent-subtle text-accent"
-                            : "border-line bg-panel-2 text-subtle hover:border-line-bold hover:text-ink"
-                        }`}
-                      >
-                        {y} yr
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/*
-                  Only meaningful for an electric car, and only since the 2026
-                  Budget — but for those it decides everything. The concession
-                  is a schedule now, and the phase a lease commences under
-                  follows it for its whole life, so the same car started a year
-                  apart can be taxed completely differently. Asked here rather
-                  than assumed, and hidden where it would change nothing.
-                */}
-                {inputs.fuelType === "electric" && (
-                  <label className="block">
-                    <span className="text-sm font-medium text-ink">Lease starts</span>
-                    <input
-                      type="date"
-                      disabled={readOnly}
-                      value={lease.scenario.commencementDate ?? ""}
-                      onChange={(e) => set("commencementDate", e.target.value || undefined)}
-                      className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent disabled:opacity-60"
-                    />
-                    <span className="mt-1 block text-[11px] leading-snug text-muted">
-                      The electric car FBT rules change on set dates, and a lease keeps whatever
-                      applied when it started. Leave blank to assume it starts this financial year.
-                    </span>
-                  </label>
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <StepHeading step={3}>The lease</StepHeading>
-              <div className="mt-4 space-y-5">
-                <Field
-                  label="Interest rate"
-                  value={inputs.interestRatePct}
-                  onChange={(v) => set("interestRatePct", v)}
-                  min={2}
-                  max={15}
-                  step={0.1}
-                  suffix="%"
-                  hint="The financier's rate. Ask for it — it isn't always quoted."
-                />
-
-                <label className="flex cursor-pointer items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={inputs.includeRunningCosts}
-                    disabled={readOnly}
-                    onChange={(e) => {
-                      set("includeRunningCosts", e.target.checked);
-                      track("Running costs toggled", { included: e.target.checked });
-                    }}
-                    className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
-                  />
-                  <span>
-                    <span className="text-sm font-medium text-ink">
-                      Package the running costs
-                    </span>
-                    <span className="mt-0.5 block text-xs text-muted">
-                      Fuel, servicing, tyres, registration and insurance come out of the same
-                      deduction — and out of pre-tax salary.
-                    </span>
-                  </span>
-                </label>
 
                 <label className="flex cursor-pointer items-start gap-3">
                   <input
@@ -474,6 +390,91 @@ export default function LeaseCalculator({
                     </label>
                   )}
                 </div>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
+              <StepHeading step={3}>The lease</StepHeading>
+              <div className="mt-4 space-y-5">
+
+                <div>
+                  <span className="text-sm font-medium text-ink">Lease term</span>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {[1, 2, 3, 4, 5].map((y) => (
+                      <button
+                        key={y}
+                        type="button"
+                        disabled={readOnly}
+                        onClick={() => set("termYears", y)}
+                        className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                          inputs.termYears === y
+                            ? "border-accent bg-accent-subtle text-accent"
+                            : "border-line bg-panel-2 text-subtle hover:border-line-bold hover:text-ink"
+                        }`}
+                      >
+                        {y} yr
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/*
+                  Only meaningful for an electric car, and only since the 2026
+                  Budget — but for those it decides everything. The concession
+                  is a schedule now, and the phase a lease commences under
+                  follows it for its whole life, so the same car started a year
+                  apart can be taxed completely differently. Asked here rather
+                  than assumed, and hidden where it would change nothing.
+                */}
+                {inputs.fuelType === "electric" && (
+                  <label className="block">
+                    <span className="text-sm font-medium text-ink">Lease starts</span>
+                    <input
+                      type="date"
+                      disabled={readOnly}
+                      value={lease.scenario.commencementDate ?? ""}
+                      onChange={(e) => set("commencementDate", e.target.value || undefined)}
+                      className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm text-ink outline-none focus:border-accent disabled:opacity-60"
+                    />
+                    <span className="mt-1 block text-[11px] leading-snug text-muted">
+                      The electric car FBT rules change on set dates, and a lease keeps whatever
+                      applied when it started. Leave blank to assume it starts this financial year.
+                    </span>
+                  </label>
+                )}
+
+                <Field
+                  label="Interest rate"
+                  value={inputs.interestRatePct}
+                  onChange={(v) => set("interestRatePct", v)}
+                  min={2}
+                  max={15}
+                  step={0.1}
+                  suffix="%"
+                  hint="The financier's rate. Ask for it — it isn't always quoted."
+                />
+
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={inputs.includeRunningCosts}
+                    disabled={readOnly}
+                    onChange={(e) => {
+                      set("includeRunningCosts", e.target.checked);
+                      track("Running costs toggled", { included: e.target.checked });
+                    }}
+                    className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+                  />
+                  <span>
+                    <span className="text-sm font-medium text-ink">
+                      Package the running costs
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted">
+                      Fuel, servicing, tyres, registration and insurance come out of the same
+                      deduction — and out of pre-tax salary.
+                    </span>
+                  </span>
+                </label>
 
                 {!fbt.exempt && (
                   <div>
