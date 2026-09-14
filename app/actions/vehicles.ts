@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { query } from "@/lib/db";
 import { getAdmin, getCurrentUser } from "@/lib/auth";
+import { normaliseVehicleImage } from "@/lib/vehicleImage";
 import { VEHICLES, validateVehicle, type VehicleInput } from "@/lib/au/vehicles";
 
 /**
@@ -225,7 +226,18 @@ export async function suggestVehicle(
  *  table growing without bound. */
 const MAX_SUGGESTIONS = 500;
 
-const MAX_BYTES = 2_000_000;
+/**
+ * What may be SENT. What is stored is whatever normaliseVehicleImage gets it
+ * down to, which is a different and much smaller number.
+ *
+ * Generous on purpose: the admin uploads whatever an image tool produced, and
+ * a 4000px PNG on a white background is easily several megabytes. Capped at
+ * all only so a mistaken file — a video, a RAW — fails quickly with something
+ * readable instead of after a long upload. Kept under the server action body
+ * limit in next.config.mjs, which rejects anything larger with an error nobody
+ * can interpret.
+ */
+const MAX_BYTES = 10_000_000;
 const ALLOWED = ["image/webp", "image/png", "image/jpeg"];
 
 /** Upload artwork for one vehicle. Admin only — these images are public. */
@@ -242,14 +254,25 @@ export async function uploadVehicleImage(
     return { error: `${file.type || "That file"} isn't supported — use WebP, PNG or JPEG.` };
   }
   if (file.size > MAX_BYTES) {
-    return { error: `That image is ${(file.size / 1e6).toFixed(1)}MB. Keep it under 2MB.` };
+    return {
+      error: `That file is ${(file.size / 1e6).toFixed(1)}MB, which is larger than any image needs to be — check it is the picture and not something else.`,
+    };
   }
 
-  const bytes = Buffer.from(await file.arrayBuffer());
+  // Resized and re-encoded rather than measured and refused. Telling somebody
+  // to "keep it under 2MB" is advice they cannot act on: the size is decided
+  // by whichever image tool generated it, and no prompt controls it.
+  let image;
+  try {
+    image = await normaliseVehicleImage(Buffer.from(await file.arrayBuffer()));
+  } catch {
+    return { error: "That file could not be read as an image. Use WebP, PNG or JPEG." };
+  }
+
   const r = await query(
     `update vehicles set image = $1, image_mime = $2, image_updated_at = now(), updated_at = now()
       where id = $3`,
-    [bytes, file.type, id],
+    [image.bytes, image.mime, id],
   );
   if (!r.rowCount) return { error: "Unknown vehicle." };
   revalidatePath("/admin/vehicles");

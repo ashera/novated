@@ -33,8 +33,11 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     // Vehicle artwork is uploaded through a server action; the 1MB default is
-    // below a reasonable studio image.
-    serverActions: { bodySizeLimit: "4mb" },
+    // below a reasonable studio image. Raised again once uploads started being
+    // re-encoded on arrival rather than refused — what a generator hands back
+    // can be several megabytes of PNG, and it is shrunk to a fraction of that
+    // before anything is stored.
+    serverActions: { bodySizeLimit: "12mb" },
   },
   // geoip-lite reads its MaxMind data files from its own package dir at runtime;
   // let it load from node_modules instead of being bundled (webpack rewrites

@@ -12,7 +12,12 @@ import type { BodyType, Vehicle } from "./vehicles";
 export const IMAGE_STYLE =
   "three-quarter front view facing left, centred, entire vehicle in frame with a small margin, " +
   "pure white seamless studio background, soft even lighting from above, subtle contact shadow beneath the wheels, " +
-  "photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects";
+  "photorealistic product photography, no people, no text, no logos overlaid, no watermark, no background objects, " +
+  // A hint, not a guarantee. No image model takes instruction about file size,
+  // and several ignore resolution too — the upload re-encodes whatever arrives
+  // (see lib/vehicleImage.ts), which is what actually keeps stored artwork
+  // small. This just avoids asking for a 4000px render nobody needs.
+  "1024x1024 resolution";
 
 /** What to call each body in the prompt, article included — "a suv" reads as
  *  a mistake and an image model does nothing useful with it. */
