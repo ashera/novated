@@ -20,6 +20,7 @@ import { fmtDate } from "@/lib/au/format";
 import type { UseLease } from "./useLease";
 import { track } from "@/lib/analytics";
 import SampleQuote from "./SampleQuote";
+import QuoteSteps from "./QuoteSteps";
 
 /**
  * Every quote gathered against this lease.
@@ -53,45 +54,6 @@ const STATUS_STYLE: Record<QuoteStatus, { label: string; className: string }> = 
   complete: { label: "Complete", className: "bg-success-subtle text-success-text" },
 };
 
-/**
- * What a person actually has to do to get a quote, in order.
- *
- * Written for somebody who has never spoken to a leasing provider. The first
- * step is the one nobody mentions and the one that decides how many quotes
- * they can get at all; the third is the one that surprises people, because a
- * quote looks like a price and is really a bundle; and the fourth is the
- * reason this card exists at all.
- */
-const STEPS: { title: string; body: string; href?: string; linkLabel?: string }[] = [
-  {
-    title: "Check what your employer allows.",
-    body:
-      "The payments come out of payroll, so your employer has to agree to the arrangement. Most have a provider they already work with, and some let you bring your own — worth asking, because it is the difference between one quote and several.",
-    href: "/choose-your-provider",
-    linkLabel: "Work out whether you can",
-  },
-  {
-    title: "Ask for a quote on a specific car.",
-    body:
-      "Providers price a particular model at a particular price over a particular term. Give them all three and what comes back can be compared like for like.",
-  },
-  {
-    title: "Expect one number, not a breakdown.",
-    body:
-      "A quote leads with what leaves each pay — the finance, the running-cost budgets, the fees and any FBT, rolled together. The interest rate behind it is almost never printed.",
-  },
-  {
-    title: "Get more than one.",
-    body:
-      "On the same car, term and salary, providers differ by thousands over a lease. A single quote tells you what it costs, not whether it is any good.",
-  },
-  {
-    title: "Type each one in here.",
-    body:
-      "We work out the rate behind it, measure every running-cost line against the market, and give you the questions worth sending back.",
-  },
-];
-
 const pillBase =
   "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white";
 const btn =
@@ -122,6 +84,10 @@ export default function QuotesCard({
   /** Showing what a provider's quote looks like, for somebody who has never
    *  been sent one. Offered from the steps, where the question arises. */
   const [showingSample, setShowingSample] = useState(false);
+  /** The teaching, on demand. It used to be a disclosure inside this card,
+   *  which doubled the card's height in a sticky column and put its bottom
+   *  beyond reach — see the note in QuoteSteps. */
+  const [showingSteps, setShowingSteps] = useState(false);
 
   /**
    * Whether anybody ever gets this far down the page.
@@ -168,52 +134,20 @@ export default function QuotesCard({
     router.push(`/decode?quote=${encodeURIComponent(spec.id)}`);
   };
 
-  /* Numbered because it genuinely is a sequence: you cannot ask for a quote
-     before you know whether your employer allows one, and you cannot compare
-     two until you have asked twice. Shared between the empty state, where it
-     is the whole card, and a disclosure once there are quotes — somebody
-     coming back a week later should not have to delete everything to read it
-     again. */
-  const steps = (
-    <ol className="mt-2.5 max-w-3xl space-y-2.5 text-sm leading-relaxed text-subtle">
-      {STEPS.map((step, i) => (
-        <li key={step.title} className="flex gap-2.5">
-          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-[11px] font-semibold tabular-nums text-accent">
-            {i + 1}
-          </span>
-          <span>
-            <strong className="font-semibold text-ink">{step.title}</strong> {step.body}
-            {step.href && (
-              <>
-                {" "}
-                <Link
-                  href={step.href}
-                  className="font-semibold text-accent hover:underline"
-                  onClick={() => track("BYO checker opened", { from: "quotes-card" })}
-                >
-                  {step.linkLabel} →
-                </Link>
-              </>
-            )}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-
-  /** The steps, folded. Shown in both states so the teaching is always one
-   *  click away and never a wall. */
-  const stepsDisclosure = (
-    <details
-      className="group mt-2.5"
-      onToggle={(e) => e.currentTarget.open && track("Quote steps opened")}
+  /** Opens the teaching. Shown on the empty card and again once there are
+   *  quotes, so somebody coming back a week later can re-read it without
+   *  deleting anything. */
+  const stepsButton = (
+    <button
+      type="button"
+      onClick={() => {
+        setShowingSteps(true);
+        track("Quote steps opened", { from: "quotes-card" });
+      }}
+      className="mt-2.5 text-xs font-medium text-accent hover:underline"
     >
-      <summary className="cursor-pointer list-none text-xs font-medium text-accent hover:underline">
-        <span className="group-open:hidden">How getting quotes works</span>
-        <span className="hidden group-open:inline">Hide how getting quotes works</span>
-      </summary>
-      {steps}
-    </details>
+      How getting quotes works
+    </button>
   );
 
   const locked = lockedId ? (lease.quotes.find((q) => q.id === lockedId) ?? null) : null;
@@ -416,7 +350,7 @@ export default function QuotesCard({
         </p>
       )}
 
-      {lease.quotes.length > 0 && stepsDisclosure}
+      {lease.quotes.length > 0 && stepsButton}
 
       {lease.quotes.length === 0 ? (
         /* Compact, and deliberately so. This card sits above the first number
@@ -449,7 +383,7 @@ export default function QuotesCard({
               Got one in front of you? Adding it takes a couple of minutes.
             </span>
           </div>
-          {stepsDisclosure}
+          {stepsButton}
         </div>
       ) : locked ? (
         <>
@@ -475,6 +409,7 @@ export default function QuotesCard({
       )}
 
       {showingSample && <SampleQuote onClose={() => setShowingSample(false)} />}
+      {showingSteps && <QuoteSteps onClose={() => setShowingSteps(false)} />}
 
       {pending && (
         <LockConfirm
