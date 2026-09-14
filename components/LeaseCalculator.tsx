@@ -120,6 +120,20 @@ export default function LeaseCalculator({
 
   /** Rendered in the narrow column while deciding, and inline once settled. */
   const quotesCard = readOnly ? null : <QuotesCard store={store} config={config} />;
+  /**
+   * Collapsed on a phone, open on a desktop.
+   *
+   * Below lg the card is at the top of a single column, where it has to be —
+   * pushed below the result it was 8,600px down and nobody was going to find
+   * it. But at full height it is the first screen of a calculator, spent on
+   * something you cannot do yet. So it opens to a bar.
+   *
+   * State only governs the phone. At lg the panel carries lg:block and the
+   * toggle lg:hidden, so the column is always open there whatever this says —
+   * which also means it cannot be left in a state that hides the sidebar on a
+   * resize.
+   */
+  const [quotesOpen, setQuotesOpen] = useState(false);
 
   // Funnel signal: they have priced a real car, not just landed on the page.
   // Debounced, and only on the shape of the car — otherwise every slider tick of
@@ -208,6 +222,50 @@ export default function LeaseCalculator({
                 "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]"
           }
         >
+          {/* ── The quotes ─────────────────────────────────────────────
+              First in the source again, which on a phone is the top of the
+              page, and at lg is placed into the left column. Source order and
+              what you see now agree at both widths, so the tab order and a
+              screen reader follow the same path as the eye. */}
+          {!locked && (
+            <div className="space-y-3 lg:col-start-1 lg:row-start-1 lg:sticky lg:top-20 lg:self-start">
+              <button
+                type="button"
+                onClick={() => {
+                  setQuotesOpen((o) => !o);
+                  if (!quotesOpen) track("Quotes card expanded", { from: "mobile-accordion" });
+                }}
+                aria-expanded={quotesOpen}
+                aria-controls="quotes-panel"
+                className="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-left shadow-[var(--shadow-card)] transition hover:border-accent lg:hidden"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-ink">Quotes from providers</span>
+                  {lease.quotes.length > 0 && (
+                    <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[11px] font-semibold tabular-nums text-accent">
+                      {lease.quotes.length}
+                    </span>
+                  )}
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-accent">
+                    {quotesOpen ? "Hide" : lease.quotes.length > 0 ? "Show" : "Add one"}
+                  </span>
+                  <span
+                    aria-hidden
+                    className={`text-muted transition-transform ${quotesOpen ? "rotate-180" : ""}`}
+                  >
+                    ▾
+                  </span>
+                </span>
+              </button>
+
+              <div id="quotes-panel" className={`${quotesOpen ? "" : "hidden"} lg:block`}>
+                {quotesCard}
+              </div>
+            </div>
+          )}
+
           {/* ── The car, the terms, the numbers ────────────────────── */}
           {/* First in the source, and placed into the SECOND column at lg.
               It used to be second in the source and first on screen, which
@@ -747,12 +805,6 @@ export default function LeaseCalculator({
           </div>
           </div>
 
-          {/* ── The quotes, alongside ──────────────────────────────── */}
-          {!locked && (
-            <div className="space-y-4 lg:col-start-1 lg:row-start-1 lg:sticky lg:top-20 lg:self-start">
-              {quotesCard}
-            </div>
-          )}
         </div>
 
         {/* The decoder, the comparison and the printed report all carry this.
