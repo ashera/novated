@@ -205,6 +205,22 @@ export interface QuoteDecode {
   statedRateGap: number | null;
   /** Whether what they said accounts for what they charge. Null until asked. */
   reconciliation: RateReconciliation | null;
+  /**
+   * The rate on the borrowing once disclosed fees are treated as borrowed.
+   *
+   * impliedRatePct is the all-in figure: it solves the payment against the
+   * amount financed, so anything else inside the payment — a capitalised fee,
+   * brokerage, an insurance — comes out looking like interest, because to the
+   * person paying it there is no difference. That is the number that matters
+   * and it does not move when fees are disclosed.
+   *
+   * This is the other half: put the fees where they belong, as money borrowed
+   * rather than interest charged, and what is left is the rate on the loan —
+   * which should land on the rate the provider stated. Showing both is what
+   * makes the gap legible: neither figure is wrong, they are answers to
+   * different questions.
+   */
+  ratePaidOnBorrowingPct: number | null;
   findings: Finding[];
   questions: string[];
 }
@@ -429,6 +445,24 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     };
   }
 
+  /*
+   * The same payment, asked a different question.
+   *
+   * Per-payment charges are not borrowed, so they come off the payment; fees
+   * financed in are, so they go onto the principal. What the rate solves to
+   * after that is the cost of the money alone.
+   */
+  let ratePaidOnBorrowingPct: number | null = null;
+  if (reconciliation != null && amountFinanced != null && residualExGst != null && monthlyFinance != null) {
+    const financePart = monthlyFinance - annualise(explainedPerPayment, f) / 12;
+    ratePaidOnBorrowingPct = impliedRate(
+      amountFinanced + explainedFinanced,
+      residualExGst,
+      financePart,
+      quote.termMonths,
+    );
+  }
+
   // ── Findings ─────────────────────────────────────────────────────────────
 
   /*
@@ -481,7 +515,18 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     }
   }
 
-  if (statedRatePct != null && statedRateGap != null && paymentAtStatedRate != null) {
+  if (
+    statedRatePct != null &&
+    statedRateGap != null &&
+    paymentAtStatedRate != null &&
+    // Once anything has been entered against it, the reconciliation findings
+    // own this story — they state the same gap and what accounts for it. The
+    // whole block goes rather than one branch of it: dropping a single branch
+    // from an if/else chain does not remove that case, it hands it to the
+    // next branch, and a positive gap was landing in "the payment is below
+    // the stated rate" and saying "less" about a figure that was more.
+    reconciliation == null
+  ) {
     // A rounding difference is not a finding. Under a dollar a month either
     // way is the same rate as far as anyone is concerned.
     const perMonth = Math.abs(statedRateGap) / quote.termMonths;
@@ -493,11 +538,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         title: `The ${pct(statedRatePct)} it quotes is the rate you are actually paying`,
         detail: `The payment matches what ${pct(statedRatePct)} produces on ${money(amountFinanced ?? 0)} over ${quote.termMonths} months. Nothing extra is buried in the payment.`,
       });
-    } else if (statedRateGap > 0 && reconciliation == null) {
-      // Superseded once anything has been entered against it: the
-      // reconciliation finding states this gap and what accounts for it, and
-      // two findings about one difference, carrying different figures, read
-      // as two problems.
+    } else if (statedRateGap > 0) {
       findings.push({
         key: "stated-rate-understates",
         severity: "warn",
@@ -815,6 +856,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     paymentAtStatedRate,
     statedRateGap,
     reconciliation,
+    ratePaidOnBorrowingPct,
     findings,
     questions: findings.map((x) => x.question).filter((q): q is string => Boolean(q)),
   };

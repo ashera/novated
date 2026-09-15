@@ -793,8 +793,19 @@ export default function QuoteDecoder({
                     <h2 className="text-lg font-semibold text-ink">
                       The interest rate on this lease
                     </h2>
+                    {/* Says what kind of rate it is. It solves the payment
+                        against the amount financed, so anything else inside
+                        that payment — a capitalised fee, brokerage, an
+                        insurance — comes out looking like interest, which is
+                        right: to the person paying it there is no difference.
+                        Not called a comparison rate. That term has a
+                        prescribed formula under the credit rules and a
+                        novated lease is not usually regulated credit, so
+                        borrowing the words would claim a standard this is not
+                        computed to. */}
                     <p className="mt-1 text-sm text-subtle">
-                      Solved from the finance payment, the amount financed
+                      Everything inside the finance payment, not only interest — solved from the
+                      payment, the amount financed
                       {decode.financedWasDerived && " (which we worked out from the price)"}, the
                       residual and the term. Over {quote.termMonths / 12} years it costs{" "}
                       <strong>{fmtCurrency(decode.totalInterest ?? 0)}</strong> in interest
@@ -809,6 +820,26 @@ export default function QuoteDecoder({
                     </p>
                   </div>
                 </div>
+
+                {/* The same payment asked a different question: the disclosed
+                    fees put where they belong, as money borrowed rather than
+                    interest charged. Only once somebody has said what they
+                    are — before that there is nothing to separate. */}
+                {decode.ratePaidOnBorrowingPct != null && decode.impliedRatePct != null && (
+                  <p className="mt-3 border-t border-line pt-3 text-sm text-subtle">
+                    Treating what they disclosed as borrowed rather than charged, the money itself
+                    costs{" "}
+                    <strong className="text-ink">
+                      {decode.ratePaidOnBorrowingPct.toFixed(2)}%
+                    </strong>
+                    {quote.statedRatePct != null &&
+                      Math.abs(decode.ratePaidOnBorrowingPct - quote.statedRatePct) < 0.1 &&
+                      ` — the ${quote.statedRatePct}% they stated`}
+                    . The gap between that and the {decode.impliedRatePct.toFixed(2)}% above is
+                    the fees, which you pay either way.
+                  </p>
+                )}
+
                 {/* The rate is the figure a provider is most likely to push
                     back on, so the working sits with it — four numbers off
                     their own quote, in an order somebody can read out. */}

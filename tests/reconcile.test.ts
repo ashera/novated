@@ -16,6 +16,8 @@ const RATE = 6;
 /** What the quote charges once a $990 fee is financed in at the stated rate. */
 const feesFinanced = 990;
 const chargedWithFee = annuityPayment(financed + feesFinanced, residualExGst, RATE, months);
+/** The payment a given rate produces on the bare amount financed. */
+const at = (rate: number) => annuityPayment(financed, residualExGst, rate, months);
 
 const quote = (over: Partial<Quote> = {}): Quote => ({
   frequency: "monthly",
@@ -244,6 +246,12 @@ describe("The finding points at the box it opened", () => {
   it("gives way to the reconciliation once anything is entered", () => {
     const after = decodeQuote(quote({ explainedFeesFinanced: 400 }), config).findings;
     expect(after.some((x) => x.key === "stated-rate-understates")).toBe(false);
+    // And does not fall through to the branch that says the opposite. This is
+    // the failure that reached the screen: a payment ABOVE the stated rate
+    // reported as "below" it, because dropping one branch of an if/else chain
+    // hands its cases to the next.
+    expect(after.some((x) => x.key === "stated-rate-overstates")).toBe(false);
+    expect(after.some((x) => x.key === "stated-rate-checks-out")).toBe(false);
     expect(after.some((x) => x.key === "explanation-falls-short")).toBe(true);
     // And nothing left on the page still points at the box.
     const said = after.flatMap((f) => [f.title, f.detail, f.question ?? ""]).join(" ");
@@ -311,5 +319,105 @@ describe("The check under the finance payment", () => {
     const short = quote({ explainedFeesFinanced: 400 });
     expect(decodeQuote(short, config).reconciliation!.reconciles).toBe(false);
     expect(quoteFieldChecks(short, config).finance).toBeTruthy();
+  });
+});
+
+/**
+ * Two rates, both true, answering different questions.
+ *
+ * impliedRatePct solves the payment against the amount financed, so a fee
+ * capitalised into the borrowing comes out looking like interest — which is
+ * right, because to the person paying it there is no difference. It does not
+ * move when fees are disclosed, and should not: what leaves the account is
+ * unchanged by learning what it is made of.
+ *
+ * ratePaidOnBorrowingPct is the other half — fees put back where they belong,
+ * leaving the cost of the money alone. Where the provider's explanation is
+ * true, it lands on the rate they stated, and that is the check.
+ */
+describe("The rate on the money, against the rate on the payment", () => {
+  it("lands on the stated rate when the explanation is true", () => {
+    const d = decodeQuote(quote({ explainedFeesFinanced: feesFinanced }), config);
+    expect(d.ratePaidOnBorrowingPct).toBeCloseTo(RATE, 1);
+  });
+
+  it("leaves the all-in rate alone — the payment has not changed", () => {
+    const before = decodeQuote(quote(), config).impliedRatePct;
+    const after = decodeQuote(quote({ explainedFeesFinanced: feesFinanced }), config)
+      .impliedRatePct;
+    expect(after).toBeCloseTo(before!, 6);
+  });
+
+  it("puts the all-in rate above the rate on the money", () => {
+    const d = decodeQuote(quote({ explainedFeesFinanced: feesFinanced }), config);
+    expect(d.impliedRatePct!).toBeGreaterThan(d.ratePaidOnBorrowingPct!);
+  });
+
+  // A per-payment charge is not borrowed, so it comes off the payment rather
+  // than onto the principal. Getting that backwards would flatter the rate.
+  it("takes a per-payment charge off the payment, not onto the loan", () => {
+    const perPayment = 20;
+    const charged = annuityPayment(financed, residualExGst, RATE, months) + perPayment;
+    const d = decodeQuote(
+      quote({ lines: { finance: charged }, explainedFeesPerPayment: perPayment }),
+      config,
+    );
+    expect(d.ratePaidOnBorrowingPct).toBeCloseTo(RATE, 1);
+  });
+
+  it("says nothing until somebody has said what the fees are", () => {
+    expect(decodeQuote(quote(), config).ratePaidOnBorrowingPct).toBeNull();
+  });
+
+  // A short explanation leaves some of the fee counted as interest, so the
+  // rate on the money sits between the stated rate and the all-in one.
+  it("lands between the two when the explanation is partial", () => {
+    const d = decodeQuote(quote({ explainedFeesFinanced: 400 }), config);
+    expect(d.ratePaidOnBorrowingPct!).toBeGreaterThan(RATE);
+    expect(d.ratePaidOnBorrowingPct!).toBeLessThan(d.impliedRatePct!);
+  });
+});
+
+/**
+ * No finding may describe the gap backwards.
+ *
+ * A payment above the stated rate reached the screen described as below it,
+ * because suppressing one branch of an if/else chain hands its cases to the
+ * next rather than removing them. Asserted as a property across a spread of
+ * payments and explanations, rather than as the one case that happened to be
+ * noticed.
+ */
+describe("Which way the gap runs", () => {
+  const payments = [at(4), at(6), at(7.5), at(9.5), chargedWithFee];
+  const explanations = [undefined, 0, 400, feesFinanced, 4_000];
+
+  it("never says below when the payment is above, or the reverse", () => {
+    for (const finance of payments) {
+      for (const explainedFeesFinanced of explanations) {
+        const q = quote({ lines: { finance }, explainedFeesFinanced });
+        const d = decodeQuote(q, config);
+        if (d.statedRateGap == null) continue;
+        const said = d.findings.filter((f) => f.key.startsWith("stated-rate"));
+        for (const f of said) {
+          if (f.key === "stated-rate-overstates") {
+            expect(d.statedRateGap, `${finance} / ${explainedFeesFinanced}`).toBeLessThan(0);
+          }
+          if (f.key === "stated-rate-understates") {
+            expect(d.statedRateGap, `${finance} / ${explainedFeesFinanced}`).toBeGreaterThan(0);
+          }
+        }
+      }
+    }
+  });
+
+  it("shows at most one story about the stated rate at a time", () => {
+    for (const finance of payments) {
+      for (const explainedFeesFinanced of explanations) {
+        const d = decodeQuote(quote({ lines: { finance }, explainedFeesFinanced }), config);
+        const stated = d.findings.filter((f) => f.key.startsWith("stated-rate")).length;
+        const reconciled = d.findings.filter((f) => f.key.startsWith("explanation-")).length;
+        expect(stated + reconciled, `${finance} / ${explainedFeesFinanced}`).toBeLessThanOrEqual(1);
+      }
+    }
   });
 });
