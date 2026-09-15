@@ -250,7 +250,7 @@ export function glossary(config: EngineConfig): GlossarySection[] {
           definition:
             "The rate that must be true given the amount financed, the finance payment, the term and the residual.",
           matters:
-            "Almost no quote prints a rate. It is not a guess — it is the same arithmetic a loan calculator does, run backwards, and it covers anything else built into that payment.",
+            "Almost no quote prints a rate. It is not a guess: a loan calculator starts with a rate and works out the payment, and this is the same sum the other way round. It covers anything else built into that payment, not only interest.",
           seeHref: "/decode",
           seeLabel: "Work it out from your quote",
         },

@@ -16,7 +16,15 @@ import { track } from "@/lib/analytics";
  *
  * So this is written to be READ OUT. Not a formula and not a derivation — four
  * facts the provider themselves supplied, then the observation that only one
- * rate fits them. Every figure comes from `decode`, which is what the solver
+ * rate fits them.
+ *
+ * It closed on "there is nothing to disagree about — the same arithmetic a loan
+ * calculator does, run backwards", and users said that confused them. Fair: it
+ * was written at the provider, not at the reader. "Nothing to disagree about"
+ * sounds like an argument they are being enlisted into, two lines above a
+ * section that invites them to go and ask; and "run backwards" only means
+ * anything if you already know which way a loan calculator runs. It now says
+ * which way, which is the whole point being made. Every figure comes from `decode`, which is what the solver
  * actually used, so the working cannot describe a different sum from the one
  * that produced the headline.
  *
@@ -161,8 +169,9 @@ export default function RateWorking({
             {fmtCurrency(financed)}, take {fmtCurrencyCents(payment)} a {noun} for {years}{" "}
             {years === 1 ? "year" : "years"}, and leave {fmtCurrency(residualEx)} owing at the end,
             and the interest rate is {rate.toFixed(2)}% a year. A higher rate would need a bigger
-            payment; a lower one, a smaller payment. There is nothing to disagree about — it is the
-            same arithmetic a loan calculator does, run backwards.
+            payment; a lower one, a smaller payment. A loan calculator starts with a rate and tells
+            you the payment; this does the same sum the other way round, starting with the payment
+            you were quoted.
           </p>
 
           <div className="mt-3 max-w-2xl rounded-lg border border-line bg-panel-2 px-3.5 py-3">
