@@ -4,6 +4,7 @@ import Analytics from "@/components/Analytics";
 import VersionWatcher from "@/components/VersionWatcher";
 import FeedbackButton from "@/components/FeedbackButton";
 import FooterNav from "@/components/FooterNav";
+import StartFresh from "@/components/StartFresh";
 import Link from "next/link";
 import { SITE_URL, SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION } from "@/lib/site";
 import { APP_VERSION, GIT_SHA, BUILD_DATE } from "@/lib/version";
@@ -76,6 +77,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/about" className="hover:text-ink">
               About &amp; sources
             </Link>
+            <span aria-hidden>·</span>
+            <StartFresh />
             <span aria-hidden>·</span>
             <span title={`${GIT_SHA} · ${BUILD_DATE}`}>v{APP_VERSION}</span>
           </p>
