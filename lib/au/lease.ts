@@ -156,6 +156,9 @@ export interface QuoteSpec {
   /** What the provider said accounts for the gap, once asked. */
   explainedFeesFinanced?: number;
   explainedFeesPerPayment?: number;
+  /** Months deferred before the first payment, and whether the end date moved. */
+  deferredMonths?: number;
+  deferralExtendsTerm?: boolean;
   lines: QuoteLines;
   statedPreTax?: number;
   statedPostTax?: number;
@@ -435,6 +438,8 @@ export function leaseToQuote(lease: Lease, spec: QuoteSpec): Quote {
     statedRatePct: spec.statedRatePct,
     explainedFeesFinanced: spec.explainedFeesFinanced,
     explainedFeesPerPayment: spec.explainedFeesPerPayment,
+    deferredMonths: spec.deferredMonths,
+    deferralExtendsTerm: spec.deferralExtendsTerm,
     lines: spec.lines,
     statedPreTax: spec.statedPreTax,
     statedPostTax: spec.statedPostTax,
@@ -612,6 +617,8 @@ export function applyQuoteEdit(lease: Lease, quoteId: string, q: Quote): Lease {
           statedRatePct: q.statedRatePct,
           explainedFeesFinanced: q.explainedFeesFinanced,
           explainedFeesPerPayment: q.explainedFeesPerPayment,
+          deferredMonths: q.deferredMonths,
+          deferralExtendsTerm: q.deferralExtendsTerm,
           lines: q.lines,
           statedPreTax: q.statedPreTax,
           statedPostTax: q.statedPostTax,

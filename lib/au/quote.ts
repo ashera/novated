@@ -104,6 +104,33 @@ export interface Quote {
   explainedFeesFinanced?: number;
   /** At the quote's frequency, like every other line. */
   explainedFeesPerPayment?: number;
+  /**
+   * Months between the financier settling the car and the first payment.
+   *
+   * The third kind of explanation a provider offers for a payment above their
+   * stated rate, after a capitalised fee and a charge inside the rental — and
+   * the only one that is a change to the schedule rather than to an amount.
+   * Their money is out from settlement, so interest accrues through the
+   * deferral and has to be repaid by whatever payments remain.
+   *
+   * Real, and commonly two months while payroll sets the deductions up.
+   * Bounded, too, which is what makes the claim checkable.
+   */
+  deferredMonths?: number;
+  /**
+   * Does the lease still end when it was going to?
+   *
+   * The single question that decides how much a deferral is worth, and the one
+   * nobody volunteers. If the residual date holds, the deferred months come
+   * out of the payment count and everything is repaid by fewer, larger
+   * payments. If the whole schedule moves, the payment rises by little more
+   * than the interest that accrued. On five years at 9.5% that is the
+   * difference between +4.3% and +1.9%.
+   *
+   * Defaults to the end date holding, because a term is normally written
+   * against an FBT year and a residual the ATO sets by term.
+   */
+  deferralExtendsTerm?: boolean;
 
   // What the quote says comes out of your pay, at `frequency`
   lines: QuoteLines;
@@ -168,8 +195,11 @@ export interface RateReconciliation {
   /** Still unaccounted for, over the term. Positive = charged beyond the
    *  explanation; negative = the explanation overshoots what is charged. */
   unexplainedOverTerm: number;
-  /** What the inclusions themselves cost over the term, at the stated rate. */
+  /** What the inclusions themselves cost over the term, at the stated rate.
+   *  Includes the deferral, which is one of them. */
   feesOverTerm: number;
+  /** Of that, what the deferral alone accounts for. Nil where there isn't one. */
+  deferralOverTerm: number;
   /** True where the explanation lands within a dollar a month. */
   reconciles: boolean;
 }
@@ -415,7 +445,17 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
    */
   const explainedFinanced = quote.explainedFeesFinanced ?? 0;
   const explainedPerPayment = quote.explainedFeesPerPayment ?? 0;
-  const hasExplanation = explainedFinanced > 0 || explainedPerPayment > 0;
+  /*
+   * A deferral is an explanation like any other, so it opens the
+   * reconciliation on its own — somebody told "it's the two-month deferral"
+   * and nothing else has a claim to test and no fee to enter.
+   *
+   * Clamped below the term: a deferral that swallows every payment is not a
+   * lease, and without the guard it would divide by nothing and report a
+   * confident absurdity.
+   */
+  const deferred = Math.max(0, Math.min(quote.deferredMonths ?? 0, quote.termMonths - 1));
+  const hasExplanation = explainedFinanced > 0 || explainedPerPayment > 0 || deferred > 0;
 
   let reconciliation: RateReconciliation | null = null;
   if (
@@ -426,21 +466,47 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     monthlyFinance != null
   ) {
     const bare = annuityPayment(amountFinanced, residualExGst, statedRatePct, quote.termMonths);
+    /*
+     * The deferral, applied the way a financier applies it: interest accrues
+     * on the whole balance from settlement and is capitalised, then what is
+     * left of the schedule repays it.
+     *
+     * Two structures, and which one they used changes the answer by more than
+     * most fees do — see `deferralExtendsTerm`.
+     */
+    const grow = (principal: number) =>
+      principal * Math.pow(1 + statedRatePct / 100 / 12, deferred);
+    const payments = quote.deferralExtendsTerm
+      ? quote.termMonths
+      : quote.termMonths - deferred;
+
     // Capitalised fees are borrowed and amortised; per-payment charges are not.
     const withFees =
       annuityPayment(
-        amountFinanced + explainedFinanced,
+        grow(amountFinanced + explainedFinanced),
         residualExGst,
         statedRatePct,
-        quote.termMonths,
+        payments,
       ) + annualise(explainedPerPayment, f) / 12;
 
     const unexplainedPerMonth = monthlyFinance - withFees;
+    /*
+     * What the deferral alone is worth, holding the fees at nil. Reported so
+     * the page can say how much of the gap it actually covers rather than
+     * leaving "it's the deferral" as an unpriced assertion.
+     */
+    const deferralOnly =
+      deferred > 0
+        ? (annuityPayment(grow(amountFinanced), residualExGst, statedRatePct, payments) - bare) *
+          quote.termMonths
+        : 0;
+
     reconciliation = {
       expectedMonthly: withFees,
       actualMonthly: monthlyFinance,
       unexplainedOverTerm: unexplainedPerMonth * quote.termMonths,
       feesOverTerm: (withFees - bare) * quote.termMonths,
+      deferralOverTerm: deferralOnly,
       reconciles: Math.abs(unexplainedPerMonth) < 1,
     };
   }
@@ -455,13 +521,72 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
   let ratePaidOnBorrowingPct: number | null = null;
   if (reconciliation != null && amountFinanced != null && residualExGst != null && monthlyFinance != null) {
     const financePart = monthlyFinance - annualise(explainedPerPayment, f) / 12;
-    ratePaidOnBorrowingPct = impliedRate(
-      amountFinanced + explainedFinanced,
-      residualExGst,
-      financePart,
-      quote.termMonths,
-    );
+    const principal = amountFinanced + explainedFinanced;
+    if (deferred > 0) {
+      /*
+       * Solved rather than read off, because the deferral compounds at the
+       * very rate being solved for — the principal it grows depends on the
+       * answer. The payment rises monotonically with the rate either way, so
+       * bisection still settles it; this is impliedRate's method with the
+       * schedule the deferral actually produces.
+       */
+      const payments = quote.deferralExtendsTerm ? quote.termMonths : quote.termMonths - deferred;
+      const payAt = (x: number) =>
+        annuityPayment(
+          principal * Math.pow(1 + x / 100 / 12, deferred),
+          residualExGst,
+          x,
+          payments,
+        );
+      let lo = -5;
+      let hi = 60;
+      if (financePart > 0 && payments > 0 && payAt(hi) >= financePart && payAt(lo) <= financePart) {
+        for (let i = 0; i < 200; i++) {
+          const mid = (lo + hi) / 2;
+          if (payAt(mid) < financePart) lo = mid;
+          else hi = mid;
+        }
+        ratePaidOnBorrowingPct = (lo + hi) / 2;
+      }
+    } else {
+      ratePaidOnBorrowingPct = impliedRate(
+        principal,
+        residualExGst,
+        financePart,
+        quote.termMonths,
+      );
+    }
   }
+
+  /*
+   * "It's the two-month deferral", priced.
+   *
+   * The commonest verbal explanation for a payment above a stated rate, and
+   * the only one that costs the provider nothing to say. It is usually true —
+   * their money is out from settlement — but it is bounded, and the bound
+   * depends entirely on a question nobody volunteers: does the lease still end
+   * when it was going to? Holding the end date, the deferred months come out
+   * of the payment count and everything is repaid by fewer, larger payments.
+   * Moving it, the payment rises by little more than the interest that
+   * accrued. On five years at 9.5% that is +4.3% against +1.9%.
+   *
+   * So the sentence names the structure it assumed, which is the only way the
+   * reader can tell whether we and the provider are talking about the same
+   * arrangement.
+   */
+  const deferralNote = (r: RateReconciliation): string => {
+    if (deferred < 1 || r.deferralOverTerm === 0) return "";
+    const months = `${deferred} month${deferred === 1 ? "" : "s"}`;
+    return (
+      ` Of that, the ${months} before the first payment accounts for ` +
+      `${money(Math.abs(r.deferralOverTerm))} — interest accruing while their money is out, ` +
+      `worked out on the lease ${
+        quote.deferralExtendsTerm
+          ? `running ${months} longer than it otherwise would`
+          : `still ending on its original date, so ${months} of payments are lost and the rest are larger`
+      }. If that is not how theirs is written, the figure moves.`
+    );
+  };
 
   // ── Findings ─────────────────────────────────────────────────────────────
 
@@ -484,7 +609,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         severity: "ok",
         category: "Rate",
         title: "What they told you accounts for the difference",
-        detail: `At ${pct(statedRatePct)} with those inclusions the payment comes to ${money(r.expectedMonthly)} a month, which is what the quote charges. Their explanation is complete — which is not the same as the inclusions being worth paying. They add ${money(r.feesOverTerm)} over the term, and that is a separate thing to negotiate.`,
+        detail: `At ${pct(statedRatePct)} with those inclusions the payment comes to ${money(r.expectedMonthly)} a month, which is what the quote charges. Their explanation is complete — which is not the same as the inclusions being worth paying. They add ${money(r.feesOverTerm)} over the term, and that is a separate thing to negotiate.${deferralNote(r)}`,
         // Carries the cost now that it replaces the bare-gap finding rather
         // than sitting beside it, so the avoidable-cost total does not move
         // when somebody enters an explanation.
@@ -500,9 +625,12 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         severity: "warn",
         category: "Rate",
         title: "What they told you does not account for all of it",
-        detail: `At ${pct(statedRatePct)} with those inclusions the payment should be ${money(r.expectedMonthly)} a month; the quote charges ${money(r.actualMonthly)}. That leaves ${money(r.unexplainedOverTerm)} over the term still unexplained — so either something else is in there, or one of the figures is not what it was described as.`,
+        detail: `At ${pct(statedRatePct)} with those inclusions the payment should be ${money(r.expectedMonthly)} a month; the quote charges ${money(r.actualMonthly)}. That leaves ${money(r.unexplainedOverTerm)} over the term still unexplained — so either something else is in there, or one of the figures is not what it was described as.${deferralNote(r)}`,
         costOverTerm: statedRateGap != null && statedRateGap > 0 ? statedRateGap : undefined,
-        question: `With the ${money(explainedFinanced + explainedPerPayment * CYCLES_PER_YEAR[f] * (quote.termMonths / 12))} of inclusions you've described, ${pct(statedRatePct)} produces ${money(r.expectedMonthly)} a month — but the quote charges ${money(r.actualMonthly)}. What accounts for the remaining ${money(r.unexplainedOverTerm)} over the term?`,
+        question:
+          deferred > 0
+            ? `You've said the ${deferred}-month deferral explains it. Does the lease still end on its original date, or does it run ${deferred} months longer? On our figures the deferral covers ${money(Math.abs(r.deferralOverTerm))} of the gap and ${money(r.unexplainedOverTerm)} is left over — what accounts for the rest?`
+            : `With the ${money(explainedFinanced + explainedPerPayment * CYCLES_PER_YEAR[f] * (quote.termMonths / 12))} of inclusions you've described, ${pct(statedRatePct)} produces ${money(r.expectedMonthly)} a month — but the quote charges ${money(r.actualMonthly)}. What accounts for the remaining ${money(r.unexplainedOverTerm)} over the term?`,
       });
     } else {
       findings.push({
@@ -510,7 +638,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         severity: "warn",
         category: "Rate",
         title: "What they told you would cost more than they are charging",
-        detail: `Those inclusions at ${pct(statedRatePct)} would produce ${money(r.expectedMonthly)} a month, but the quote charges ${money(r.actualMonthly)} — ${money(Math.abs(r.unexplainedOverTerm))} less over the term. Worth checking whether a fee is charged separately rather than financed, or whether it applies at all — and whether it belongs in the other box, since one added to what you borrow costs less than the same money inside each payment.`,
+        detail: `Those inclusions at ${pct(statedRatePct)} would produce ${money(r.expectedMonthly)} a month, but the quote charges ${money(r.actualMonthly)} — ${money(Math.abs(r.unexplainedOverTerm))} less over the term. Worth checking whether a fee is charged separately rather than financed, or whether it applies at all — and whether it belongs in the other box, since one added to what you borrow costs less than the same money inside each payment.${deferralNote(r)}`,
       });
     }
   }
