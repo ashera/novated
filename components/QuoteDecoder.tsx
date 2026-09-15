@@ -570,8 +570,21 @@ export default function QuoteDecoder({
                     <p className="text-xs font-semibold text-ink">
                       Asked them what&apos;s in it?
                     </p>
+                    {/* Why this appeared, in the figures that made it appear.
+                        A box that arrives unannounced reads as another thing
+                        to fill in; named, it is the next step in something
+                        the reader is already doing. */}
                     <p className="mt-1 text-[11px] leading-snug text-subtle">
-                      Put what they said here and we&apos;ll check it against what they charge.
+                      This showed up because the quote states{" "}
+                      <strong className="text-ink">{quote.statedRatePct}%</strong> but charges{" "}
+                      <strong className="text-ink">
+                        {fmtCurrency(decode.statedRateGap ?? 0)}
+                      </strong>{" "}
+                      more over the term than that rate produces. If you&apos;ve asked them why
+                      and they&apos;ve named fees, put them here and we&apos;ll check whether the
+                      answer adds up.
+                    </p>
+                    <p className="mt-1.5 text-[11px] leading-snug text-muted">
                       A fee added to what you borrow is not the same as one inside each payment,
                       so they go in separately.
                     </p>

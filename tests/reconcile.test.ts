@@ -198,3 +198,39 @@ describe("Explaining a cost does not add to it", () => {
     expect(f.detail).toMatch(/\$[\d,]+ over the term/);
   });
 });
+
+/**
+ * The finding and the box that appears for it are one thing.
+ *
+ * The box arrives on the left when a stated rate disagrees with what is
+ * charged; the finding explaining that disagreement sits on the right. Neither
+ * mentioned the other, so the box read as another field to fill in rather than
+ * the next step in something the reader was already doing.
+ */
+describe("The finding points at the box it opened", () => {
+  const gap = () => quote({ explainedFeesFinanced: undefined });
+
+  it("tells the reader where to put the answer, while it is still wanted", () => {
+    const f = decodeQuote(gap(), config).findings.find(
+      (x) => x.key === "stated-rate-understates",
+    )!;
+    expect(f.detail).toMatch(/Asked them what/);
+    expect(f.detail).toMatch(/whether their answer accounts for this/);
+  });
+
+  // Telling somebody to use a box they have already used is how advice starts
+  // getting skimmed.
+  it("stops saying it once they have", () => {
+    const f = decodeQuote(quote({ explainedFeesFinanced: 400 }), config).findings.find(
+      (x) => x.key === "stated-rate-understates",
+    )!;
+    expect(f.detail).not.toMatch(/Asked them what/);
+  });
+
+  it("says which box a figure belongs in when the explanation overshoots", () => {
+    const f = decodeQuote(quote({ explainedFeesFinanced: 4_000 }), config).findings.find(
+      (x) => x.key === "explanation-overshoots",
+    )!;
+    expect(f.detail).toMatch(/one added to what you borrow costs less/);
+  });
+});

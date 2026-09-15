@@ -471,7 +471,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         severity: "warn",
         category: "Rate",
         title: "What they told you would cost more than they are charging",
-        detail: `Those inclusions at ${pct(statedRatePct)} would produce ${money(r.expectedMonthly)} a month, but the quote charges ${money(r.actualMonthly)} — ${money(Math.abs(r.unexplainedOverTerm))} less over the term. Worth checking whether a fee is charged separately rather than financed, or whether it applies at all.`,
+        detail: `Those inclusions at ${pct(statedRatePct)} would produce ${money(r.expectedMonthly)} a month, but the quote charges ${money(r.actualMonthly)} — ${money(Math.abs(r.unexplainedOverTerm))} less over the term. Worth checking whether a fee is charged separately rather than financed, or whether it applies at all — and whether it belongs in the other box, since one added to what you borrow costs less than the same money inside each payment.`,
       });
     }
   }
@@ -494,7 +494,10 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         severity: "warn",
         category: "Rate",
         title: `The payment costs more than the ${pct(statedRatePct)} this quote states`,
-        detail: `At ${pct(statedRatePct)} the finance would be ${money(paymentAtStatedRate)} a month; this quote charges ${money(monthlyFinance ?? 0)} — ${money(statedRateGap)} more over the term${rate != null ? `, which is why it solves at ${pct(rate)} rather than ${pct(statedRatePct)}` : ""}. That gap is usually something financed inside the payment rather than a wrong rate: an establishment or documentation fee, broker margin over a base rate, or an insurance rolled in.`,
+        // Points at the box that appeared for this, but only while it is
+        // still empty — telling somebody to go and use a thing they have
+        // already used is how advice starts getting skimmed.
+        detail: `At ${pct(statedRatePct)} the finance would be ${money(paymentAtStatedRate)} a month; this quote charges ${money(monthlyFinance ?? 0)} — ${money(statedRateGap)} more over the term${rate != null ? `, which is why it solves at ${pct(rate)} rather than ${pct(statedRatePct)}` : ""}. That gap is usually something financed inside the payment rather than a wrong rate: an establishment or documentation fee, broker margin over a base rate, or an insurance rolled in.${reconciliation == null ? " Once they tell you what, enter it under \u201cAsked them what\u2019s in it?\u201d and we will check whether their answer accounts for this." : ""}`,
         costOverTerm: statedRateGap,
         question: `Your quote states ${pct(statedRatePct)}, but the finance payment works out at ${money(statedRateGap)} more than that rate produces over the term. What is included in the finance payment that isn't in the rate?`,
       });
