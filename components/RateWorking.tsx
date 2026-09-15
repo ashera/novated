@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { fmtCurrency, fmtCurrencyCents } from "@/lib/au/format";
 import { CYCLES_PER_YEAR, type Quote, type QuoteDecode } from "@/lib/au/quote";
+import { rateSentence } from "@/lib/au/rateSentence";
 import { track } from "@/lib/analytics";
 
 /**
@@ -29,6 +30,14 @@ import { track } from "@/lib/analytics";
  * brokerage is hidden in there the "rate" is higher than the financier's. That
  * is not an error in the arithmetic — it is the arithmetic telling you
  * something, and the question is phrased to draw it out.
+ *
+ * Once it HAS been drawn out — the provider has named the fees and they are
+ * entered — both the closing question and the caveat have to stop asking for
+ * it. A sentence still asking "is anything other than interest included?" over
+ * the top of an answer reads as not having listened, and the caveat's "that
+ * difference is worth knowing about" is odd when the difference is on screen.
+ * So both branch on `decode.reconciliation`, and the ask moves on to the only
+ * thing left to negotiate.
  */
 export default function RateWorking({
   quote,
@@ -57,12 +66,10 @@ export default function RateWorking({
   // matches the headline rather than agreeing with it by luck.
   const interest = repaid + residualEx - financed;
 
-  const sentence =
-    `Your quote finances ${fmtCurrency(financed)} over ${quote.termMonths} months, ` +
-    `with a finance rental of ${fmtCurrencyCents(payment)} per ${noun} and a residual of ` +
-    `${fmtCurrency(quote.residualIncGst ?? 0)} including GST. Those four figures imply an ` +
-    `interest rate of about ${rate.toFixed(2)}% a year. Could you confirm the rate on the ` +
-    `finance, and tell me whether anything other than interest is included in the rental?`;
+  // Built in lib so the rule that it stops asking a question once it has been
+  // answered can be tested without rendering anything.
+  const r = decode.reconciliation;
+  const sentence = rateSentence(quote, decode, noun)!;
 
   const copy = async () => {
     try {
@@ -172,9 +179,25 @@ export default function RateWorking({
                 {copied ? "Copied" : "Copy this"}
               </button>
               <span className="text-[11px] leading-snug text-muted">
-                The second half matters: the implied rate covers everything built into the payment,
-                so if brokerage is sitting in there the financier&apos;s own rate will be lower
-                than this — and that difference is worth knowing about.
+                {r != null && decode.ratePaidOnBorrowingPct != null ? (
+                  <>
+                    You already have the answer to the second half: with what they named, the money
+                    itself costs{" "}
+                    <strong className="text-subtle">
+                      {decode.ratePaidOnBorrowingPct.toFixed(2)}%
+                    </strong>{" "}
+                    and the rest of the {rate.toFixed(2)}% is those fees.{" "}
+                    {r.reconciles
+                      ? "What is left to ask is whether they come down."
+                      : "Anything they haven't accounted for is still sitting in that figure, which is why the sentence asks about it."}
+                  </>
+                ) : (
+                  <>
+                    The second half matters: the implied rate covers everything built into the
+                    payment, so if brokerage is sitting in there the financier&apos;s own rate will
+                    be lower than this — and that difference is worth knowing about.
+                  </>
+                )}
               </span>
             </div>
           </div>
