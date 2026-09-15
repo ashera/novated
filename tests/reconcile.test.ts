@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_CONFIG } from "@/lib/au/config";
 import { decodeQuote, type Quote } from "@/lib/au/quote";
+import { quoteFieldChecks } from "@/lib/au/quoteChecks";
 import { annuityPayment } from "@/lib/au/novated";
 import { applyQuoteEdit, leaseToQuote, newLease, newQuoteSpec, type Lease } from "@/lib/au/lease";
 
@@ -194,8 +195,21 @@ describe("Explaining a cost does not add to it", () => {
   it("still puts the figures in front of the reader", () => {
     const d = decodeQuote(quote({ explainedFeesFinanced: feesFinanced }), config);
     const f = d.findings.find((x) => x.key === "explanation-reconciles")!;
-    expect(f.costOverTerm).toBeUndefined();
     expect(f.detail).toMatch(/\$[\d,]+ over the term/);
+  });
+
+  /**
+   * The cost moves with the finding rather than being dropped or doubled.
+   *
+   * The reconciliation replaces the bare-gap finding now, so it has to carry
+   * that finding's cost — otherwise entering an explanation would make the
+   * avoidable-cost total fall to nothing, which reads as the problem going
+   * away when only the explanation for it arrived.
+   */
+  it("carries the gap's cost once it replaces the finding that did", () => {
+    const d = decodeQuote(quote({ explainedFeesFinanced: feesFinanced }), config);
+    const f = d.findings.find((x) => x.key === "explanation-reconciles")!;
+    expect(f.costOverTerm).toBeCloseTo(d.statedRateGap!, 6);
   });
 });
 
@@ -218,13 +232,22 @@ describe("The finding points at the box it opened", () => {
     expect(f.detail).toMatch(/whether their answer accounts for this/);
   });
 
-  // Telling somebody to use a box they have already used is how advice starts
-  // getting skimmed.
-  it("stops saying it once they have", () => {
-    const f = decodeQuote(quote({ explainedFeesFinanced: 400 }), config).findings.find(
-      (x) => x.key === "stated-rate-understates",
-    )!;
-    expect(f.detail).not.toMatch(/Asked them what/);
+  /**
+   * Replaced, not reworded.
+   *
+   * Once anything is entered, the reconciliation finding states the same gap
+   * AND what accounts for it. Leaving the bare one beside it meant two
+   * findings about one difference, carrying different figures, reading as two
+   * problems — and the older of the two still pointing at a box the reader had
+   * just used.
+   */
+  it("gives way to the reconciliation once anything is entered", () => {
+    const after = decodeQuote(quote({ explainedFeesFinanced: 400 }), config).findings;
+    expect(after.some((x) => x.key === "stated-rate-understates")).toBe(false);
+    expect(after.some((x) => x.key === "explanation-falls-short")).toBe(true);
+    // And nothing left on the page still points at the box.
+    const said = after.flatMap((f) => [f.title, f.detail, f.question ?? ""]).join(" ");
+    expect(said).not.toMatch(/Asked them what/);
   });
 
   it("says which box a figure belongs in when the explanation overshoots", () => {
@@ -232,5 +255,61 @@ describe("The finding points at the box it opened", () => {
       (x) => x.key === "explanation-overshoots",
     )!;
     expect(f.detail).toMatch(/one added to what you borrow costs less/);
+  });
+});
+
+/**
+ * The warning under the payment has to move too.
+ *
+ * It is the first thing anybody reads, because it is under the box they just
+ * typed in. Leaving it on the bare stated rate meant it went on calling the
+ * payment wrong after the reader had entered the reason it wasn't — the panel
+ * on the left explaining the gap, and the line under the field still denying
+ * it.
+ */
+describe("The check under the finance payment", () => {
+  it("flags the payment before anything has been explained", () => {
+    const c = quoteFieldChecks(quote(), config).finance;
+    expect(c).toBeTruthy();
+    expect(c!.message).toMatch(/At the 6% this quote states, the finance would be/);
+  });
+
+  it("clears once the fees account for it", () => {
+    expect(quoteFieldChecks(quote({ explainedFeesFinanced: feesFinanced }), config).finance)
+      .toBeUndefined();
+  });
+
+  it("keeps flagging, in new words, while something is still missing", () => {
+    const c = quoteFieldChecks(quote({ explainedFeesFinanced: 400 }), config).finance;
+    expect(c).toBeTruthy();
+    expect(c!.message).toMatch(/with what they have told you is in it/);
+    expect(c!.message).toMatch(/still unaccounted for/);
+  });
+
+  it("moves the expectation by the fee, not by some other amount", () => {
+    const bare = quoteFieldChecks(quote(), config).finance!.message;
+    const part = quoteFieldChecks(quote({ explainedFeesFinanced: 400 }), config).finance!.message;
+    const figure = (m: string) => Number(/would be \$([\d,]+)/.exec(m)![1].replace(/,/g, ""));
+    // More borrowed at the same rate means a higher expected payment.
+    expect(figure(part)).toBeGreaterThan(figure(bare));
+  });
+
+  it("counts a per-payment charge as well as a capitalised one", () => {
+    const perPayment = quoteFieldChecks(quote({ explainedFeesPerPayment: 30 }), config).finance;
+    const none = quoteFieldChecks(quote(), config).finance!;
+    const figure = (m: string) => Number(/would be \$([\d,]+)/.exec(m)![1].replace(/,/g, ""));
+    expect(figure(perPayment!.message)).toBeGreaterThan(figure(none.message));
+  });
+
+  // The field check and the findings have to agree about whether it adds up.
+  it("agrees with the reconciliation finding", () => {
+    const q = quote({ explainedFeesFinanced: feesFinanced });
+    const d = decodeQuote(q, config);
+    expect(d.reconciliation!.reconciles).toBe(true);
+    expect(quoteFieldChecks(q, config).finance).toBeUndefined();
+
+    const short = quote({ explainedFeesFinanced: 400 });
+    expect(decodeQuote(short, config).reconciliation!.reconciles).toBe(false);
+    expect(quoteFieldChecks(short, config).finance).toBeTruthy();
   });
 });

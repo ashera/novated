@@ -98,14 +98,44 @@ function checkFinance(q: Quote, config: EngineConfig): FieldCheck | undefined {
    * "this cannot be true" even when both apply.
    */
   if (q.statedRatePct != null && q.statedRatePct > 0) {
-    const expected = annuityPayment(financed, balloon, q.statedRatePct, months);
+    /*
+     * Fees the provider has since disclosed count towards this.
+     *
+     * Without them the check went on calling a payment wrong after the reader
+     * had entered the reason it wasn't — the box on the left explained the
+     * gap and the message under the box still denied it. A capitalised fee is
+     * borrowed and amortised; a per-payment charge is flat. Same split as the
+     * reconciliation, because it is the same question asked in a smaller
+     * space.
+     */
+    const feesFinanced = Math.max(0, q.explainedFeesFinanced ?? 0);
+    const feesPerPayment = Math.max(0, q.explainedFeesPerPayment ?? 0);
+    const explained = feesFinanced > 0 || feesPerPayment > 0;
+
+    const expected =
+      annuityPayment(financed + feesFinanced, balloon, q.statedRatePct, months) +
+      monthly(feesPerPayment, q);
     const outBy = Math.abs(m - expected);
-    // A few dollars is a rounding convention, not a mistake.
-    if (outBy > Math.max(5, expected * 0.02)) {
+
+    /*
+     * How close counts as right depends on what is being checked.
+     *
+     * Against a bare stated rate, a couple of per cent is convention: a
+     * rounded rate, monthly against annual compounding, a payment set to whole
+     * dollars. Against an itemised explanation it is not — they have said
+     * exactly what is in there, so it should add up, and the same dollar a
+     * month the reconciliation uses applies here. Two tolerances for one
+     * question had the field saying it balanced while the finding said it did
+     * not.
+     */
+    const tolerance = explained ? 1 : Math.max(5, expected * 0.02);
+    if (outBy > tolerance) {
       const perCycle = (v: number) => (v * 12) / perYear(q);
       return {
         level: outBy > expected * 0.25 ? "error" : "warn",
-        message: `At the ${q.statedRatePct}% this quote states, the finance would be ${money(perCycle(expected))} — you have entered ${money(perCycle(m))}. One of the two is wrong, or something is financed inside the payment that isn't in the rate.`,
+        message: explained
+          ? `At the ${q.statedRatePct}% this quote states, with what they have told you is in it, the finance would be ${money(perCycle(expected))} — you have entered ${money(perCycle(m))}. Something is still unaccounted for.`
+          : `At the ${q.statedRatePct}% this quote states, the finance would be ${money(perCycle(expected))} — you have entered ${money(perCycle(m))}. One of the two is wrong, or something is financed inside the payment that isn't in the rate.`,
       };
     }
   }

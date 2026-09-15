@@ -451,6 +451,10 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         category: "Rate",
         title: "What they told you accounts for the difference",
         detail: `At ${pct(statedRatePct)} with those inclusions the payment comes to ${money(r.expectedMonthly)} a month, which is what the quote charges. Their explanation is complete — which is not the same as the inclusions being worth paying. They add ${money(r.feesOverTerm)} over the term, and that is a separate thing to negotiate.`,
+        // Carries the cost now that it replaces the bare-gap finding rather
+        // than sitting beside it, so the avoidable-cost total does not move
+        // when somebody enters an explanation.
+        costOverTerm: statedRateGap != null && statedRateGap > 0 ? statedRateGap : undefined,
         question:
           explainedFinanced > 0 && explainedFinanced > est * 1.5
             ? `You've told me the establishment and setup fees come to ${money(explainedFinanced)}. Published pricing is nearer ${money(est)} — is any of that negotiable?`
@@ -463,6 +467,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         category: "Rate",
         title: "What they told you does not account for all of it",
         detail: `At ${pct(statedRatePct)} with those inclusions the payment should be ${money(r.expectedMonthly)} a month; the quote charges ${money(r.actualMonthly)}. That leaves ${money(r.unexplainedOverTerm)} over the term still unexplained — so either something else is in there, or one of the figures is not what it was described as.`,
+        costOverTerm: statedRateGap != null && statedRateGap > 0 ? statedRateGap : undefined,
         question: `With the ${money(explainedFinanced + explainedPerPayment * CYCLES_PER_YEAR[f] * (quote.termMonths / 12))} of inclusions you've described, ${pct(statedRatePct)} produces ${money(r.expectedMonthly)} a month — but the quote charges ${money(r.actualMonthly)}. What accounts for the remaining ${money(r.unexplainedOverTerm)} over the term?`,
       });
     } else {
@@ -488,7 +493,11 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         title: `The ${pct(statedRatePct)} it quotes is the rate you are actually paying`,
         detail: `The payment matches what ${pct(statedRatePct)} produces on ${money(amountFinanced ?? 0)} over ${quote.termMonths} months. Nothing extra is buried in the payment.`,
       });
-    } else if (statedRateGap > 0) {
+    } else if (statedRateGap > 0 && reconciliation == null) {
+      // Superseded once anything has been entered against it: the
+      // reconciliation finding states this gap and what accounts for it, and
+      // two findings about one difference, carrying different figures, read
+      // as two problems.
       findings.push({
         key: "stated-rate-understates",
         severity: "warn",
