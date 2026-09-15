@@ -239,13 +239,26 @@ export default function LeaseCalculator({
                 aria-controls="quotes-panel"
                 className="flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-left shadow-[var(--shadow-card)] transition hover:border-accent lg:hidden"
               >
-                <span className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-ink">Quotes from providers</span>
-                  {lease.quotes.length > 0 && (
-                    <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[11px] font-semibold tabular-nums text-accent">
-                      {lease.quotes.length}
+                {/* Named for what it does rather than what it holds. "Quotes
+                    from providers" describes a container, and a container is
+                    only worth opening if you already know what goes in it —
+                    which on a phone, at the top of the page, before anything
+                    has been entered, nobody does. */}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-ink">
+                      Decode a provider quote
                     </span>
-                  )}
+                    {lease.quotes.length > 0 && (
+                      <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[11px] font-semibold tabular-nums text-accent">
+                        {lease.quotes.length}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-muted">
+                    When you get a quote or estimate from a provider, enter their numbers here to
+                    reveal the real costs.
+                  </span>
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="text-xs font-medium text-accent">
