@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { globSync } from "node:fs";
+import { globSync, readFileSync } from "node:fs";
 import { isAppStorageKey, ownedKeys, clearLocalData } from "@/lib/localData";
 
 /**
@@ -107,7 +106,8 @@ describe("Clearing what this browser holds", () => {
  * everything.
  */
 describe("Every storage key the app declares", () => {
-  const files = globSync("{lib,components,app}/**/*.{ts,tsx}", { exclude: ["**/node_modules/**"] });
+  // Scoped to our own source trees, none of which contain dependencies.
+  const files = globSync("{lib,components,app}/**/*.{ts,tsx}");
 
   it("is covered by a clearing prefix", () => {
     const offenders: string[] = [];
