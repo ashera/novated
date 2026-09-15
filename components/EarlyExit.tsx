@@ -138,7 +138,7 @@ export default function EarlyExit({
         <li>
           <strong className="text-subtle">Two payout conventions, and yours is in the contract.</strong>{" "}
           The first figure assumes the financier rebates interest you haven&apos;t been charged
-          yet. The second assumes you pay every remaining rental plus the residual. Ask which one
+          yet. The second assumes you pay every remaining payment plus the residual. Ask which one
           applies before you sign, not after — it is the difference between{" "}
           {fmtCurrency(worst.payoutBest)} and {fmtCurrency(worst.payoutWorst)} at the worst point.
         </li>

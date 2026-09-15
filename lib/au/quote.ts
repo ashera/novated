@@ -344,7 +344,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         severity: "ok",
         category: "Rate",
         title: `The ${pct(statedRatePct)} it quotes is the rate you are actually paying`,
-        detail: `The payment matches what ${pct(statedRatePct)} produces on ${money(amountFinanced ?? 0)} over ${quote.termMonths} months. Nothing extra is buried in the rental.`,
+        detail: `The payment matches what ${pct(statedRatePct)} produces on ${money(amountFinanced ?? 0)} over ${quote.termMonths} months. Nothing extra is buried in the payment.`,
       });
     } else if (statedRateGap > 0) {
       findings.push({
@@ -352,9 +352,9 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
         severity: "warn",
         category: "Rate",
         title: `The payment costs more than the ${pct(statedRatePct)} this quote states`,
-        detail: `At ${pct(statedRatePct)} the finance would be ${money(paymentAtStatedRate)} a month; this quote charges ${money(monthlyFinance ?? 0)} — ${money(statedRateGap)} more over the term${rate != null ? `, which is why it solves at ${pct(rate)} rather than ${pct(statedRatePct)}` : ""}. That gap is usually something financed inside the rental rather than a wrong rate: an establishment or documentation fee, broker margin over a base rate, or an insurance rolled in.`,
+        detail: `At ${pct(statedRatePct)} the finance would be ${money(paymentAtStatedRate)} a month; this quote charges ${money(monthlyFinance ?? 0)} — ${money(statedRateGap)} more over the term${rate != null ? `, which is why it solves at ${pct(rate)} rather than ${pct(statedRatePct)}` : ""}. That gap is usually something financed inside the payment rather than a wrong rate: an establishment or documentation fee, broker margin over a base rate, or an insurance rolled in.`,
         costOverTerm: statedRateGap,
-        question: `Your quote states ${pct(statedRatePct)}, but the finance payment works out at ${money(statedRateGap)} more than that rate produces over the term. What is included in the rental that isn't in the rate?`,
+        question: `Your quote states ${pct(statedRatePct)}, but the finance payment works out at ${money(statedRateGap)} more than that rate produces over the term. What is included in the finance payment that isn't in the rate?`,
       });
     } else {
       findings.push({

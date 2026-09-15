@@ -105,7 +105,7 @@ function checkFinance(q: Quote, config: EngineConfig): FieldCheck | undefined {
       const perCycle = (v: number) => (v * 12) / perYear(q);
       return {
         level: outBy > expected * 0.25 ? "error" : "warn",
-        message: `At the ${q.statedRatePct}% this quote states, the finance would be ${money(perCycle(expected))} — you have entered ${money(perCycle(m))}. One of the two is wrong, or something is financed inside the rental that isn't in the rate.`,
+        message: `At the ${q.statedRatePct}% this quote states, the finance would be ${money(perCycle(expected))} — you have entered ${money(perCycle(m))}. One of the two is wrong, or something is financed inside the payment that isn't in the rate.`,
       };
     }
   }

@@ -248,9 +248,9 @@ export function glossary(config: EngineConfig): GlossarySection[] {
         {
           term: "Implied interest rate",
           definition:
-            "The rate that must be true given the amount financed, the rental, the term and the residual.",
+            "The rate that must be true given the amount financed, the finance payment, the term and the residual.",
           matters:
-            "Almost no quote prints a rate. It is not a guess — it is the same arithmetic a loan calculator does, run backwards, and it covers anything else built into the rental.",
+            "Almost no quote prints a rate. It is not a guess — it is the same arithmetic a loan calculator does, run backwards, and it covers anything else built into that payment.",
           seeHref: "/decode",
           seeLabel: "Work it out from your quote",
         },

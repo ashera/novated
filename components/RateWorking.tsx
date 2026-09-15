@@ -160,7 +160,7 @@ export default function RateWorking({
                 {copied ? "Copied" : "Copy this"}
               </button>
               <span className="text-[11px] leading-snug text-muted">
-                The second half matters: the implied rate covers everything built into the rental,
+                The second half matters: the implied rate covers everything built into the payment,
                 so if brokerage is sitting in there the financier&apos;s own rate will be lower
                 than this — and that difference is worth knowing about.
               </span>
