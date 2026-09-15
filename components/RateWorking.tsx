@@ -116,9 +116,21 @@ export default function RateWorking({
 
       {open && (
         <div className="mt-3">
+          {/* Two openings, because one of them can now be false. The page
+              takes a stated rate, so "it isn't printed anywhere" cannot be
+              asserted over the top of one somebody has entered. */}
           <p className="max-w-2xl text-sm leading-relaxed text-subtle">
-            The rate isn&apos;t printed anywhere on the quote, but it isn&apos;t a guess either —
-            it is fixed by four figures that <em>are</em> on it.
+            {quote.statedRatePct != null ? (
+              <>
+                The quote states {quote.statedRatePct}%. This is what its own figures produce —
+                not a guess, but arithmetic fixed by four numbers that are on it.
+              </>
+            ) : (
+              <>
+                The rate isn&apos;t printed anywhere on the quote, but it isn&apos;t a guess
+                either — it is fixed by four figures that <em>are</em> on it.
+              </>
+            )}
           </p>
 
           <ol className="mt-3 max-w-2xl space-y-2.5">

@@ -524,14 +524,21 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
             : "ok",
       category: "Rate",
       title: `Finance is priced at ${pct(rate)}`,
+      // "The quote doesn't state a rate" was written when no quote could. It
+      // is now a claim about the document in hand, and it was still being
+      // made over the top of a rate somebody had just typed in. The same goes
+      // for the question, which asked what rate the finance is written at
+      // when they had already said.
       detail:
         over > MATERIAL_PP
-          ? `The quote doesn't state a rate. Solved from the finance payment, it works out at ${pct(rate)} — ${pct(over)} above a comparable secured car loan at ${pct(config.benchmarks.loanRatePct)}, costing ${money(financeMargin ?? 0)} more over the term.`
+          ? `${statedRatePct == null ? "The quote doesn't state a rate. " : ""}Solved from the finance payment, it works out at ${pct(rate)} — ${pct(over)} above a comparable secured car loan at ${pct(config.benchmarks.loanRatePct)}, costing ${money(financeMargin ?? 0)} more over the term.`
           : `Solved from the finance payment. That is at or below a comparable secured car loan at ${pct(config.benchmarks.loanRatePct)} — a good rate.`,
       costOverTerm: financeMargin != null && financeMargin > 0 ? financeMargin : undefined,
       question:
         over > MATERIAL_PP
-          ? "What interest rate is the finance written at, which financier is it with, and can you match a lower rate?"
+          ? statedRatePct == null
+            ? "What interest rate is the finance written at, which financier is it with, and can you match a lower rate?"
+            : "Which financier is the finance with, and can you match a lower rate?"
           : undefined,
     });
   } else if (rateBlockedBy) {

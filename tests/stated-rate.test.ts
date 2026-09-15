@@ -149,3 +149,60 @@ describe("It survives being stored", () => {
     expect(lease.quotes[0].statedRatePct).toBe(6.95);
   });
 });
+
+/**
+ * Copy written before the field existed.
+ *
+ * The implied-rate finding opened with "The quote doesn't state a rate" —
+ * true of every quote when it was written, and now a claim about the document
+ * in hand. It was being printed over the top of a rate somebody had just
+ * typed. The same went for its question, which asked what rate the finance is
+ * written at after they had said.
+ *
+ * Nothing here is about the stated-rate findings themselves. It is about the
+ * rest of the page keeping up with a field that was added later, which is the
+ * kind of thing that only shows up when somebody looks at the screen.
+ */
+describe("The rest of the page keeps up with a stated rate", () => {
+  const dear = () => quote({ statedRatePct: 6, lines: { finance: at(12) } });
+
+  it("stops claiming the quote states no rate", () => {
+    const f = decodeQuote(dear(), config).findings.find((x) => x.key === "implied-rate")!;
+    expect(f.detail).not.toMatch(/doesn't state a rate/i);
+    // Still says where the figure came from.
+    expect(f.detail).toMatch(/Solved from the finance payment/);
+  });
+
+  it("still says it where no rate was given", () => {
+    const f = decodeQuote(
+      quote({ statedRatePct: undefined, lines: { finance: at(12) } }),
+      config,
+    ).findings.find((x) => x.key === "implied-rate")!;
+    expect(f.detail).toMatch(/doesn't state a rate/i);
+  });
+
+  it("stops asking what rate it is written at once they have said", () => {
+    const f = decodeQuote(dear(), config).findings.find((x) => x.key === "implied-rate")!;
+    expect(f.question).toBeTruthy();
+    expect(f.question).not.toMatch(/what interest rate is the finance written at/i);
+    // The useful half of the question survives.
+    expect(f.question).toMatch(/which financier/i);
+  });
+
+  it("asks the fuller question when they have not", () => {
+    const f = decodeQuote(
+      quote({ statedRatePct: undefined, lines: { finance: at(12) } }),
+      config,
+    ).findings.find((x) => x.key === "implied-rate")!;
+    expect(f.question).toMatch(/what interest rate is the finance written at/i);
+  });
+
+  // The sweep: nothing the engine writes may deny a rate that was given.
+  it("never denies a rate that was entered", () => {
+    const said = [
+      ...decodeQuote(dear(), config).findings.flatMap((f) => [f.title, f.detail, f.question ?? ""]),
+    ];
+    const offenders = said.filter((t) => /doesn't state a rate|no rate is stated/i.test(t));
+    expect(offenders, offenders.join(" | ")).toEqual([]);
+  });
+});
