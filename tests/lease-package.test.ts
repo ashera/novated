@@ -126,8 +126,82 @@ describe("Ownership comparison", () => {
    */
   it("compares against the same car, term and residual", () => {
     const r = run();
-    expect(r.comparison.cash.upfront).toBe(r.finance.priceInclGst);
+    expect(r.comparison.cash.upfront).toBe(r.finance.driveAwayTotal);
     expect(r.comparison.residualSettled).toBeCloseTo(r.finance.residual, 6);
+  });
+
+  /**
+   * Everybody pays the stamp duty.
+   *
+   * The cash outlay and the loan principal were built from the car's price
+   * alone, while the lease financed the drive-away total and repaid it with
+   * interest. About $4,800 on an ordinary car, handed to the alternatives in
+   * every comparison the site has ever drawn.
+   *
+   * Nothing caught it because every test in this file ran a car with no
+   * on-road costs, where the two figures are the same number — which is the
+   * whole reason these cases exist.
+   *
+   * The sharpest way to say it: how the drive-away price is SPLIT between the
+   * car and its on-roads is a fact about FBT and the GST credit, so it may
+   * move the lease. It cannot move what a cash buyer or a borrower pays,
+   * because they buy the same thing either way.
+   */
+  describe("On-road costs", () => {
+    const split = () => run({ vehiclePrice: 60_200, onRoadCosts: 4_800 });
+    const whole = () => run({ vehiclePrice: 65_000, onRoadCosts: 0 });
+
+    it("funds the alternatives identically however the drive-away price is split", () => {
+      const a = split().comparison;
+      const b = whole().comparison;
+      // What the split cannot move is what has to be found to buy the thing:
+      // $65,000 either way.
+      expect(a.cash.upfront).toBeCloseTo(b.cash.upfront, 4);
+      expect(a.cash.foregone).toBeCloseTo(b.cash.foregone, 4);
+      // Two things it legitimately does move, so they are not asserted:
+      // insurance is a percentage of the CAR's value, and on-roads carry no
+      // GST credit — so the amount financed, and with it the residual the
+      // loan's balloon mirrors, differ between the two.
+    });
+
+    it("makes the cash buyer pay the on-roads too", () => {
+      const r = split();
+      expect(r.comparison.cash.upfront).toBeCloseTo(r.finance.priceInclGst + 4_800, 4);
+      expect(r.comparison.cash.upfront).toBeGreaterThan(r.finance.priceInclGst);
+    });
+
+    it("writes the loan over the drive-away total, not the car", () => {
+      const withOnRoads = split().comparison.loan.totalRepaid;
+      const without = run({ vehiclePrice: 60_200, onRoadCosts: 0 }).comparison.loan.totalRepaid;
+      expect(withOnRoads).toBeGreaterThan(without);
+    });
+
+    it("charges the opportunity cost on everything laid out", () => {
+      const r = split();
+      const rate = config.benchmarks.opportunityRatePct / 100;
+      expect(r.comparison.cash.foregone).toBeCloseTo(
+        r.finance.driveAwayTotal * (Math.pow(1 + rate, r.inputs.termYears) - 1),
+        4,
+      );
+    });
+
+    /*
+     * The bug in one line: adding on-roads used to cost the alternatives
+     * nothing at all.
+     *
+     * Note what is NOT asserted here. The lease's lead does widen as on-roads
+     * grow, and that is correct rather than suspicious: the lease buys them
+     * with pre-tax dollars and a cash buyer with taxed ones. The invariant is
+     * that they appear in every column, not that they favour nobody.
+     */
+    it("charges the alternatives for the on-roads at all", () => {
+      const none = run({ vehiclePrice: 60_200, onRoadCosts: 0 }).comparison;
+      const heavy = run({ vehiclePrice: 60_200, onRoadCosts: 6_000 }).comparison;
+      // Same car, so running costs are identical and the whole difference is
+      // the on-roads plus what the money would have earned.
+      expect(heavy.cash.totalCost - none.cash.totalCost).toBeGreaterThan(6_000);
+      expect(heavy.loan.totalCost - none.loan.totalCost).toBeGreaterThan(6_000);
+    });
   });
 
   it("ends all three columns owning the car outright", () => {

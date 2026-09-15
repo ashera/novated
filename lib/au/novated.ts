@@ -346,6 +346,10 @@ export interface OwnershipComparison {
   /**
    * Buying the same car with a car loan, from take-home pay.
    *
+   * Written over the drive-away total, the same money the lease borrows, and
+   * ending on the same residual — so the two differ in how they are funded and
+   * taxed, and in nothing else.
+   *
    * `ratePct` is the rate actually used, carried on the result so the pages
    * that name it read it rather than re-deriving it. Three of them used to
    * hold their own copy of the formula.
@@ -353,6 +357,11 @@ export interface OwnershipComparison {
   loan: { ratePct: number; annualRepayment: number; totalRepaid: number; totalCost: number };
   /**
    * Buying it outright with cash.
+   *
+   * `upfront` is the drive-away figure, not the car's price: a cash buyer pays
+   * the same stamp duty, registration and CTP the lease finances, and leaving
+   * them out was worth more than everything else wrong with this comparison
+   * put together.
    *
    * `foregone` is what that money would have earned had it stayed where it
    * was — the part of a cash purchase nobody counts, and the reason the cash
@@ -1404,6 +1413,27 @@ export function compareOwnership(
   const runningInclGst = running.total * (1 + config.gst.rate);
 
   /*
+   * What it costs to get the car on the road, which everybody pays.
+   *
+   * This used to be the car alone. The lease financed the stamp duty, the
+   * registration and the CTP and repaid them with interest, while the cash
+   * buyer in the next column drove away having paid for the car and nothing
+   * else — about $4,800 handed to the alternatives on an ordinary car, every
+   * comparison, since the on-roads field was added.
+   *
+   * It is the same mistake as the residual GST and it points the other way:
+   * a cost that belongs to every column charged to only one of them. The
+   * figure has been sitting on the finance result as driveAwayTotal the whole
+   * time.
+   *
+   * The on-roads include a first year of registration that the running-cost
+   * budget also carries. That double-count is identical in all three columns —
+   * the lease finances the same on-roads — so it cancels in every comparison
+   * drawn here, and fixing it is a running-cost question rather than this one.
+   */
+  const driveAway = finance.driveAwayTotal;
+
+  /*
    * The same rate the decoder benchmarks quotes against.
    *
    * This used to be the lease's own rate plus 1.5, on the reasoning that a
@@ -1425,7 +1455,7 @@ export function compareOwnership(
   const loanRate = inputs.comparisonLoanRatePct ?? config.benchmarks.loanRatePct;
   // Same balloon as the lease residual, so the two are compared like for like:
   // both leave the buyer holding the car with the same amount still owing.
-  const monthly = annuityPayment(priceInclGst, finance.residual, loanRate, years * 12);
+  const monthly = annuityPayment(driveAway, finance.residual, loanRate, years * 12);
   const totalRepaid = monthly * years * 12;
 
   // What the cash would have earned instead, compounded over the term. Zero
@@ -1435,7 +1465,7 @@ export function compareOwnership(
   const opportunityRate =
     (inputs.opportunityRatePct ?? config.benchmarks.opportunityRatePct) / 100;
   const foregone =
-    opportunityRate > 0 ? priceInclGst * (Math.pow(1 + opportunityRate, years) - 1) : 0;
+    opportunityRate > 0 ? driveAway * (Math.pow(1 + opportunityRate, years) - 1) : 0;
 
   // Lease and loan both stop with this still owing; cash paid it up front.
   const residualSettled = finance.residual;
@@ -1461,12 +1491,12 @@ export function compareOwnership(
   const residualGstOnBuyout = finance.residual * config.gst.rate;
 
   const loanTotal = totalRepaid + residualSettled + runningInclGst * years;
-  const cashTotal = priceInclGst + foregone + runningInclGst * years;
+  const cashTotal = driveAway + foregone + runningInclGst * years;
   const leaseTotal = leaseNetAnnualCost * years + residualSettled + residualGstOnBuyout;
 
   return {
     loan: { ratePct: loanRate, annualRepayment: monthly * 12, totalRepaid, totalCost: loanTotal },
-    cash: { upfront: priceInclGst, foregone, totalCost: cashTotal },
+    cash: { upfront: driveAway, foregone, totalCost: cashTotal },
     lease: { totalCost: leaseTotal },
     residualSettled,
     residualGstOnBuyout,

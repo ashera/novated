@@ -164,7 +164,9 @@ export function StatExplainerBody({
               <br />
               <br />
               Both leave you owing the {fmtCurrency(finance.residual)} balloon, so neither side
-              is quietly further ahead on the car itself.
+              is quietly further ahead on the car itself — though the lease pays{" "}
+              {fmtCurrency(comparison.residualGstOnBuyout)} of GST to take it, which the loan
+              buyer paid in the purchase price.
             </InlineExplainer>
           </div>
           <p className="text-xs text-muted">
