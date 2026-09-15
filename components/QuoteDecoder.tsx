@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import TopBar, { type TopBarUser } from "./TopBar";
@@ -92,9 +92,21 @@ export default function QuoteDecoder({
    * this state directly and does not touch the URL, so that case is
    * untouched: the effect only fires when the requested id actually changes.
    */
+  /**
+   * The quote this page created by being typed into, before React has caught up.
+   *
+   * setActiveQuoteId is state, so it does not take effect until the next
+   * render. Anything arriving before then still sees "no quote yet" and makes
+   * another one. A ref changes synchronously, so the second event finds the
+   * first event's work.
+   */
+  const createdQuoteId = useRef<string | null>(null);
+
   useEffect(() => {
     setActiveQuoteId(requestedQuoteId);
+    createdQuoteId.current = null;
   }, [requestedQuoteId]);
+
   const [copied, setCopied] = useState(false);
   const router = useRouter();
 
@@ -162,18 +174,36 @@ export default function QuoteDecoder({
    *  the user had chosen it. Harmless when the car was editable here; not
    *  harmless now, when the page shows it as settled and offers no way to
    *  correct it. Delivery is the exception — it belongs to the quote. */
+  /*
+   * Which quote an edit lands on, decided here rather than inside the updater.
+   *
+   * store.update runs its function inside a React state updater, and React
+   * double-invokes those in development under strict mode. So creating a spec
+   * and calling setActiveQuoteId in there ran both twice: two quotes on the
+   * lease from one keystroke, carrying the same figures. Observed — a single
+   * field produced two identical quotes.
+   *
+   * Two things fix it, and both are the same rule. The side effects come out
+   * of the updater, so what is left is a pure function of the lease it is
+   * given and running it twice produces the same lease. And the id of a spec
+   * created a moment ago is held in a ref rather than in state, so a second
+   * event in the same tick writes to it instead of making another.
+   */
   const setQuote = (fn: (q: Quote) => Quote) => {
     const next = fn(quote);
-    store.update((l) => {
-      const fromLease = (q: Quote) => withLeaseVehicle(l, q);
-      if (isExample || blankAgainstTheirCar) {
-        const spec = newQuoteSpec(next.label ?? "", leaseTermMonths);
-        const seeded: Lease = { ...l, quotes: [...l.quotes, spec] };
-        setActiveQuoteId(spec.id);
-        return applyQuoteEdit(seeded, spec.id, fromLease(next));
-      }
-      return applyQuoteEdit(l, activeSpec!.id, fromLease(next));
-    });
+    const existingId = activeSpec?.id ?? createdQuoteId.current;
+
+    if (existingId) {
+      store.update((l) => applyQuoteEdit(l, existingId, withLeaseVehicle(l, next)));
+      return;
+    }
+
+    const spec = newQuoteSpec(next.label ?? "", leaseTermMonths);
+    createdQuoteId.current = spec.id;
+    setActiveQuoteId(spec.id);
+    store.update((l) =>
+      applyQuoteEdit({ ...l, quotes: [...l.quotes, spec] }, spec.id, withLeaseVehicle(l, next)),
+    );
   };
   const set = <K extends keyof Quote>(key: K, value: Quote[K]) =>
     setQuote((q) => ({ ...q, [key]: value }));
