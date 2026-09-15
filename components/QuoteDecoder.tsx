@@ -8,6 +8,7 @@ import QuoteField from "./QuoteField";
 import Disclosures from "./Disclosures";
 import { fmtCurrency } from "@/lib/au/format";
 import {
+  CYCLES_PER_YEAR,
   decodeQuote,
   quoteToLeaseInputs,
   type Quote,
@@ -15,6 +16,7 @@ import {
   type FindingSeverity,
   derivedAmountFinanced,
 } from "@/lib/au/quote";
+import { annuityPayment, buildRunningCosts, type LeaseInputs } from "@/lib/au/novated";
 import { quoteFieldChecks } from "@/lib/au/quoteChecks";
 import { stashHandoff } from "@/lib/quoteHandoff";
 import type { EngineConfig } from "@/lib/au/config";
@@ -259,6 +261,87 @@ export default function QuoteDecoder({
   }, [derivedFinanced, quote.termMonths, leaseTermMonths, lease.scenario.residualPct, config]);
 
   const freqWord = FREQ_WORD[quote.frequency];
+
+  /**
+   * What each line would be for THIS car, per this quote's period.
+   *
+   * These fields used to carry hard-coded placeholders lifted from the sample
+   * quote — $24.23 of energy, $115.00 of insurance, 6.95% — which is a set of
+   * invented figures greyed into somebody's own empty form. Three things wrong
+   * with that. They read as a suggestion of what is normal, when nothing
+   * sourced them. They cannot move when the reference data does. And a rate
+   * typed into a component is exactly what the first ground rule of this
+   * project forbids.
+   *
+   * The engine already estimates every one of them for a specific car at a
+   * specific distance, and the decoder already measures the entered figures
+   * against those same estimates further down the page. So the grey number is
+   * now the one the finding will be written against — informative rather than
+   * decorative, and it moves with the config like everything else.
+   *
+   * Null until there is a car, which is the same condition the benchmarking
+   * findings use. Ex-GST and per period, because that is how a quote lists
+   * them and what the fields ask for.
+   *
+   * The management fee and the stated rate get nothing, on the same reasoning
+   * that keeps a residual out of the box below: they are a provider's
+   * commercial choices rather than properties of the car, so there is no
+   * estimate to make — only a hint at what to expect, which is the thing being
+   * removed here. Both carry the published range in words instead.
+   */
+  /**
+   * The finance line at a comparable secured car loan.
+   *
+   * Not a prediction of what they quoted — a reference point, and the same one
+   * the finding under this field uses when it says a rate is so many points
+   * above a car loan at the benchmark. Whatever is typed here will be measured
+   * against it, so it is the honest thing to show while the box is empty.
+   */
+  const expectedFinance = useMemo(() => {
+    if (derivedFinanced == null || derivedResidual == null || !quote.termMonths) return undefined;
+    const monthly = annuityPayment(
+      derivedFinanced,
+      derivedResidual / (1 + config.gst.rate),
+      config.benchmarks.loanRatePct,
+      quote.termMonths,
+    );
+    const per = (monthly * 12) / CYCLES_PER_YEAR[quote.frequency];
+    return per > 0 ? per.toFixed(2) : undefined;
+  }, [derivedFinanced, derivedResidual, quote.termMonths, quote.frequency, config]);
+
+  const expected = useMemo(() => {
+    if (!quote.vehiclePrice || !quote.annualKm) return null;
+    const annual = buildRunningCosts(
+      {
+        vehiclePrice: quote.vehiclePrice,
+        fuelType: quote.fuelType,
+        annualKm: quote.annualKm,
+        state: quote.state,
+        consumptionPer100km: quote.consumptionPer100km,
+      } as LeaseInputs,
+      config,
+    );
+    const per = (annualAmount: number) => {
+      const v = annualAmount / CYCLES_PER_YEAR[quote.frequency];
+      return v > 0 ? v.toFixed(2) : undefined;
+    };
+    return {
+      energy: per(annual.fuel),
+      maintenance: per(annual.servicing),
+      tyres: per(annual.tyres),
+      registration: per(annual.registration),
+      insurance: per(annual.insurance),
+      roadside: per(annual.roadside),
+    };
+  }, [
+    quote.vehiclePrice,
+    quote.fuelType,
+    quote.annualKm,
+    quote.state,
+    quote.consumptionPer100km,
+    quote.frequency,
+    config,
+  ]);
 
 
   /** Hand this quote to the calculator, so "is it worth it at all?" costs a
@@ -538,7 +621,11 @@ export default function QuoteDecoder({
                   alsoCalled={["Vehicle Amount Financed", "Financed Amount"]}
                   value={quote.amountFinanced}
                   onChange={(v) => set("amountFinanced", v)}
-                  placeholder={derivedFinanced != null ? Math.round(derivedFinanced).toLocaleString("en-AU") : "78,666"}
+                  placeholder={
+                    derivedFinanced != null
+                      ? Math.round(derivedFinanced).toLocaleString("en-AU")
+                      : undefined
+                  }
                   hint={
                     derivedFinanced != null
                       ? "Leave blank and we'll use the figure shown. Not the same as a “base value” — that's for FBT."
@@ -603,7 +690,7 @@ export default function QuoteDecoder({
                         label="Fees added to what you borrow"
                         value={quote.explainedFeesFinanced}
                         onChange={(v) => set("explainedFeesFinanced", v)}
-                        placeholder="990"
+                        placeholder="0"
                         hint="One-off — establishment, documentation, brokerage."
                       />
                       <QuoteField
@@ -625,7 +712,6 @@ export default function QuoteDecoder({
                   suffix="%"
                   value={quote.statedRatePct}
                   onChange={(v) => set("statedRatePct", v)}
-                  placeholder="6.95"
                   hint="Only if it is printed on the quote — not a figure you were told. We'll check it against what the payment actually does."
                 />
                 <QuoteField
@@ -659,7 +745,7 @@ export default function QuoteDecoder({
                   alsoCalled={["Lease Payment", "Repayments", "Lease Rental"]}
                   value={quote.lines.finance}
                   onChange={(v) => setLine("finance", v)}
-                  placeholder="650.19"
+                  placeholder={expectedFinance}
                 />
                 <QuoteField
                   readOnly={readOnly}
@@ -667,7 +753,7 @@ export default function QuoteDecoder({
                   alsoCalled={["Power", "Electricity", "Fuel/Charging"]}
                   value={quote.lines.energy}
                   onChange={(v) => setLine("energy", v)}
-                  placeholder="24.23"
+                  placeholder={expected?.energy}
                 />
                 <QuoteField
                   readOnly={readOnly}
@@ -675,14 +761,14 @@ export default function QuoteDecoder({
                   alsoCalled={["Maintenance"]}
                   value={quote.lines.maintenance}
                   onChange={(v) => setLine("maintenance", v)}
-                  placeholder="22.00"
+                  placeholder={expected?.maintenance}
                 />
                 <QuoteField
                   readOnly={readOnly}
                   label="Tyres"
                   value={quote.lines.tyres}
                   onChange={(v) => setLine("tyres", v)}
-                  placeholder="16.50"
+                  placeholder={expected?.tyres}
                 />
                 <QuoteField
                   readOnly={readOnly}
@@ -690,7 +776,7 @@ export default function QuoteDecoder({
                   alsoCalled={["Registration + CTP"]}
                   value={quote.lines.registration}
                   onChange={(v) => setLine("registration", v)}
-                  placeholder="32.00"
+                  placeholder={expected?.registration}
                 />
                 <QuoteField
                   readOnly={readOnly}
@@ -698,7 +784,7 @@ export default function QuoteDecoder({
                   alsoCalled={["Comprehensive Insurance"]}
                   value={quote.lines.insurance}
                   onChange={(v) => setLine("insurance", v)}
-                  placeholder="115.00"
+                  placeholder={expected?.insurance}
                 />
                 <QuoteField
                   readOnly={readOnly}
@@ -714,7 +800,7 @@ export default function QuoteDecoder({
                   alsoCalled={["Lease Management", "Admin Fee"]}
                   value={quote.lines.managementFee}
                   onChange={(v) => setLine("managementFee", v)}
-                  placeholder="19.00"
+                  hint={`Providers publish anywhere from ${fmtCurrency(config.benchmarks.managementFeeAnnual.low)} to ${fmtCurrency(config.benchmarks.managementFeeAnnual.high)} a year for the same service.`}
                 />
                 <QuoteField
                   readOnly={readOnly}
@@ -740,7 +826,7 @@ export default function QuoteDecoder({
                   alsoCalled={["Pre Tax Salary Contribution"]}
                   value={quote.statedPreTax}
                   onChange={(v) => set("statedPreTax", v)}
-                  placeholder="900.19"
+                  placeholder="0.00"
                 />
                 <QuoteField
                   readOnly={readOnly}
@@ -757,7 +843,6 @@ export default function QuoteDecoder({
                   prefix="$"
                   value={quote.salary}
                   onChange={(v) => set("salary", v)}
-                  placeholder="130,000"
                   hint="Before tax, and not counting employer super — whatever the quote was priced on."
                 />
               </div>
