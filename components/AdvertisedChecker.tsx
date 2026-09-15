@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { checkAdvertised, type AdvertisedAd } from "@/lib/au/advertised";
 import type { EngineConfig } from "@/lib/au/config";
 import type { FuelType } from "@/lib/au/novated";
@@ -241,7 +240,12 @@ export default function AdvertisedChecker({ config }: { config: EngineConfig }) 
                   honestly and the questions below are about what it leaves out. If it sells for
                   much less, something is being added that hasn&apos;t been named.
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                {/* One way out, and it is the lease page. Everything this
+                    site does downstream — comparing, quoting, decoding — runs
+                    off a lease with a car on it, so a second button offering
+                    to skip that only lands people somewhere that asks them to
+                    go back and start again. */}
+                <div className="mt-3">
                   <button
                     type="button"
                     onClick={toCalculator}
@@ -249,12 +253,6 @@ export default function AdvertisedChecker({ config }: { config: EngineConfig }) 
                   >
                     Model this properly
                   </button>
-                  <Link
-                    href="/decode"
-                    className="rounded-md border border-line bg-panel px-3.5 py-2 text-sm font-semibold text-ink transition hover:border-accent"
-                  >
-                    I have a real quote
-                  </Link>
                 </div>
               </div>
             )}

@@ -149,12 +149,10 @@ export default async function CheckAdvertisedPricePage() {
               residual and what the same car costs on a plain car loan.
             </li>
             <li>
-              <strong className="text-ink">Ask for a real quote, then check it.</strong> An
-              advertisement is not an offer. When a quote arrives, the{" "}
-              <Link href="/decode" className="text-accent hover:underline">
-                decoder
-              </Link>{" "}
-              recovers the interest rate it doesn&apos;t state and benchmarks the fees.
+              <strong className="text-ink">Then ask for a real quote.</strong> An advertisement is
+              not an offer. Once the car is set up on your lease, the site walks you through
+              getting quotes on it and checking what comes back — including recovering the interest
+              rate a quote won&apos;t state, and measuring its fees against the market.
             </li>
           </ul>
         </section>
