@@ -132,7 +132,9 @@ export default function CostComparisonChart({
         )}{" "}
         All three end with you owning the car outright: the lease and the loan both settle the{" "}
         {fmtCurrency(result.comparison.residualSettled)} residual, and the cash buyer paid it with
-        everything else.{" "}
+        everything else. The lease also pays{" "}
+        {fmtCurrency(result.comparison.residualGstOnBuyout)} of GST to take the car, because the
+        financier owned it until then — the other two paid their GST in the price.{" "}
         {result.comparison.cash.foregone > 0 && (
           <>
             Cash also carries {fmtCurrency(result.comparison.cash.foregone)} of interest it

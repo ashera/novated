@@ -364,6 +364,17 @@ export interface OwnershipComparison {
   /** The residual, which lease and loan both still owe and cash does not.
    *  Added to both so all three columns end in the same place. */
   residualSettled: number;
+  /**
+   * GST on the lease's buyout, which only the lease pays.
+   *
+   * The financier owns the car for the whole term; taking it at the end is a
+   * purchase, and a purchase attracts GST. The loan and cash buyers owned it
+   * from the start and paid their GST in the price, so this is the lease's
+   * alone — and it is the back half of the GST credit the lease claimed up
+   * front. Leaving it out granted the credit on the whole car and charged for
+   * none of it back.
+   */
+  residualGstOnBuyout: number;
   /** Lease total cost less the cheaper of the two alternatives. Negative = the
    *  lease is cheaper. */
   savingVsLoan: number;
@@ -452,7 +463,9 @@ export interface LeaseResult {
     years: number;
     netCost: number;
     taxSaved: number;
+    /** Net of the GST paid on buying the residual back. */
     gstSaved: number;
+    /** Including the GST due on the buyout — what has to be found on the day. */
     residualPayable: number;
   };
   warnings: string[];
@@ -1341,12 +1354,19 @@ export function calculateLease(
       years: inputs.termYears,
       netCost: netAnnualCost * inputs.termYears + (inputs.establishmentFee ?? config.lease.defaultEstablishmentFee),
       taxSaved: relief.taxSaved * inputs.termYears,
+      // Net, not gross. The credit on the car is real, but the part of the car
+      // bought back at the end has its GST paid — so a "GST you avoid" figure
+      // that counts only the credit is overstating it by that much.
       gstSaved:
-        finance.gstCredit +
+        finance.gstCredit -
+        finance.residual * config.gst.rate +
         (inputs.includeRunningCosts
           ? running.total * config.gst.rate * inputs.termYears
           : 0),
-      residualPayable: finance.residual,
+      // What actually has to be found at the end: the residual plus the GST on
+      // buying the car. Stating it ex-GST understated the lump by 10% in the
+      // one place a reader is most likely to be planning around it.
+      residualPayable: finance.residual * (1 + config.gst.rate),
     },
     warnings,
   };
@@ -1420,15 +1440,36 @@ export function compareOwnership(
   // Lease and loan both stop with this still owing; cash paid it up front.
   const residualSettled = finance.residual;
 
+  /*
+   * And the lease pays GST to take the car, which the other two do not.
+   *
+   * This was missing, and it is the sort of omission that only shows up when
+   * two independent models are put side by side: the lease claimed the GST
+   * credit on the whole car at the start and then bought the residual portion
+   * back at the end without paying any GST on it. Ten per cent of the residual
+   * of pure invention, all of it in the lease's favour, and against cash —
+   * which has no residual — it went straight to the bottom line.
+   *
+   * The decoder has always had this right: it takes the residual GST-INCLUSIVE
+   * because that is how a quote states it. The two halves of the product
+   * disagreed about the same number.
+   *
+   * The loan's balloon carries no GST. That buyer owned the car from the day
+   * they signed and paid the GST in the purchase price; their balloon is
+   * nothing but deferred principal of their own loan.
+   */
+  const residualGstOnBuyout = finance.residual * config.gst.rate;
+
   const loanTotal = totalRepaid + residualSettled + runningInclGst * years;
   const cashTotal = priceInclGst + foregone + runningInclGst * years;
-  const leaseTotal = leaseNetAnnualCost * years + residualSettled;
+  const leaseTotal = leaseNetAnnualCost * years + residualSettled + residualGstOnBuyout;
 
   return {
     loan: { ratePct: loanRate, annualRepayment: monthly * 12, totalRepaid, totalCost: loanTotal },
     cash: { upfront: priceInclGst, foregone, totalCost: cashTotal },
     lease: { totalCost: leaseTotal },
     residualSettled,
+    residualGstOnBuyout,
     savingVsLoan: loanTotal - leaseTotal,
     savingVsCash: cashTotal - leaseTotal,
   };

@@ -132,12 +132,56 @@ describe("Ownership comparison", () => {
 
   it("ends all three columns owning the car outright", () => {
     const r = run();
-    // Lease and loan carry the residual; cash paid it with the purchase.
+    // Lease and loan carry the residual; cash paid it with the purchase. The
+    // lease also pays GST to take the car, which the other two already paid.
     expect(r.comparison.lease.totalCost).toBeCloseTo(
-      r.package.netAnnualCost * r.inputs.termYears + r.finance.residual,
+      r.package.netAnnualCost * r.inputs.termYears +
+        r.finance.residual +
+        r.comparison.residualGstOnBuyout,
       4,
     );
     expect(r.comparison.loan.totalCost).toBeGreaterThan(r.comparison.loan.totalRepaid);
+  });
+
+  /**
+   * The GST the lease claimed on the car, handed back on the part it buys.
+   *
+   * Found by running a competitor's calculator beside ours on the same car:
+   * every figure agreed to the dollar except the residual settlement, which
+   * they charged GST on and we did not. They were right. The financier owns
+   * the car for the whole term, so taking it at the end is a purchase — which
+   * is why our own decoder has always asked for the residual GST-inclusive.
+   * The calculator was granting the credit on the whole car and buying the
+   * residual portion back tax-free.
+   *
+   * It is worth 10% of the residual, all of it in the lease's favour, and it
+   * lands hardest against cash, which has no residual to settle at all.
+   */
+  it("charges the lease GST on buying the car at the end", () => {
+    const r = run();
+    expect(r.comparison.residualGstOnBuyout).toBeCloseTo(
+      r.finance.residual * config.gst.rate,
+      6,
+    );
+    // The invented saving: without it the lease came out exactly this much
+    // cheaper than it is.
+    const naive = r.package.netAnnualCost * r.inputs.termYears + r.finance.residual;
+    expect(r.comparison.lease.totalCost - naive).toBeCloseTo(
+      r.finance.residual * config.gst.rate,
+      6,
+    );
+  });
+
+  // The loan buyer owned the car from day one and paid GST in the price, so
+  // their balloon is deferred principal and nothing else.
+  it("does not charge the loan GST on its balloon", () => {
+    const r = run();
+    expect(r.comparison.loan.totalCost).toBeCloseTo(
+      r.comparison.loan.totalRepaid +
+        r.finance.residual +
+        r.running.total * (1 + config.gst.rate) * r.inputs.termYears,
+      4,
+    );
   });
 
   it("leaves the lease-versus-loan gap alone, since both owe the same residual", () => {
@@ -215,20 +259,39 @@ describe("Whole-of-term totals", () => {
   it("includes the GST on the car and on packaged running costs in the GST saved", () => {
     const r = run({ includeRunningCosts: true });
     expect(r.term.gstSaved).toBeCloseTo(
-      r.finance.gstCredit + r.running.total * config.gst.rate * r.inputs.termYears,
+      r.finance.gstCredit -
+        r.finance.residual * config.gst.rate +
+        r.running.total * config.gst.rate * r.inputs.termYears,
       4,
     );
   });
 
   it("counts only the vehicle GST when running costs aren't packaged", () => {
     const r = run({ includeRunningCosts: false });
-    expect(r.term.gstSaved).toBeCloseTo(r.finance.gstCredit, 4);
+    expect(r.term.gstSaved).toBeCloseTo(
+      r.finance.gstCredit - r.finance.residual * config.gst.rate,
+      4,
+    );
+  });
+
+  // "GST you avoid" has to be GST actually avoided. The credit on the car is
+  // only kept on the part of it the lease consumes; the residual is bought,
+  // and bought things carry GST.
+  it("nets the GST paid on the buyout out of the GST saved", () => {
+    const r = run({ includeRunningCosts: false });
+    expect(r.term.gstSaved).toBeLessThan(r.finance.gstCredit);
+    expect(r.finance.gstCredit - r.term.gstSaved).toBeCloseTo(
+      r.finance.residual * config.gst.rate,
+      6,
+    );
   });
 
   it("surfaces the residual as a separate obligation, not part of the running cost", () => {
     const r = run();
-    expect(r.term.residualPayable).toBe(r.finance.residual);
-    expect(r.term.residualPayable).toBeGreaterThan(0);
+    // What has to be found on the day, GST and all — a quote states it this
+    // way, and so does the decoder.
+    expect(r.term.residualPayable).toBeCloseTo(r.finance.residual * (1 + config.gst.rate), 6);
+    expect(r.term.residualPayable).toBeGreaterThan(r.finance.residual);
   });
 });
 
@@ -421,16 +484,21 @@ describe("What the stat explainers promise", () => {
     );
   });
 
-  it("gst: the credit on the car plus the GST on packaged running costs", () => {
+  it("gst: the car, plus packaged running costs, less the buyout", () => {
     const r = run({ includeRunningCosts: true });
     expect(
-      r.finance.gstCredit + r.running.total * config.gst.rate * r.term.years,
+      r.finance.gstCredit -
+        r.comparison.residualGstOnBuyout +
+        r.running.total * config.gst.rate * r.term.years,
     ).toBeCloseTo(r.term.gstSaved, 6);
   });
 
-  it("gst: only the car when running costs aren't packaged", () => {
+  it("gst: the car less the buyout when running costs aren't packaged", () => {
     const r = run({ includeRunningCosts: false });
-    expect(r.term.gstSaved).toBeCloseTo(r.finance.gstCredit, 6);
+    expect(r.term.gstSaved).toBeCloseTo(
+      r.finance.gstCredit - r.comparison.residualGstOnBuyout,
+      6,
+    );
   });
 });
 

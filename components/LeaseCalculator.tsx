@@ -769,14 +769,15 @@ export default function LeaseCalculator({
                 <StatCard
                   label="GST you avoid"
                   value={fmtCurrency(term.gstSaved)}
-                  sub="On the car and on packaged running costs"
+                  sub="On the car and packaged running costs, less the GST on the buyout"
                   explainer={<StatExplainer kind="gst" result={result} config={config} />}
                 />
               </div>
               <p className="mt-3 text-sm text-subtle">
                 The residual isn&apos;t optional — at the end of the term you either pay it to keep
                 the car, refinance it into a new lease, or sell the car and cover any shortfall
-                yourself. It is the part of a novated lease most people are surprised by.
+                yourself. With GST on the buyout that is {fmtCurrency(term.residualPayable)}. It is
+                the part of a novated lease most people are surprised by.
               </p>
             </section>
 

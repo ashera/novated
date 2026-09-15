@@ -377,9 +377,10 @@ export default function LeaseReport({
         <p className="mt-3 text-sm text-subtle">
           Every column funds the same car for the same period and ends with you owning it
           outright — the lease and the loan settle the {fmtCurrency(comparison.residualSettled)}{" "}
-          residual, the cash buyer paid it up front — so only the funding differs. Running costs
-          are included in all three, with GST where they are paid privately and without it where
-          they are packaged.
+          residual, the cash buyer paid it up front — so only the funding differs. The lease adds{" "}
+          {fmtCurrency(comparison.residualGstOnBuyout)} of GST on that buyout, which the loan and
+          cash buyers already paid inside the purchase price. Running costs are included in all
+          three, with GST where they are paid privately and without it where they are packaged.
           {comparison.cash.foregone > 0 && (
             <>
               {" "}

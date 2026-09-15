@@ -195,10 +195,21 @@ export function StatExplainerBody({
               more of the car paid off from pre-tax income than the rules allow, so almost every
               quote uses exactly this figure.
             </InlineExplainer>
+            {/* The figure to plan around is the one with GST on it. A quote
+                states the residual inclusive for exactly this reason, and a
+                private sale brings in no GST to pay it with. */}
+            <InlineExplainer
+              label="GST on the buyout"
+              value={fmtCurrency(comparison.residualGstOnBuyout)}
+            >
+              The financier owns the car until this is paid, so taking it is a purchase and
+              carries GST. Most quotes state the residual with it already included —{" "}
+              {fmtCurrency(term.residualPayable)} here.
+            </InlineExplainer>
           </div>
           <p className="rounded-lg border border-line bg-panel-2 p-3 text-xs leading-relaxed">
             At the end you pay it to keep the car, refinance it, or sell and settle up. If the
-            car is worth less than {fmtCurrency(finance.residual)} by then, the shortfall is
+            car is worth less than {fmtCurrency(term.residualPayable)} by then, the shortfall is
             yours — not the financier&apos;s.
           </p>
         </>
@@ -269,8 +280,17 @@ export function StatExplainerBody({
                 {fmtCurrency(running.total * config.gst.rate)} a year.
               </InlineExplainer>
             )}
+            <InlineExplainer
+              label="Less GST on the buyout"
+              value={`−${fmtCurrency(comparison.residualGstOnBuyout)}`}
+            >
+              The financier owns the car until the residual is paid, so taking it at the end is a
+              purchase and carries GST. It is the credit above, handed back on the part of the car
+              you buy rather than lease. A cash or loan buyer paid this in the purchase price on
+              day one.
+            </InlineExplainer>
             <InlineExplainer label="Over the term" value={fmtCurrency(term.gstSaved)}>
-              The two added together.
+              What is left once the buyout is paid for.
             </InlineExplainer>
           </div>
         </>
