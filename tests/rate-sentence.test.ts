@@ -37,12 +37,32 @@ const say = (q: Quote) => rateSentence(q, decodeQuote(q, config), "month")!;
  * what loses the argument this sentence exists to win.
  */
 describe("Putting the rate back to the provider", () => {
-  it("asks what is in the rental while nobody has said", () => {
+  it("asks what else is in the payment while nobody has said", () => {
     const s = say(quote({ statedRatePct: 6, lines: { finance: at(9.5) } }));
     expect(s).toMatch(/anything other than interest is included/i);
     // The four figures are still the point of it.
     expect(s).toMatch(/finances \$50,000 over 60 months/);
     expect(s).toMatch(/residual of/);
+  });
+
+  /**
+   * "Finance rental" is the industry's word and the quote will print it. This
+   * sentence is spoken by the user, though, and it has twice gone out saying
+   * rental — so it is pinned here rather than re-audited a third time. The
+   * glossary still teaches the word; see lib/au/glossary.ts.
+   */
+  it("speaks the user's language, not the industry's", () => {
+    const cases = [
+      quote({ statedRatePct: 6, lines: { finance: at(9.5) } }),
+      quote({ statedRatePct: 6, lines: { finance: at(9.5) }, explainedFeesFinanced: 1_200 }),
+      quote({ statedRatePct: 6, lines: { finance: at(6) }, explainedFeesFinanced: 4_000 }),
+    ];
+    for (const q of cases) {
+      const s = say(q);
+      expect(s, s).not.toMatch(/rental/i);
+      // It still names the figure, just in the words of the field they typed.
+      expect(s).toMatch(/finance payment of \$/);
+    }
   });
 
   it("stops asking once they have told you", () => {

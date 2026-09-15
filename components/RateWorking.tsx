@@ -28,13 +28,13 @@ import { track } from "@/lib/analytics";
  * actually used, so the working cannot describe a different sum from the one
  * that produced the headline.
  *
- * The rental keeps its cents wherever it appears. It is the one figure here
+ * The payment keeps its cents wherever it appears. It is the one figure here
  * copied straight off their document and read straight back to them, and
  * "$650" against a quote that says $650.19 is all the opening a provider needs
  * to argue about the wrong thing.
  *
  * The honest caveat is at the bottom and is the thing most likely to come back
- * in a reply: the implied rate covers everything baked into the rental, so if
+ * in a reply: the implied rate covers everything baked into the payment, so if
  * brokerage is hidden in there the "rate" is higher than the financier's. That
  * is not an error in the arithmetic — it is the arithmetic telling you
  * something, and the question is phrased to draw it out.

@@ -11,6 +11,11 @@ import type { Quote, QuoteDecode } from "@/lib/au/quote";
  * change — and that is a rule worth asserting in a test rather than trusting a
  * component nobody renders in CI.
  *
+ * It says "payment", not "rental". The document it is quoting back will say
+ * rental, and the glossary teaches the word, but this sentence is spoken in the
+ * user's voice — and it names the field they typed the figure into, which is
+ * "Finance payment". A provider loses nothing by hearing it called that.
+ *
  * Returns null where the figures the rate rests on aren't all there.
  */
 export function rateSentence(quote: Quote, decode: QuoteDecode, noun: string): string | null {
@@ -21,7 +26,7 @@ export function rateSentence(quote: Quote, decode: QuoteDecode, noun: string): s
 
   const facts =
     `Your quote finances ${fmtCurrency(financed)} over ${quote.termMonths} months, ` +
-    `with a finance rental of ${fmtCurrencyCents(payment)} per ${noun} and a residual of ` +
+    `with a finance payment of ${fmtCurrencyCents(payment)} per ${noun} and a residual of ` +
     `${fmtCurrency(quote.residualIncGst ?? 0)} including GST. Those four figures imply an ` +
     `interest rate of about ${rate.toFixed(2)}% a year. `;
 
@@ -31,7 +36,7 @@ export function rateSentence(quote: Quote, decode: QuoteDecode, noun: string): s
 /**
  * The half of the sentence that depends on whether they have answered yet.
  *
- * Before: what is the rate, and what else is in the rental. After: the fees
+ * Before: what is the rate, and what else is in the payment. After: the fees
  * they named, what those leave the money itself costing, and whether any of it
  * moves. Never both — asking a question somebody has already answered is how
  * you get ignored.
@@ -41,7 +46,7 @@ export function rateAsk(quote: Quote, decode: QuoteDecode, noun: string): string
   if (r == null) {
     return (
       `Could you confirm the rate on the finance, and tell me whether anything ` +
-      `other than interest is included in the rental?`
+      `other than interest is included in that payment?`
     );
   }
 
