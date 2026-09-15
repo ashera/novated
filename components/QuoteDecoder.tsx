@@ -540,6 +540,41 @@ export default function QuoteDecoder({
                     document, and it also lets a wrong figure be pointed at
                     rather than guessed: given the rate, the payment is
                     arithmetic. */}
+                {/* Only once there is something to reconcile. Most people
+                    never query a rate, and a permanent pair of fields for the
+                    few who do would be clutter for everyone else — so it
+                    appears when the quote's own stated rate disagrees with
+                    what it charges, which is the moment the question gets
+                    asked. */}
+                {!readOnly && decode.statedRateGap != null && decode.statedRateGap > 0 && (
+                  <div className="rounded-lg border border-accent-border bg-accent-subtle p-3.5">
+                    <p className="text-xs font-semibold text-ink">
+                      Asked them what&apos;s in it?
+                    </p>
+                    <p className="mt-1 text-[11px] leading-snug text-subtle">
+                      Put what they said here and we&apos;ll check it against what they charge.
+                      A fee added to what you borrow is not the same as one inside each payment,
+                      so they go in separately.
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      <QuoteField
+                        label="Fees added to what you borrow"
+                        value={quote.explainedFeesFinanced}
+                        onChange={(v) => set("explainedFeesFinanced", v)}
+                        placeholder="990"
+                        hint="One-off — establishment, documentation, brokerage."
+                      />
+                      <QuoteField
+                        label="Charges inside each payment"
+                        value={quote.explainedFeesPerPayment}
+                        onChange={(v) => set("explainedFeesPerPayment", v)}
+                        placeholder="0"
+                        hint={`Per ${freqWord} — an insurance or warranty bundled into the finance line.`}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <QuoteField
                   readOnly={readOnly}
                   label="Rate, if the quote states one"

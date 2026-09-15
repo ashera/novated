@@ -91,6 +91,19 @@ export interface Quote {
    * inside the rental.
    */
   statedRatePct?: number;
+  /**
+   * What a provider said accounts for the gap, once asked.
+   *
+   * Two fields because a provider's answer distinguishes them and the
+   * arithmetic does too. A fee capitalised into the amount borrowed is
+   * amortised at the rate for the whole term; a charge sitting inside each
+   * payment is flat. The same sentence — "there's an establishment fee in
+   * there" — can mean either, and treating one as the other reconciles to the
+   * wrong number and wrongly accuses somebody of a shortfall.
+   */
+  explainedFeesFinanced?: number;
+  /** At the quote's frequency, like every other line. */
+  explainedFeesPerPayment?: number;
 
   // What the quote says comes out of your pay, at `frequency`
   lines: QuoteLines;
@@ -135,6 +148,32 @@ export interface Finding {
   question?: string;
 }
 
+/**
+ * Checking a provider's explanation against their own figures.
+ *
+ * The decoder solves a rate, hands over a question, and until now stopped
+ * there. This is the third step and the one nobody else does: they answer,
+ * and the answer is arithmetic, so it can be tested rather than believed.
+ *
+ * Reconciling is not endorsing. A clean reconciliation means the explanation
+ * is complete — not that the fees are reasonable — so what they cost is
+ * reported alongside it, because "that accounts for the gap" and "that is
+ * worth paying" are different findings and only one of them was asked about.
+ */
+export interface RateReconciliation {
+  /** The payment their stated rate produces once their fees are included. */
+  expectedMonthly: number;
+  /** The payment the quote actually charges. */
+  actualMonthly: number;
+  /** Still unaccounted for, over the term. Positive = charged beyond the
+   *  explanation; negative = the explanation overshoots what is charged. */
+  unexplainedOverTerm: number;
+  /** What the inclusions themselves cost over the term, at the stated rate. */
+  feesOverTerm: number;
+  /** True where the explanation lands within a dollar a month. */
+  reconciles: boolean;
+}
+
 export interface QuoteDecode {
   /** The rate the quote didn't print. Null when it can't be determined. */
   impliedRatePct: number | null;
@@ -164,6 +203,8 @@ export interface QuoteDecode {
   /** What the quote charges over the term above its own stated rate. Negative
    *  means the payment is below what the stated rate would cost. */
   statedRateGap: number | null;
+  /** Whether what they said accounts for what they charge. Null until asked. */
+  reconciliation: RateReconciliation | null;
   findings: Finding[];
   questions: string[];
 }
@@ -332,7 +373,92 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
       ? (monthlyFinance - paymentAtStatedRate) * quote.termMonths
       : null;
 
+  /*
+   * What they said, against what they charge.
+   *
+   * Only once there is something to reconcile: a rate they claim, the figures
+   * it applies to, and at least one fee they have named. Until then this is
+   * silent rather than zero, because "nothing unexplained" and "nobody has
+   * been asked yet" are different states and only one of them is reassuring.
+   */
+  const explainedFinanced = quote.explainedFeesFinanced ?? 0;
+  const explainedPerPayment = quote.explainedFeesPerPayment ?? 0;
+  const hasExplanation = explainedFinanced > 0 || explainedPerPayment > 0;
+
+  let reconciliation: RateReconciliation | null = null;
+  if (
+    hasExplanation &&
+    statedRatePct != null &&
+    amountFinanced != null &&
+    residualExGst != null &&
+    monthlyFinance != null
+  ) {
+    const bare = annuityPayment(amountFinanced, residualExGst, statedRatePct, quote.termMonths);
+    // Capitalised fees are borrowed and amortised; per-payment charges are not.
+    const withFees =
+      annuityPayment(
+        amountFinanced + explainedFinanced,
+        residualExGst,
+        statedRatePct,
+        quote.termMonths,
+      ) + annualise(explainedPerPayment, f) / 12;
+
+    const unexplainedPerMonth = monthlyFinance - withFees;
+    reconciliation = {
+      expectedMonthly: withFees,
+      actualMonthly: monthlyFinance,
+      unexplainedOverTerm: unexplainedPerMonth * quote.termMonths,
+      feesOverTerm: (withFees - bare) * quote.termMonths,
+      reconciles: Math.abs(unexplainedPerMonth) < 1,
+    };
+  }
+
   // ── Findings ─────────────────────────────────────────────────────────────
+
+  /*
+   * These carry no costOverTerm, deliberately.
+   *
+   * The decoder totals costOverTerm across findings to say how much avoidable
+   * cost a quote holds. A reconciliation does not find new money — it explains
+   * money the stated-rate finding has already counted, and the shortfall is a
+   * part of that same gap. Pricing it again reported $2,296 of avoidable cost
+   * for $1,148 of fees. The figures are still in the prose, where they belong;
+   * they are just not added to a total twice.
+   */
+  if (reconciliation != null && statedRatePct != null) {
+    const r = reconciliation;
+    const est = config.lease.defaultEstablishmentFee;
+    if (r.reconciles) {
+      findings.push({
+        key: "explanation-reconciles",
+        severity: "ok",
+        category: "Rate",
+        title: "What they told you accounts for the difference",
+        detail: `At ${pct(statedRatePct)} with those inclusions the payment comes to ${money(r.expectedMonthly)} a month, which is what the quote charges. Their explanation is complete — which is not the same as the inclusions being worth paying. They add ${money(r.feesOverTerm)} over the term, and that is a separate thing to negotiate.`,
+        question:
+          explainedFinanced > 0 && explainedFinanced > est * 1.5
+            ? `You've told me the establishment and setup fees come to ${money(explainedFinanced)}. Published pricing is nearer ${money(est)} — is any of that negotiable?`
+            : undefined,
+      });
+    } else if (r.unexplainedOverTerm > 0) {
+      findings.push({
+        key: "explanation-falls-short",
+        severity: "warn",
+        category: "Rate",
+        title: "What they told you does not account for all of it",
+        detail: `At ${pct(statedRatePct)} with those inclusions the payment should be ${money(r.expectedMonthly)} a month; the quote charges ${money(r.actualMonthly)}. That leaves ${money(r.unexplainedOverTerm)} over the term still unexplained — so either something else is in there, or one of the figures is not what it was described as.`,
+        question: `With the ${money(explainedFinanced + explainedPerPayment * CYCLES_PER_YEAR[f] * (quote.termMonths / 12))} of inclusions you've described, ${pct(statedRatePct)} produces ${money(r.expectedMonthly)} a month — but the quote charges ${money(r.actualMonthly)}. What accounts for the remaining ${money(r.unexplainedOverTerm)} over the term?`,
+      });
+    } else {
+      findings.push({
+        key: "explanation-overshoots",
+        severity: "warn",
+        category: "Rate",
+        title: "What they told you would cost more than they are charging",
+        detail: `Those inclusions at ${pct(statedRatePct)} would produce ${money(r.expectedMonthly)} a month, but the quote charges ${money(r.actualMonthly)} — ${money(Math.abs(r.unexplainedOverTerm))} less over the term. Worth checking whether a fee is charged separately rather than financed, or whether it applies at all.`,
+      });
+    }
+  }
 
   if (statedRatePct != null && statedRateGap != null && paymentAtStatedRate != null) {
     // A rounding difference is not a finding. Under a dollar a month either
@@ -653,6 +779,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     statedRatePct,
     paymentAtStatedRate,
     statedRateGap,
+    reconciliation,
     findings,
     questions: findings.map((x) => x.question).filter((q): q is string => Boolean(q)),
   };

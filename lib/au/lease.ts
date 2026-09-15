@@ -153,6 +153,9 @@ export interface QuoteSpec {
   termMonths: number;
   /** The rate the quote itself claims, where it prints one. */
   statedRatePct?: number;
+  /** What the provider said accounts for the gap, once asked. */
+  explainedFeesFinanced?: number;
+  explainedFeesPerPayment?: number;
   lines: QuoteLines;
   statedPreTax?: number;
   statedPostTax?: number;
@@ -430,6 +433,8 @@ export function leaseToQuote(lease: Lease, spec: QuoteSpec): Quote {
     residualIncGst: spec.residualIncGst,
     termMonths: spec.termMonths,
     statedRatePct: spec.statedRatePct,
+    explainedFeesFinanced: spec.explainedFeesFinanced,
+    explainedFeesPerPayment: spec.explainedFeesPerPayment,
     lines: spec.lines,
     statedPreTax: spec.statedPreTax,
     statedPostTax: spec.statedPostTax,
@@ -605,6 +610,8 @@ export function applyQuoteEdit(lease: Lease, quoteId: string, q: Quote): Lease {
           residualIncGst: q.residualIncGst,
           termMonths: q.termMonths,
           statedRatePct: q.statedRatePct,
+          explainedFeesFinanced: q.explainedFeesFinanced,
+          explainedFeesPerPayment: q.explainedFeesPerPayment,
           lines: q.lines,
           statedPreTax: q.statedPreTax,
           statedPostTax: q.statedPostTax,
