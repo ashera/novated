@@ -376,6 +376,16 @@ export default function QuoteDecoder({
             >
               Set up your car
             </Link>
+            {/* The other reason somebody lands here with nothing to type: they
+                have an advertisement rather than a quote. That is a different
+                tool, and without this line it is a dead end. */}
+            <p className="w-full text-xs text-subtle">
+              Working from an advertised weekly price rather than a quote?{" "}
+              <Link href="/check-an-advertised-price" className="font-semibold text-accent hover:underline">
+                Start there instead
+              </Link>{" "}
+              — it works out the price of the car, which is what this page needs.
+            </p>
           </div>
         )}
 

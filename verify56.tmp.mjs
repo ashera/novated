@@ -1,0 +1,20 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage();
+await p.goto("http://localhost:3000/check-an-advertised-price", { waitUntil: "networkidle", timeout: 90000 });
+await p.waitForTimeout(800);
+const fill = async (label, v) => {
+  const box = p.getByLabel(label, { exact: false }).first();
+  await box.fill(String(v));
+  await box.blur();
+  await p.waitForTimeout(200);
+};
+await fill("The weekly cost", 210);
+await fill("Total savings claimed", 39297);
+await fill("What you actually earn", 140000);
+await p.waitForTimeout(1200);
+const t = await p.evaluate(() => document.body.innerText);
+const i = t.indexOf("drive-away");
+console.log("marker at", i);
+console.log(t.slice(Math.max(0, i - 400), i + 2800));
+await b.close();

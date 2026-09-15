@@ -20,6 +20,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly" as const,
       priority: 0.7,
     })),
+    { url: `${SITE_URL}/check-an-advertised-price`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE_URL}/choose-your-provider`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE_URL}/glossary`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE_URL}/about`, lastModified: BUILD_DATE, changeFrequency: "monthly", priority: 0.7 },

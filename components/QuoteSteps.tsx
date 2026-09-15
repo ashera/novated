@@ -29,6 +29,16 @@ const STEPS: { title: string; body: string; href?: string; linkLabel?: string }[
     linkLabel: "Work out whether you can",
   },
   {
+    // Where most people actually start: a flyer, not a quote. Listed as its
+    // own step because "a car and a price" is the thing they don't have, and
+    // an advertisement can be made to give it up.
+    title: "If all you have is an advertisement, start there.",
+    body:
+      "A weekly figure on a flyer isn't a quote — it prices one car, at one salary, over one term, and leaves out what the car costs. That price can be worked back out of it, which turns the ad into the specific car the next step needs.",
+    href: "/check-an-advertised-price",
+    linkLabel: "Check an advertised price",
+  },
+  {
     title: "Ask for a quote on a specific car.",
     body:
       "Providers price a particular model at a particular price over a particular term. Give them all three and what comes back can be compared like for like.",
