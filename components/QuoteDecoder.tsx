@@ -13,6 +13,7 @@ import {
   type Quote,
   type QuoteFrequency,
   type FindingSeverity,
+  derivedAmountFinanced,
 } from "@/lib/au/quote";
 import { quoteFieldChecks } from "@/lib/au/quoteChecks";
 import { stashHandoff } from "@/lib/quoteHandoff";
@@ -225,11 +226,13 @@ export default function QuoteDecoder({
   // What the amount financed should be, given the price: the financier claims
   // the GST back, capped at the car limit. Shown beside the field so the pair
   // explains itself rather than needing to be explained.
-  const derivedFinanced = useMemo(() => {
-    if (!quote.vehiclePrice) return null;
-    const creditable = Math.min(quote.vehiclePrice, config.gst.carLimit);
-    return quote.vehiclePrice - (creditable - creditable / (1 + config.gst.rate));
-  }, [quote.vehiclePrice, config]);
+  // Shared with the engine rather than worked out again here — the local copy
+  // left the on-road costs out, so the greyed figure disagreed both with the
+  // lease it came from and with what this page computed from it.
+  const derivedFinanced = useMemo(
+    () => derivedAmountFinanced(quote, config),
+    [quote, config],
+  );
   /**
    * What the residual would be at the ATO minimum for this quote's term.
    *
@@ -486,13 +489,29 @@ export default function QuoteDecoder({
                     numbers — this pair is the most common point of confusion. */}
                 <div className="rounded-md border border-line bg-panel-2 px-3 py-2 text-[11px] leading-relaxed text-muted">
                   {derivedFinanced != null ? (
-                    <>
-                      The financier buys the car and claims the GST back, so the lease is written
-                      over <strong className="text-ink">less</strong> than the{" "}
-                      {fmtCurrency(quote.vehiclePrice!)} price above. Expect about{" "}
-                      <strong className="text-ink">{fmtCurrency(derivedFinanced)}</strong>{" "}
-                      ({fmtCurrency(quote.vehiclePrice! - derivedFinanced)} of GST comes off).
-                    </>
+                    quote.onRoadCosts ? (
+                      <>
+                        The financier pays the dealer&apos;s whole invoice and claims the GST back
+                        on the car, so expect about{" "}
+                        <strong className="text-ink">{fmtCurrency(derivedFinanced)}</strong>: the{" "}
+                        {fmtCurrency(quote.vehiclePrice!)} price, less{" "}
+                        {fmtCurrency(
+                          Math.min(quote.vehiclePrice!, config.gst.carLimit) -
+                            Math.min(quote.vehiclePrice!, config.gst.carLimit) /
+                              (1 + config.gst.rate),
+                        )}{" "}
+                        of GST, plus {fmtCurrency(quote.onRoadCosts)} of on-road costs, which are
+                        borrowed alongside the car.
+                      </>
+                    ) : (
+                      <>
+                        The financier buys the car and claims the GST back, so the lease is written
+                        over <strong className="text-ink">less</strong> than the{" "}
+                        {fmtCurrency(quote.vehiclePrice!)} price above. Expect about{" "}
+                        <strong className="text-ink">{fmtCurrency(derivedFinanced)}</strong>{" "}
+                        ({fmtCurrency(quote.vehiclePrice! - derivedFinanced)} of GST comes off).
+                      </>
+                    )
                   ) : (
                     <>
                       The financier claims the GST back on the car, so the amount financed is

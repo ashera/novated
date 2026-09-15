@@ -242,16 +242,32 @@ export interface FinanceBasis {
   monthlyFinance: number | null;
 }
 
-export function financeBasis(quote: Quote, config: EngineConfig): FinanceBasis {
-  const driveAway =
-    quote.vehiclePrice != null ? quote.vehiclePrice + (quote.onRoadCosts ?? 0) : null;
-  const creditable = Math.min(quote.vehiclePrice ?? 0, config.gst.carLimit);
-  const gstCredit = creditable - creditable / (1 + config.gst.rate);
+/**
+ * What a lease is written over, when the quote does not say.
+ *
+ * The financier pays the dealer's whole invoice — the car AND its on-road
+ * costs — and claims the GST back on the car alone. So on-roads are part of
+ * what is borrowed, which the engine has always had right
+ * (novated.ts: price - gstCredit + onRoads) and the decoder's own placeholder
+ * did not: it showed the car less the GST and left the on-roads out, so the
+ * greyed figure disagreed with the lease it came from AND with what this file
+ * computed when the field was left blank.
+ *
+ * Exported so there is one formula. Two were enough to disagree.
+ */
+export function derivedAmountFinanced(quote: Quote, config: EngineConfig): number | null {
+  if (quote.vehiclePrice == null) return null;
+  const driveAway = quote.vehiclePrice + (quote.onRoadCosts ?? 0);
+  const creditable = Math.min(quote.vehiclePrice, config.gst.carLimit);
+  return driveAway - (creditable - creditable / (1 + config.gst.rate));
+}
 
+export function financeBasis(quote: Quote, config: EngineConfig): FinanceBasis {
+  const derived = derivedAmountFinanced(quote, config);
   let amountFinanced = quote.amountFinanced ?? null;
   let financedWasDerived = false;
-  if (amountFinanced == null && driveAway != null) {
-    amountFinanced = driveAway - gstCredit;
+  if (amountFinanced == null && derived != null) {
+    amountFinanced = derived;
     financedWasDerived = true;
   }
 
