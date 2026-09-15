@@ -86,6 +86,30 @@ function checkFinance(q: Quote, config: EngineConfig): FieldCheck | undefined {
 
   const principalOnly = (financed - balloon) / months;
 
+  /*
+   * With a stated rate, three knowns pin the fourth.
+   *
+   * Without one, a payment that cannot be right leaves four candidates — the
+   * amount financed, the residual, the term or the payment — and the decoder
+   * can only say so. Given the rate the quote claims, the payment it must
+   * produce is arithmetic, so the disagreement can be pointed at instead of
+   * described. Checked before the impossibility tests, because "this is not
+   * the payment your own stated rate produces" is a more useful sentence than
+   * "this cannot be true" even when both apply.
+   */
+  if (q.statedRatePct != null && q.statedRatePct > 0) {
+    const expected = annuityPayment(financed, balloon, q.statedRatePct, months);
+    const outBy = Math.abs(m - expected);
+    // A few dollars is a rounding convention, not a mistake.
+    if (outBy > Math.max(5, expected * 0.02)) {
+      const perCycle = (v: number) => (v * 12) / perYear(q);
+      return {
+        level: outBy > expected * 0.25 ? "error" : "warn",
+        message: `At the ${q.statedRatePct}% this quote states, the finance would be ${money(perCycle(expected))} — you have entered ${money(perCycle(m))}. One of the two is wrong, or something is financed inside the rental that isn't in the rate.`,
+      };
+    }
+  }
+
   if (m < principalOnly - 1e-6) {
     const shortfall = (principalOnly - m) * months;
     return {

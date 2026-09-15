@@ -504,6 +504,23 @@ export default function QuoteDecoder({
                       : "GST included — that's how it's normally quoted."
                   }
                 />
+                {/* Optional, and usually blank — most quotes print no rate,
+                    which is the reason this page solves one. Where a quote
+                    does state one it is the most checkable claim on the
+                    document, and it also lets a wrong figure be pointed at
+                    rather than guessed: given the rate, the payment is
+                    arithmetic. */}
+                <QuoteField
+                  readOnly={readOnly}
+                  label="Rate, if the quote states one"
+                  alsoCalled={["Interest Rate", "Finance Rate", "Base Rate"]}
+                  prefix={null}
+                  suffix="%"
+                  value={quote.statedRatePct}
+                  onChange={(v) => set("statedRatePct", v)}
+                  placeholder="6.95"
+                  hint="Only if it is printed on the quote — not a figure you were told. We'll check it against what the payment actually does."
+                />
                 <QuoteField
                   readOnly={readOnly}
                   label="Term"

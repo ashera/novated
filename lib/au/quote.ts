@@ -83,6 +83,14 @@ export interface Quote {
   amountFinanced?: number;
   residualIncGst?: number;
   termMonths: number;
+  /**
+   * The rate the quote claims, where it prints one. Most do not, which is the
+   * reason this site solves it instead — but when a quote does state one it is
+   * the most checkable claim on the document, and the gap between what it says
+   * and what its own payment implies is nearly always something real sitting
+   * inside the rental.
+   */
+  statedRatePct?: number;
 
   // What the quote says comes out of your pay, at `frequency`
   lines: QuoteLines;
@@ -149,6 +157,13 @@ export interface QuoteDecode {
   annualStatedDeduction: number | null;
   /** Stated deduction less the lines that explain it. */
   reconciliationGap: number | null;
+  /** The rate the quote claims, where it printed one. */
+  statedRatePct: number | null;
+  /** The monthly payment that rate would actually produce on these figures. */
+  paymentAtStatedRate: number | null;
+  /** What the quote charges over the term above its own stated rate. Negative
+   *  means the payment is below what the stated rate would cost. */
+  statedRateGap: number | null;
   findings: Finding[];
   questions: string[];
 }
@@ -297,7 +312,60 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
   const reconciliationGap =
     annualStatedDeduction != null ? annualStatedDeduction - annualPackageTotal : null;
 
+  /*
+   * What the quote says its rate is, against what its payment actually does.
+   *
+   * A gap is not usually dishonesty and the finding must not read as an
+   * accusation: an establishment fee amortised into the rental, broker margin
+   * over a base rate, or an insurance financed in will all widen it, and every
+   * one of those is a real thing to ask about rather than a lie to catch.
+   * Priced in dollars over the term, because "2.5 percentage points" is not a
+   * number anybody can act on and "$4,200" is.
+   */
+  const statedRatePct = quote.statedRatePct ?? null;
+  const paymentAtStatedRate =
+    statedRatePct != null && amountFinanced != null && residualExGst != null
+      ? annuityPayment(amountFinanced, residualExGst, statedRatePct, quote.termMonths)
+      : null;
+  const statedRateGap =
+    paymentAtStatedRate != null && monthlyFinance != null
+      ? (monthlyFinance - paymentAtStatedRate) * quote.termMonths
+      : null;
+
   // ── Findings ─────────────────────────────────────────────────────────────
+
+  if (statedRatePct != null && statedRateGap != null && paymentAtStatedRate != null) {
+    // A rounding difference is not a finding. Under a dollar a month either
+    // way is the same rate as far as anyone is concerned.
+    const perMonth = Math.abs(statedRateGap) / quote.termMonths;
+    if (perMonth < 1) {
+      findings.push({
+        key: "stated-rate-checks-out",
+        severity: "ok",
+        category: "Rate",
+        title: `The ${pct(statedRatePct)} it quotes is the rate you are actually paying`,
+        detail: `The payment matches what ${pct(statedRatePct)} produces on ${money(amountFinanced ?? 0)} over ${quote.termMonths} months. Nothing extra is buried in the rental.`,
+      });
+    } else if (statedRateGap > 0) {
+      findings.push({
+        key: "stated-rate-understates",
+        severity: "warn",
+        category: "Rate",
+        title: `The payment costs more than the ${pct(statedRatePct)} this quote states`,
+        detail: `At ${pct(statedRatePct)} the finance would be ${money(paymentAtStatedRate)} a month; this quote charges ${money(monthlyFinance ?? 0)} — ${money(statedRateGap)} more over the term${rate != null ? `, which is why it solves at ${pct(rate)} rather than ${pct(statedRatePct)}` : ""}. That gap is usually something financed inside the rental rather than a wrong rate: an establishment or documentation fee, broker margin over a base rate, or an insurance rolled in.`,
+        costOverTerm: statedRateGap,
+        question: `Your quote states ${pct(statedRatePct)}, but the finance payment works out at ${money(statedRateGap)} more than that rate produces over the term. What is included in the rental that isn't in the rate?`,
+      });
+    } else {
+      findings.push({
+        key: "stated-rate-overstates",
+        severity: "ok",
+        category: "Rate",
+        title: `The payment is below the ${pct(statedRatePct)} this quote states`,
+        detail: `At ${pct(statedRatePct)} the finance would be ${money(paymentAtStatedRate)} a month; this quote charges ${money(monthlyFinance ?? 0)} — ${money(Math.abs(statedRateGap))} less over the term. Worth confirming the residual and the term are the ones the rate was quoted against, because a figure in your favour is as likely to be a misread as a discount.`,
+      });
+    }
+  }
 
   if (rate != null) {
     const over = rate - config.benchmarks.loanRatePct;
@@ -582,6 +650,9 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     annualPackageTotal,
     annualStatedDeduction,
     reconciliationGap,
+    statedRatePct,
+    paymentAtStatedRate,
+    statedRateGap,
     findings,
     questions: findings.map((x) => x.question).filter((q): q is string => Boolean(q)),
   };

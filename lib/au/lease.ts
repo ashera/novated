@@ -151,6 +151,8 @@ export interface QuoteSpec {
   amountFinanced?: number;
   residualIncGst?: number;
   termMonths: number;
+  /** The rate the quote itself claims, where it prints one. */
+  statedRatePct?: number;
   lines: QuoteLines;
   statedPreTax?: number;
   statedPostTax?: number;
@@ -179,6 +181,7 @@ export function quoteStatus(
   const touched =
     spec.amountFinanced != null ||
     spec.residualIncGst != null ||
+    spec.statedRatePct != null ||
     spec.statedPreTax != null ||
     Object.values(spec.lines).some((v) => typeof v === "number");
   if (!touched) return "new";
@@ -426,6 +429,7 @@ export function leaseToQuote(lease: Lease, spec: QuoteSpec): Quote {
     amountFinanced: spec.amountFinanced,
     residualIncGst: spec.residualIncGst,
     termMonths: spec.termMonths,
+    statedRatePct: spec.statedRatePct,
     lines: spec.lines,
     statedPreTax: spec.statedPreTax,
     statedPostTax: spec.statedPostTax,
@@ -600,6 +604,7 @@ export function applyQuoteEdit(lease: Lease, quoteId: string, q: Quote): Lease {
           amountFinanced: q.amountFinanced,
           residualIncGst: q.residualIncGst,
           termMonths: q.termMonths,
+          statedRatePct: q.statedRatePct,
           lines: q.lines,
           statedPreTax: q.statedPreTax,
           statedPostTax: q.statedPostTax,
