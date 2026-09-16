@@ -134,8 +134,8 @@ function checkFinance(q: Quote, config: EngineConfig): FieldCheck | undefined {
       return {
         level: outBy > expected * 0.25 ? "error" : "warn",
         message: explained
-          ? `At the ${q.statedRatePct}% this quote states, with what they have told you is in it, the finance would be ${money(perCycle(expected))} — you have entered ${money(perCycle(m))}. Something is still unaccounted for.`
-          : `At the ${q.statedRatePct}% this quote states, the finance would be ${money(perCycle(expected))} — you have entered ${money(perCycle(m))}. One of the two is wrong, or something is financed inside the payment that isn't in the rate.`,
+          ? `At the ${q.statedRatePct}% they quoted, with what they have told you is in it, the finance would be ${money(perCycle(expected))} — you have entered ${money(perCycle(m))}. Something is still unaccounted for.`
+          : `At the ${q.statedRatePct}% they quoted, the finance would be ${money(perCycle(expected))} — you have entered ${money(perCycle(m))}. One of the two is wrong, or something is financed inside the payment that isn't in the rate.`,
       };
     }
   }

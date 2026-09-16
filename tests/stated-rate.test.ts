@@ -99,7 +99,7 @@ describe("Using the stated rate to find the wrong figure", () => {
     const c = quoteFieldChecks(quote({ statedRatePct: 6, lines: { finance: at(14) } }), config)
       .finance;
     expect(c).toBeTruthy();
-    expect(c!.message).toMatch(/At the 6% this quote states/);
+    expect(c!.message).toMatch(/At the 6% they quoted/);
     expect(c!.message).toMatch(/you have entered/);
   });
 
@@ -195,6 +195,24 @@ describe("The rest of the page keeps up with a stated rate", () => {
       config,
     ).findings.find((x) => x.key === "implied-rate")!;
     expect(f.question).toMatch(/what interest rate is the finance written at/i);
+  });
+
+  /**
+   * And nothing may claim the rate came off the document.
+   *
+   * Most rates don't. A provider leaves it off the quote and says it on the
+   * phone or in a reply, which is exactly why the field exists — so copy that
+   * asserts "this quote states 6.95%" is false for most of the people it is
+   * shown to, and false in a way that makes the page look like it has not
+   * read the document in front of them.
+   */
+  it("never claims the quote itself stated the rate", () => {
+    const said = decodeQuote(dear(), config)
+      .findings.flatMap((f) => [f.title, f.detail, f.question ?? ""])
+      .join(" ");
+    expect(said).not.toMatch(/quote states|stated on the quote|printed on the quote/i);
+    // It still attributes it to them, rather than going vague.
+    expect(said).toMatch(/they quoted|you've quoted/i);
   });
 
   // The sweep: nothing the engine writes may deny a rate that was given.

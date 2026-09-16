@@ -137,8 +137,9 @@ export default function RateWorking({
           <p className="max-w-2xl text-sm leading-relaxed text-subtle">
             {quote.statedRatePct != null ? (
               <>
-                The quote states {quote.statedRatePct}%. This is what its own figures produce —
-                not a guess, but arithmetic fixed by four numbers that are on it.
+                They&apos;ve quoted {quote.statedRatePct}%. This is what the figures on the
+                document produce — not a guess, but arithmetic fixed by four numbers that are on
+                it.
               </>
             ) : (
               <>

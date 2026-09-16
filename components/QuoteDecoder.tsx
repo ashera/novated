@@ -672,8 +672,9 @@ export default function QuoteDecoder({
                         to fill in; named, it is the next step in something
                         the reader is already doing. */}
                     <p className="mt-1 text-[11px] leading-snug text-subtle">
-                      This showed up because the quote states{" "}
-                      <strong className="text-ink">{quote.statedRatePct}%</strong> but charges{" "}
+                      This showed up because they have quoted{" "}
+                      <strong className="text-ink">{quote.statedRatePct}%</strong> and the payment
+                      costs{" "}
                       <strong className="text-ink">
                         {fmtCurrency(decode.statedRateGap ?? 0)}
                       </strong>{" "}
@@ -758,13 +759,13 @@ export default function QuoteDecoder({
 
                 <QuoteField
                   readOnly={readOnly}
-                  label="Rate, if the quote states one"
+                  label="Rate they've told you"
                   alsoCalled={["Interest Rate", "Finance Rate", "Base Rate"]}
                   prefix={null}
                   suffix="%"
                   value={quote.statedRatePct}
                   onChange={(v) => set("statedRatePct", v)}
-                  hint="Only if it is printed on the quote — not a figure you were told. We'll check it against what the payment actually does."
+                  hint="Printed on the quote, or given over the phone or by email — most rates arrive that way. We'll check it against what the payment actually does, which is also how you find out whether it was worth writing down."
                 />
                 <QuoteField
                   readOnly={readOnly}

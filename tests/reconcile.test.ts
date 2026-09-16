@@ -279,7 +279,7 @@ describe("The check under the finance payment", () => {
   it("flags the payment before anything has been explained", () => {
     const c = quoteFieldChecks(quote(), config).finance;
     expect(c).toBeTruthy();
-    expect(c!.message).toMatch(/At the 6% this quote states, the finance would be/);
+    expect(c!.message).toMatch(/At the 6% they quoted, the finance would be/);
   });
 
   it("clears once the fees account for it", () => {
