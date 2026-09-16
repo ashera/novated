@@ -22,6 +22,10 @@ const residualExGst = financed * (config.lease.residualMinPct["5"] / 100);
 const residual = residualExGst * 1.1; // what goes in the box
 const monthlyPayment = annuityPayment(financed, residualExGst, 7.5, months);
 
+/** The same formatting the messages use, so a comparison is like for like. */
+const fmt = (n: number) =>
+  n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
+
 const sound = (over: Partial<Quote> = {}): Quote => ({
   frequency: "monthly",
   fuelType: "electric",
@@ -127,6 +131,43 @@ describe("A residual the ATO would not accept", () => {
     const c = quoteFieldChecks(sound({ residualIncGst: 2_000 }), config).residualIncGst;
     expect(c?.level).toBe("error");
     expect(c?.message).toContain(`${config.lease.residualMinPct["5"]}%`);
+  });
+
+  /**
+   * The message has to be readable beside the box it is under.
+   *
+   * It told somebody who had entered $24,100 that they were below a minimum of
+   * $23,691. Both figures were right and the verdict was right: the test runs
+   * ex-GST, because the ATO's percentage is of the amount financed and that
+   * has the GST credit taken out. But the sentence printed the ex-GST floor
+   * next to an inc-GST figure the reader had typed, so it read as a
+   * contradiction — and no reader can be expected to spot that two numbers a
+   * line apart are in different currencies.
+   */
+  it("states the minimum in the units of the box, GST included", () => {
+    const floorEx = financed * (config.lease.residualMinPct["5"] / 100);
+    const floorInc = floorEx * (1 + config.gst.rate);
+    const c = quoteFieldChecks(sound({ residualIncGst: floorInc * 0.9 }), config).residualIncGst!;
+    expect(c.level).toBe("error");
+    expect(c.message).toContain(fmt(floorInc));
+    // The figure that made it nonsense.
+    expect(c.message).not.toContain(fmt(floorEx));
+  });
+
+  /**
+   * The property behind it: a message saying you are below a minimum must
+   * name a minimum above what you entered. Swept across the range rather than
+   * pinned to the one case that was reported.
+   */
+  it("never names a minimum below the figure it is rejecting", () => {
+    const floorInc = financed * (config.lease.residualMinPct["5"] / 100) * (1 + config.gst.rate);
+    for (const entered of [floorInc * 0.5, floorInc * 0.8, floorInc * 0.9, floorInc * 0.94]) {
+      const c = quoteFieldChecks(sound({ residualIncGst: entered }), config).residualIncGst;
+      if (!c) continue;
+      const named = [...c.message.matchAll(/\$([\d,]+)/g)].map((m) => Number(m[1].replace(/,/g, "")));
+      const minimum = named.filter((n) => n < financed); // not the financed figure
+      expect(Math.max(...minimum), `entered ${entered}: ${c.message}`).toBeGreaterThan(entered);
+    }
   });
 
   it("catches one larger than the amount financed", () => {

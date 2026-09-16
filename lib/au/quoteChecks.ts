@@ -171,15 +171,27 @@ function checkFinance(q: Quote, config: EngineConfig): FieldCheck | undefined {
  * Below it is not a matter of opinion: a lease written under the minimum is
  * not a lease the Commissioner accepts, so a figure under it is a
  * transcription error rather than a keen deal.
+ *
+ * Every figure in these messages is GST-INCLUSIVE, because that is the number
+ * in the box. The test itself runs ex-GST, since the ATO's percentage is a
+ * percentage of the amount financed and the amount financed has the GST credit
+ * taken out — but a message that does its arithmetic in one currency and
+ * prints it beside a figure typed in another reads as a contradiction. It told
+ * somebody who had entered $24,100 that they were below a minimum of $23,691.
+ * The verdict was right; the sentence was comparing the ex-GST floor with the
+ * inc-GST figure they could see, and no reader can be expected to spot that.
  */
 function checkResidual(q: Quote, config: EngineConfig): FieldCheck | undefined {
   const { amountFinanced: financed, residualExGst } = financeBasis(q, config);
   const residual = residualExGst;
   if (residual == null || residual < 0) return undefined;
+  // Back into the units of the field, for anything that gets printed.
+  const asQuoted = (exGst: number) => money(exGst * (1 + config.gst.rate));
+
   if (financed && residual > financed) {
     return {
       level: "error",
-      message: `Larger than the ${money(financed)} financed — a residual is what is left owing, so it cannot exceed the amount borrowed.`,
+      message: `More than the ${money(financed)} financed, which with GST is ${asQuoted(financed)} — a residual is what is left owing, so it cannot exceed what was borrowed.`,
     };
   }
   if (!financed || !q.termMonths) return undefined;
@@ -192,7 +204,7 @@ function checkResidual(q: Quote, config: EngineConfig): FieldCheck | undefined {
   if (residual > 0 && residual < floor * 0.95) {
     return {
       level: "error",
-      message: `Below the ATO minimum for a ${years}-year lease, which is ${minPct}% of the amount financed — about ${money(floor)} here. A lower residual is not something a provider can offer.`,
+      message: `Below the ATO minimum for a ${years}-year lease, which is ${minPct}% of the ${money(financed)} financed — ${asQuoted(floor)} once GST is added, and this box is GST-inclusive. A lower residual is not something a provider can offer.`,
     };
   }
   return undefined;
