@@ -18,6 +18,27 @@ import type { Quote, QuoteDecode } from "@/lib/au/quote";
  *
  * Returns null where the figures the rate rests on aren't all there.
  */
+/**
+ * How the rate they quoted compares with the rate their figures produce.
+ *
+ * A named comparison rather than two inline subtractions, because the page
+ * makes it in more than one place and a threshold written twice is a threshold
+ * that will differ eventually. A tenth of a point is under a dollar a month on
+ * an ordinary lease — below that the two rates are the same rate as far as
+ * anybody is concerned, and saying otherwise invites an argument about
+ * rounding instead of about money.
+ */
+export type RateAgreement = "none" | "same" | "charges-more" | "charges-less";
+
+export function rateAgreement(quote: Quote, decode: QuoteDecode): RateAgreement {
+  const stated = quote.statedRatePct;
+  const implied = decode.impliedRatePct;
+  if (stated == null || implied == null) return "none";
+  if (implied - stated > 0.1) return "charges-more";
+  if (stated - implied > 0.1) return "charges-less";
+  return "same";
+}
+
 export function rateSentence(quote: Quote, decode: QuoteDecode, noun: string): string | null {
   const rate = decode.impliedRatePct;
   const financed = decode.amountFinanced;

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { fmtCurrency, fmtCurrencyCents } from "@/lib/au/format";
 import { CYCLES_PER_YEAR, type Quote, type QuoteDecode } from "@/lib/au/quote";
-import { rateSentence } from "@/lib/au/rateSentence";
+import { rateAgreement, rateSentence } from "@/lib/au/rateSentence";
 import { track } from "@/lib/analytics";
 
 /**
@@ -17,6 +17,14 @@ import { track } from "@/lib/analytics";
  * So this is written to be READ OUT. Not a formula and not a derivation — four
  * facts the provider themselves supplied, then the observation that only one
  * rate fits them.
+ *
+ * Where they have also quoted a rate, the opening states BOTH and names the
+ * gap. It used to say "they've quoted 8.5%, and this is what the figures
+ * produce", which is two true statements arranged to look like agreement —
+ * printed above a headline of 10.75%, it left the reader to spot the
+ * contradiction and decide which number to believe. The gap is the whole
+ * finding, and there are only two things it can be: a higher rate, or fees
+ * inside the payment.
  *
  * It closed on "there is nothing to disagree about — the same arithmetic a loan
  * calculator does, run backwards", and users said that confused them. Fair: it
@@ -78,6 +86,7 @@ export default function RateWorking({
   // answered can be tested without rendering anything.
   const r = decode.reconciliation;
   const sentence = rateSentence(quote, decode, noun)!;
+  const agreement = rateAgreement(quote, decode);
 
   const copy = async () => {
     try {
@@ -131,20 +140,39 @@ export default function RateWorking({
 
       {open && (
         <div className="mt-3">
-          {/* Two openings, because one of them can now be false. The page
-              takes a stated rate, so "it isn't printed anywhere" cannot be
-              asserted over the top of one somebody has entered. */}
+          {/* Three openings, because the interesting case is the one where
+              the two rates disagree — and it was the one the copy skipped.
+              Saying "they've quoted 8.5%, and this is what the figures
+              produce" beside a headline of 10.75% leaves the reader to notice
+              the contradiction themselves and work out which number to
+              believe. Both are true; the gap between them is the finding, and
+              there are only two things it can be. */}
           <p className="max-w-2xl text-sm leading-relaxed text-subtle">
-            {quote.statedRatePct != null ? (
-              <>
-                They&apos;ve quoted {quote.statedRatePct}%. This is what the figures on the
-                document produce — not a guess, but arithmetic fixed by four numbers that are on
-                it.
-              </>
-            ) : (
+            {agreement === "none" ? (
               <>
                 The rate isn&apos;t printed anywhere on the quote, but it isn&apos;t a guess
                 either — it is fixed by four figures that <em>are</em> on it.
+              </>
+            ) : agreement === "charges-more" ? (
+              <>
+                They&apos;ve quoted {quote.statedRatePct}%. The figures on their quote, however,
+                produce <strong className="font-semibold text-ink">{rate.toFixed(2)}%</strong> —
+                not a guess, but arithmetic fixed by four numbers that are on it. Either the rate
+                is actually higher, or there are fees baked into it.
+              </>
+            ) : agreement === "charges-less" ? (
+              <>
+                They&apos;ve quoted {quote.statedRatePct}%, and the figures on their quote produce{" "}
+                <strong className="font-semibold text-ink">{rate.toFixed(2)}%</strong> — less than
+                they said. Not a guess, but arithmetic fixed by four numbers that are on it, so it
+                is worth confirming the residual and the term are the ones the rate was written
+                against.
+              </>
+            ) : (
+              <>
+                They&apos;ve quoted {quote.statedRatePct}%, and the figures on their quote produce
+                the same — not a guess, but arithmetic fixed by four numbers that are on it.
+                Nothing extra is buried in the payment.
               </>
             )}
           </p>

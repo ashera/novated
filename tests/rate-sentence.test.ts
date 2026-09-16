@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_CONFIG } from "@/lib/au/config";
 import { decodeQuote, type Quote } from "@/lib/au/quote";
-import { rateSentence } from "@/lib/au/rateSentence";
+import { rateAgreement, rateSentence } from "@/lib/au/rateSentence";
 import { annuityPayment } from "@/lib/au/novated";
 
 const config = DEFAULT_CONFIG;
@@ -142,5 +142,55 @@ describe("Putting the rate back to the provider", () => {
       const s = say(quote({ statedRatePct: 6, lines: { finance: at(9.5) }, ...fees }));
       expect(s, JSON.stringify(fees)).not.toMatch(/whether anything other than interest/i);
     }
+  });
+});
+
+/**
+ * Which of the two rates the working opens with.
+ *
+ * The paragraph used to say "they've quoted 8.5%, and this is what the figures
+ * on the document produce" — two true statements arranged to look like
+ * agreement, printed directly above a headline of 10.75%. It left the reader
+ * to spot the contradiction and decide which number to believe, which is the
+ * one job the page exists to do for them.
+ */
+describe("Comparing the rate they quoted with the rate their figures produce", () => {
+  const stated = (pct: number | undefined, finance: number) =>
+    quote({ statedRatePct: pct, lines: { finance } });
+
+  it("says nothing to compare when no rate was given", () => {
+    const q = stated(undefined, at(9.5));
+    expect(rateAgreement(q, decodeQuote(q, config))).toBe("none");
+  });
+
+  it("says nothing to compare when the payment can't be solved", () => {
+    const q = quote({ statedRatePct: 7.5, lines: {} });
+    expect(rateAgreement(q, decodeQuote(q, config))).toBe("none");
+  });
+
+  it("calls it the same rate when the payment matches", () => {
+    for (const rate of [4, 7.5, 12]) {
+      const q = stated(rate, at(rate));
+      expect(rateAgreement(q, decodeQuote(q, config)), `${rate}%`).toBe("same");
+    }
+  });
+
+  it("does not make a finding out of a rounding difference", () => {
+    // A tenth of a point is under a dollar a month here.
+    const q = stated(7.5, at(7.55));
+    expect(rateAgreement(q, decodeQuote(q, config))).toBe("same");
+  });
+
+  it("names the gap when the payment costs more than the rate they gave", () => {
+    const q = stated(8.5, at(10.75));
+    const d = decodeQuote(q, config);
+    expect(rateAgreement(q, d)).toBe("charges-more");
+    // The figure the paragraph prints must be the one on the headline.
+    expect(d.impliedRatePct!).toBeCloseTo(10.75, 1);
+  });
+
+  it("names it the other way too, rather than staying quiet", () => {
+    const q = stated(11, at(7.5));
+    expect(rateAgreement(q, decodeQuote(q, config))).toBe("charges-less");
   });
 });
