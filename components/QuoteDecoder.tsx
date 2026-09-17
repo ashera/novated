@@ -957,11 +957,21 @@ export default function QuoteDecoder({
                       {decode.financedWasDerived && " (which we worked out from the price)"}, the
                       residual and the term. Over {quote.termMonths / 12} years it costs{" "}
                       <strong>{fmtCurrency(decode.totalInterest ?? 0)}</strong> in interest
+                      {/* Say whose rate that is. A bare "7.5%" on a page
+                          carrying a solved rate, a quoted rate and a rate on
+                          the borrowing reads as a fourth mystery figure —
+                          somebody reasonably asked where it came from. It is
+                          the market benchmark, the same one the calculator's
+                          car-loan column uses, and it is deliberately NOT the
+                          rate the provider gave: what their own claim would
+                          have cost is a different finding, and it is already
+                          on this page. */}
                       {decode.financeMargin != null && decode.financeMargin > 0 && (
                         <>
                           {" "}
                           — <strong>{fmtCurrency(decode.financeMargin)}</strong> more than the same
-                          lease at {config.benchmarks.loanRatePct}%
+                          lease would cost at {config.benchmarks.loanRatePct}%, what a comparable
+                          secured car loan charges
                         </>
                       )}
                       .
