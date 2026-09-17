@@ -310,7 +310,11 @@ export default function LeaseCalculator({
               setVehicle({ fuelType: f });
               track("Fuel type changed", { fuel: f });
             }}
-            price={inputs.vehiclePrice}
+            // The stored car, not the computed inputs: leaseToInputs falls back
+            // to the engine's own default so every figure has something to work
+            // with, and reading that back into the box printed a price nobody
+            // had typed — which is the thing being removed.
+            price={lease.vehicle.price}
             onPrice={(v) => setVehicle({ price: v })}
             customMake={lease.vehicle.make}
             customModel={lease.vehicle.model}
@@ -595,7 +599,32 @@ export default function LeaseCalculator({
             </>
           )}
 
-          {/* ── Results ────────────────────────────────────────────── */}
+          {/* ── Results ──────────────────────────────────────────────
+              Only once there is a car. The page used to open at a $55,000
+              electric default and show the whole set — a saving, a payment, a
+              comparison, an early-exit table — all of it confidently about a
+              car nobody had chosen. The decoder has refused to do that since
+              it was built; this is the same rule on the page that produces the
+              largest figures on the site.
+
+              Gated on the PRICE rather than on hasChosenCar: the catalogue
+              carries specifications and not prices, so a car can be chosen and
+              still have nothing to compute against. Showing results then would
+              have swapped a visible default for an invisible one. */}
+          {lease.vehicle.price == null ? (
+            <section className="rounded-xl border border-dashed border-line bg-panel-2 p-6">
+              <CardHeading eyebrow="Result">Waiting on the price</CardHeading>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-subtle">
+                {hasChosenCar(lease.vehicle)
+                  ? "We know the car — now tell us what it costs. "
+                  : "Pick a car above, or just enter a price. "}
+                Every figure below it is worked out from that one number: the GST the financier
+                claims back, the FBT base value, whether an electric car clears the exemption
+                threshold, and the payment itself. The catalogue holds specifications, not
+                prices — they move by dealer and by week, so it has to come from you.
+              </p>
+            </section>
+          ) : (
           <div className="space-y-6">
             <section
               id="the-numbers"
@@ -817,6 +846,7 @@ export default function LeaseCalculator({
               )}
             </div>
           </div>
+          )}
           </div>
 
         </div>

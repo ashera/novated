@@ -711,10 +711,21 @@ describe("Prices stored before we asked what was in them", () => {
   });
 
   // A visitor who has changed nothing should not be questioned about a figure
-  // they did not type.
-  it("leaves the untouched default alone", () => {
+  // they did not type. There is no longer a default price for them to have
+  // not typed, which is why this now holds for the simplest possible reason.
+  it("leaves a lease with no price alone", () => {
     expect(priceNeedsBreakdown(defaultVehicle())).toBe(false);
     expect(priceNeedsBreakdown(newLease().vehicle)).toBe(false);
+  });
+
+  /**
+   * It used to exclude the default figure, which meant a real $55,000 car —
+   * the commonest price on the site, because it was the one in the box —
+   * collided with it and was never asked about. Removing the default removed
+   * the collision.
+   */
+  it("asks about a price that happens to equal the old default", () => {
+    expect(priceNeedsBreakdown({ ...defaultVehicle(), price: 55_000 })).toBe(true);
   });
 
   it("survives storage, so the prompt is the same after a reload", () => {
@@ -958,5 +969,64 @@ describe("Which quote the decoder opens", () => {
       const states = [t.isExample, t.blankAgainstTheirCar, Boolean(t.spec)].filter(Boolean);
       expect(states, label).toHaveLength(1);
     }
+  });
+});
+
+/**
+ * A lease opens with no car in it.
+ *
+ * It used to open at $55,000 electric, which put a figure in the price box
+ * nobody had typed and a full set of results under it — a saving, a payment,
+ * an early-exit table, all confidently about a car the reader had never
+ * chosen. Every consumer then needed a way to tell that apart from a real
+ * answer, which is why hasChosenCar existed in the shape it did.
+ */
+describe("What a new lease knows about the car", () => {
+  it("starts without a price", () => {
+    expect(defaultVehicle().price).toBeUndefined();
+    expect(newLease().vehicle.price).toBeUndefined();
+  });
+
+  it("keeps the assumptions that are about use rather than the car", () => {
+    // Both are visible controls a reader can see are set, and neither claims
+    // anything about which car it is.
+    expect(defaultVehicle().fuelType).toBe("electric");
+    expect(defaultVehicle().annualKm).toBe(15_000);
+  });
+
+  it("counts nobody as having chosen a car until they say something", () => {
+    expect(hasChosenCar(defaultVehicle())).toBe(false);
+    expect(hasChosenCar(newLease().vehicle)).toBe(false);
+  });
+
+  it("counts a price, a catalogue pick or a described car as a choice", () => {
+    expect(hasChosenCar({ ...defaultVehicle(), price: 62_000 })).toBe(true);
+    expect(hasChosenCar({ ...defaultVehicle(), vehicleId: "byd-atto-3" })).toBe(true);
+    expect(hasChosenCar({ ...defaultVehicle(), make: "Polestar", model: "2" })).toBe(true);
+  });
+
+  /**
+   * The catalogue holds specifications, not prices — they move by dealer and
+   * by week. So a chosen car is not yet a computable one, and the results are
+   * gated on the price rather than on hasChosenCar. Showing them after a
+   * catalogue pick would have swapped a visible default for an invisible one.
+   */
+  it("still has no price after a car is picked from the catalogue", () => {
+    const picked = { ...defaultVehicle(), vehicleId: "byd-atto-3" };
+    expect(hasChosenCar(picked)).toBe(true);
+    expect(picked.price).toBeUndefined();
+  });
+
+  // An existing saved lease must not lose the car it already has.
+  it("leaves a stored price alone on migration", () => {
+    const back = migrateLease({
+      version: 1,
+      name: "Old",
+      vehicle: { fuelType: "petrol", price: 48_000, annualKm: 20_000 },
+      scenario: defaultScenario(),
+      quotes: [],
+    });
+    expect(back.vehicle.price).toBe(48_000);
+    expect(hasChosenCar(back.vehicle)).toBe(true);
   });
 });

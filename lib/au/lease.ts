@@ -313,11 +313,7 @@ export function isCustomVehicle(v: VehicleSpec): boolean {
  * one we don't stock, or simply typed a price over the default.
  */
 export function hasChosenCar(v: VehicleSpec): boolean {
-  return (
-    Boolean(v.vehicleId) ||
-    isCustomVehicle(v) ||
-    (v.price != null && v.price !== defaultVehicle().price)
-  );
+  return Boolean(v.vehicleId) || isCustomVehicle(v) || v.price != null;
 }
 
 /**
@@ -335,17 +331,30 @@ export function hasChosenCar(v: VehicleSpec): boolean {
  * the price builder — even "it's just the car" — records an answer and
  * settles it.
  *
- * The untouched default is excluded, so a visitor who has changed nothing is
- * never asked about a figure they did not enter. That does mean a real
- * $55,000 car is not prompted; a nag on every new session would be a worse
- * trade.
+ * There is no default price to exclude any more, so every price in the box was
+ * typed by somebody and every one of them is worth asking about — including
+ * the $55,000 car that used to collide with the default and go unprompted.
  */
 export function priceNeedsBreakdown(v: VehicleSpec): boolean {
-  return v.price != null && v.purchase == null && v.price !== defaultVehicle().price;
+  return v.price != null && v.purchase == null;
 }
 
+/**
+ * A lease with no car in it yet.
+ *
+ * It used to open at $55,000, which put a number in the price box that nobody
+ * had typed and a full set of results underneath it — confident figures about
+ * a car the reader had never chosen. Every consumer then needed a way to tell
+ * that apart from a real answer, which is the whole reason hasChosenCar and
+ * priceNeedsBreakdown had to compare against this function's own default and
+ * carry caveats about a genuine $55,000 car being mistaken for it.
+ *
+ * Absent is a state the type already had. The fuel type and the distance stay,
+ * because they are assumptions about use rather than claims about a particular
+ * car, and both are visible controls the reader can see are set.
+ */
 export function defaultVehicle(): VehicleSpec {
-  return { fuelType: "electric", price: 55_000, annualKm: 15_000 };
+  return { fuelType: "electric", annualKm: 15_000 };
 }
 
 export function defaultScenario(): ScenarioSpec {

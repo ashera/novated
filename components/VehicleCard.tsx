@@ -604,9 +604,12 @@ export default function VehicleCard(p: VehicleCardProps) {
                       p.price != null ? "text-ink" : "text-muted/70"
                     }`}
                   >
+                    {/* No specimen figure. A greyed $85,000 in the price box
+                        reads as a car somebody chose, which is exactly what
+                        this page has just stopped claiming. */}
                     {p.price != null
                       ? p.price.toLocaleString("en-AU", { maximumFractionDigits: 0 })
-                      : "85,000"}
+                      : "—"}
                   </span>
                 </button>
                 {/* Asked once, and only of a price nobody was ever asked
@@ -685,7 +688,7 @@ export default function VehicleCard(p: VehicleCardProps) {
                 label="Price of the car"
                 value={p.price}
                 onChange={p.onPrice}
-                placeholder="85,000"
+                placeholder=""
                 hint={p.priceHint ?? "The car itself, GST included — not the drive-away total."}
               />
             )}
