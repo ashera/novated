@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import QuoteComparison from "@/components/QuoteComparison";
 import { getCurrentUser } from "@/lib/auth";
-import { countryFromIp } from "@/lib/geo";
+import { requestGeo } from "@/lib/geo";
 import { buildReviewData, getActiveConfig } from "@/lib/refdata";
 
 // Per-user: what's on this page is whatever quotes you have kept.
@@ -19,9 +18,7 @@ export default async function ComparePage() {
 
   let country = user?.country ?? null;
   if (!user) {
-    const h = await headers();
-    const ip = (h.get("x-forwarded-for") || "").split(",")[0].trim() || h.get("x-real-ip");
-    country = countryFromIp(ip);
+    country = (await requestGeo()).country;
   }
 
   return (

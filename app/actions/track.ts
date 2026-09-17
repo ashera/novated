@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { lookupGeoDetail } from "@/lib/geo";
+import { clientIp, lookupGeoDetail } from "@/lib/geo";
 import { classifyBot } from "@/lib/botDetect";
 
 const VISITOR_COOKIE = "lw_visitor";
@@ -27,11 +27,17 @@ interface TrackInput {
 async function readContext() {
   const h = await headers();
   const first = (v: string | null) => (v ? v.split(",")[0].trim() : null);
-  const ip =
-    first(h.get("x-forwarded-for")) ||
-    h.get("x-real-ip") ||
-    h.get("cf-connecting-ip") ||
-    null;
+  /*
+   * cf-connecting-ip FIRST, not last.
+   *
+   * This read x-forwarded-for ahead of it, which was right until Cloudflare
+   * went in front of the app and that header became the edge node's own
+   * address. The country was unaffected — cf-ipcountry is preferred below —
+   * but the region and the city were not, and every row since carries the
+   * datacentre that served the request rather than where the visitor was:
+   * Australian visitors filed under Rio de Janeiro, Paris and Singapore.
+   */
+  const ip = clientIp((name: string) => h.get(name));
   // Prefer a proxy-provided geo header when present (Cloudflare/Vercel); otherwise
   // resolve the country/region/city from the IP with the offline GeoLite database —
   // this is what actually populates on Railway, whose edge doesn't tag geo.

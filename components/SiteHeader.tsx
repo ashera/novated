@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
 import TopBar from "./TopBar";
 import { getCurrentUser } from "@/lib/auth";
-import { countryFromIp } from "@/lib/geo";
+import { requestGeo } from "@/lib/geo";
 import { buildReviewData } from "@/lib/refdata";
 
 /**
@@ -14,11 +13,7 @@ export default async function SiteHeader() {
   const reviewDue = user?.is_admin ? (await buildReviewData()).dueTotal : 0;
 
   let country = user?.country ?? null;
-  if (!user) {
-    const h = await headers();
-    const ip = (h.get("x-forwarded-for") || "").split(",")[0].trim() || h.get("x-real-ip");
-    country = countryFromIp(ip);
-  }
+  if (!user) country = (await requestGeo()).country;
 
   return (
     <TopBar

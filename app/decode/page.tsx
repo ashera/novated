@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import QuoteDecoder from "@/components/QuoteDecoder";
 import VisitorActivity from "@/components/VisitorActivity";
 import { getCurrentUser } from "@/lib/auth";
-import { countryFromIp } from "@/lib/geo";
+import { requestGeo } from "@/lib/geo";
 import { buildReviewData, getActiveConfig } from "@/lib/refdata";
 import { getCatalogue } from "@/lib/catalogue";
 import { listApprovedProviders } from "@/app/actions/providers";
@@ -34,9 +33,7 @@ export default async function DecodePage() {
 
   let country = user?.country ?? null;
   if (!user) {
-    const h = await headers();
-    const ip = (h.get("x-forwarded-for") || "").split(",")[0].trim() || h.get("x-real-ip");
-    country = countryFromIp(ip);
+    country = (await requestGeo()).country;
   }
 
   return (

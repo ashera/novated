@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
 import LeaseCalculator from "@/components/LeaseCalculator";
 import VisitorActivity from "@/components/VisitorActivity";
 import { getCurrentUser } from "@/lib/auth";
-import { countryFromIp } from "@/lib/geo";
+import { requestGeo } from "@/lib/geo";
 import { buildReviewData, getActiveConfig } from "@/lib/refdata";
 import { getCatalogue } from "@/lib/catalogue";
 import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from "@/lib/site";
@@ -52,9 +51,7 @@ export default async function Page() {
   // anonymous visitor's country resolved from their IP.
   let country = user?.country ?? null;
   if (!user) {
-    const h = await headers();
-    const ip = (h.get("x-forwarded-for") || "").split(",")[0].trim() || h.get("x-real-ip");
-    country = countryFromIp(ip);
+    country = (await requestGeo()).country;
   }
 
   return (

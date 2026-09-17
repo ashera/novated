@@ -1,9 +1,9 @@
 import "server-only";
 import { randomBytes, scrypt, timingSafeEqual, createHash } from "crypto";
 import { promisify } from "util";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { query } from "./db";
-import { lookupGeoDetail } from "./geo";
+import { lookupGeoDetail, requestGeo } from "./geo";
 
 const scryptAsync = promisify(scrypt);
 const COOKIE = "session";
@@ -70,10 +70,12 @@ export async function createSession(userId: string): Promise<void> {
   let lat: number | null = null;
   let lon: number | null = null;
   try {
-    const h = await headers();
-    const ip = (h.get("x-forwarded-for") || "").split(",")[0].trim() || h.get("x-real-ip");
-    const geo = lookupGeoDetail(ip);
-    country = geo?.country ?? null;
+    const g = await requestGeo();
+    const geo = g.detail;
+    // The CDN's own verdict where there is one: it resolved the country at the
+    // edge from the connecting address, which is a better source than a local
+    // database reading an address the edge has already replaced.
+    country = g.country ?? geo?.country ?? null;
     lat = geo?.coordinates?.[0] ?? null;
     lon = geo?.coordinates?.[1] ?? null;
   } catch {
