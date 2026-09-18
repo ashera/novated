@@ -30,6 +30,7 @@ interface LeaseRow {
   vehicle: unknown;
   scenario: unknown;
   notes: string | null;
+  statement: unknown;
   updated_at: string;
   share_token: string | null;
   locked_quote_id: string | null;
@@ -59,6 +60,7 @@ async function hydrate(rows: LeaseRow[]): Promise<SavedLease[]> {
       vehicle: r.vehicle,
       scenario: r.scenario,
       notes: r.notes,
+      statement: Array.isArray(r.statement) ? (r.statement as never[]) : [],
       quotes: byLease.get(r.id) ?? [],
       lockedQuoteId: r.locked_quote_id ?? undefined,
     }),
@@ -66,7 +68,7 @@ async function hydrate(rows: LeaseRow[]): Promise<SavedLease[]> {
 }
 
 const SELECT =
-  "id, name, vehicle, scenario, notes, updated_at, share_token, locked_quote_id";
+  "id, name, vehicle, scenario, notes, statement, updated_at, share_token, locked_quote_id";
 
 export async function listLeases(): Promise<SavedLease[]> {
   const user = await getCurrentUser();
@@ -139,14 +141,15 @@ export async function saveLease(id: string | null, lease: Lease): Promise<LeaseR
     if (leaseId) {
       const r = (await q(
         `update leases set name=$1, vehicle=$2, scenario=$3, notes=$4,
-                locked_quote_id=$5, updated_at=now()
-          where id=$6 and user_id=$7 returning id`,
+                locked_quote_id=$5, statement=$6, updated_at=now()
+          where id=$7 and user_id=$8 returning id`,
         [
           name,
           JSON.stringify(lease.vehicle),
           JSON.stringify(lease.scenario),
           lease.notes ?? null,
           lease.lockedQuoteId ?? null,
+          JSON.stringify(lease.statement ?? []),
           leaseId,
           user.id,
         ],
@@ -154,8 +157,8 @@ export async function saveLease(id: string | null, lease: Lease): Promise<LeaseR
       if (!r.rows.length) throw new Error("Lease not found.");
     } else {
       const r = (await q(
-        `insert into leases (user_id, name, vehicle, scenario, notes, locked_quote_id)
-         values ($1,$2,$3,$4,$5,$6) returning id`,
+        `insert into leases (user_id, name, vehicle, scenario, notes, locked_quote_id, statement)
+         values ($1,$2,$3,$4,$5,$6,$7) returning id`,
         [
           user.id,
           name,
@@ -163,6 +166,7 @@ export async function saveLease(id: string | null, lease: Lease): Promise<LeaseR
           JSON.stringify(lease.scenario),
           lease.notes ?? null,
           lease.lockedQuoteId ?? null,
+          JSON.stringify(lease.statement ?? []),
         ],
       )) as { rows: { id: string }[] };
       leaseId = r.rows[0].id;

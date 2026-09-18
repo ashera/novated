@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
 import StatementReader from "@/components/StatementReader";
 import { getActiveConfig } from "@/lib/refdata";
+import { getCurrentUser } from "@/lib/auth";
 import { breadcrumbLd } from "@/lib/seo";
 
 /**
@@ -60,6 +61,7 @@ const faqJsonLd = {
 
 export default async function StatementPage() {
   const config = await getActiveConfig();
+  const user = await getCurrentUser();
 
   return (
     <>
@@ -94,7 +96,7 @@ export default async function StatementPage() {
           </p>
         </header>
 
-        <StatementReader config={config} />
+        <StatementReader config={config} signedIn={Boolean(user)} />
 
         <section className="mt-12 max-w-3xl border-t border-line pt-8">
           <h2 className="text-lg font-semibold text-ink">The three things people ask</h2>

@@ -1,14 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { parseStatement, readStatement, type RowKind, type StatementRow } from "@/lib/au/statement";
+import { parseStatement, type RowKind, type StatementRow } from "@/lib/au/statement";
+import {
+  analyseLog,
+  byMonth,
+  mergeRows,
+  removeRows,
+  rowKey,
+  type MergeResult,
+} from "@/lib/au/statementLog";
 import type { EngineConfig } from "@/lib/au/config";
 import type { Finding, FindingSeverity } from "@/lib/au/quote";
 import { fmtCurrency } from "@/lib/au/format";
+import { useLease } from "./useLease";
 import { track } from "@/lib/analytics";
 
 /**
- * Paste the ledger, read the account.
+ * Paste the ledger, keep the ledger.
  *
  * A paste box rather than a form, because a statement is forty rows and
  * nobody is typing forty rows. It is also the one input that works across
@@ -16,10 +25,19 @@ import { track } from "@/lib/analytics";
  * renders, selecting it and copying gives text with a date, a description and
  * some money on each row, and that is all the parser needs.
  *
+ * What is pasted is KEPT, on the lease, and the next paste is merged into it.
+ * A portal shows twenty-five rows at a time, so a single window can only ever
+ * answer "what happened lately" — and the questions that matter over five
+ * years need a year of history: is the deduction covering the car, which
+ * budget is drifting, and is anything missing. The merge has to be idempotent,
+ * because people will paste overlapping windows without thinking about it, and
+ * that is the hard part rather than an afterthought: the rows are not
+ * distinct, and only the running balance tells six identical GST credits on
+ * one day apart from each other.
+ *
  * Nothing is uploaded. The parsing and the arithmetic happen in this
- * component, in the browser, which is worth saying on the page — people are
- * reasonably wary of pasting a financial document into a website, and the
- * honest answer is that it never leaves the machine.
+ * component, in the browser; the rows are stored the same way the rest of the
+ * lease is, which for a guest means this machine and nowhere else.
  */
 
 const TONE: Record<FindingSeverity, { wrap: string; chip: string }> = {
@@ -72,14 +90,39 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   );
 }
 
-export default function StatementReader({ config }: { config: EngineConfig }) {
+export default function StatementReader({
+  config,
+  signedIn,
+}: {
+  config: EngineConfig;
+  signedIn: boolean;
+}) {
+  const store = useLease(signedIn);
+  const log = useMemo(() => store.lease.statement ?? [], [store.lease.statement]);
+
   const [text, setText] = useState("");
+  const [lastMerge, setLastMerge] = useState<MergeResult | null>(null);
 
   const parsed = useMemo(() => parseStatement(text), [text]);
   const read = useMemo(
-    () => (parsed.rows.length > 0 ? readStatement(parsed.rows, config) : null),
-    [parsed.rows, config],
+    () => (log.length > 0 ? analyseLog(log, config) : null),
+    [log, config],
   );
+  const months = useMemo(() => (read ? byMonth(read.rows) : []), [read]);
+
+  const add = () => {
+    const result = mergeRows(log, parsed.rows);
+    setLastMerge(result);
+    store.update((l) => ({ ...l, statement: result.rows }));
+    setText("");
+    track("Statement rows merged", {
+      added: String(result.added),
+      known: String(result.alreadyKnown),
+    });
+  };
+
+  const forget = (key: string) =>
+    store.update((l) => ({ ...l, statement: removeRows(l.statement ?? [], [key]) }));
 
   const load = () => {
     setText(SAMPLE);
@@ -108,22 +151,49 @@ export default function StatementReader({ config }: { config: EngineConfig }) {
           className="mt-3 w-full rounded-lg border border-line bg-panel-2 p-3 font-mono text-xs leading-relaxed text-ink outline-none focus:border-accent"
         />
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-          {text ? (
-            <button type="button" onClick={() => setText("")} className="font-semibold text-accent hover:underline">
-              Clear
-            </button>
+          {parsed.rows.length > 0 ? (
+            <>
+              <button
+                type="button"
+                onClick={add}
+                className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-accent-soft"
+              >
+                Add {parsed.rows.length} rows to my log
+              </button>
+              <button type="button" onClick={() => setText("")} className="font-semibold text-accent hover:underline">
+                Clear
+              </button>
+              {parsed.skipped.length > 0 && (
+                <span className="text-muted">{parsed.skipped.length} lines ignored</span>
+              )}
+            </>
           ) : (
             <button type="button" onClick={load} className="font-semibold text-accent hover:underline">
               Try it with an example statement
             </button>
           )}
-          {parsed.rows.length > 0 && (
-            <span className="text-muted">
-              {parsed.rows.length} rows read
-              {parsed.skipped.length > 0 && `, ${parsed.skipped.length} lines ignored`}
-            </span>
-          )}
         </div>
+
+        {/* What the merge did, in its own words. Pasting the same window twice
+            is the normal case rather than a mistake, so "nothing new" has to
+            read as a correct outcome and not a failure. */}
+        {lastMerge && (
+          <p className="mt-3 rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs leading-relaxed text-subtle">
+            {lastMerge.added > 0
+              ? `Added ${lastMerge.added} new transaction${lastMerge.added === 1 ? "" : "s"}.`
+              : "Nothing new in that one."}{" "}
+            {lastMerge.alreadyKnown > 0 &&
+              `${lastMerge.alreadyKnown} ${lastMerge.alreadyKnown === 1 ? "was" : "were"} already in your log, so ${lastMerge.alreadyKnown === 1 ? "it was" : "they were"} left alone. `}
+            {lastMerge.conflicts.length > 0 && (
+              <span className="text-warning-text">
+                {lastMerge.conflicts.length} row
+                {lastMerge.conflicts.length === 1 ? "" : "s"} matched something already stored but
+                with a different running balance — both are kept, and the gap check below will say
+                whether one of them is wrong.
+              </span>
+            )}
+          </p>
+        )}
       </div>
 
       {read && (
@@ -131,23 +201,27 @@ export default function StatementReader({ config }: { config: EngineConfig }) {
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Stat
               label="Balance"
-              value={read.closingBalance != null ? fmtCurrency(read.closingBalance) : "—"}
-              note={read.to ? `as at ${read.to}` : undefined}
+              value={read.balance != null ? fmtCurrency(read.balance) : "—"}
+              note={read.rows.at(-1) ? `as at ${read.rows.at(-1)!.date}` : undefined}
             />
             <Stat
-              label="Going in"
-              value={`${fmtCurrency(read.inPerMonth)}/mo`}
-              note="pay and GST credits"
+              label="Transactions logged"
+              value={String(read.rows.length)}
+              note={
+                read.rows.length > 0
+                  ? `${read.rows[0].date} to ${read.rows.at(-1)!.date}`
+                  : undefined
+              }
             />
             <Stat
-              label="Coming out"
-              value={`${fmtCurrency(read.outPerMonth)}/mo`}
-              note="finance, running costs, fees"
+              label="Finance so far"
+              value={fmtCurrency(Math.abs(read.totals.finance ?? 0))}
+              note="paid to the financier"
             />
             <Stat
-              label={read.driftPerMonth >= 0 ? "Building up" : "Running down"}
-              value={`${read.driftPerMonth >= 0 ? "+" : "−"}${fmtCurrency(Math.abs(read.driftPerMonth))}/mo`}
-              note={`over ${read.months < 1.5 ? "under a month" : `${Math.round(read.months)} months`}`}
+              label="Out of your pay"
+              value={fmtCurrency(read.contributed)}
+              note={`across ${read.span} month${read.span === 1 ? "" : "s"} logged`}
             />
           </div>
 
@@ -197,13 +271,51 @@ export default function StatementReader({ config }: { config: EngineConfig }) {
                         {fmtCurrency(total)}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-muted">
-                        {fmtCurrency(total / read.months)}
+                        {fmtCurrency(total / read.span)}
                       </td>
                     </tr>
                   ))}
               </tbody>
             </table>
           </div>
+
+          {months.length > 1 && (
+            <>
+              <h2 className="mt-8 text-base font-semibold text-ink">Month by month</h2>
+              <div className="mt-3 overflow-x-auto rounded-xl border border-line bg-panel">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-muted">
+                      <th className="px-3 py-2 font-semibold">Month</th>
+                      <th className="px-3 py-2 text-right font-semibold">In</th>
+                      <th className="px-3 py-2 text-right font-semibold">Out</th>
+                      <th className="px-3 py-2 text-right font-semibold">Balance at month end</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {months.map((m) => (
+                      <tr key={m.month} className="border-b border-line-soft last:border-0">
+                        <td className="px-3 py-2 tabular-nums text-ink">{m.month}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-success-text">
+                          {fmtCurrency(m.in)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-subtle">
+                          {fmtCurrency(m.out)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-ink">
+                          {m.balance != null ? fmtCurrency(m.balance) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-[11px] leading-snug text-muted">
+                A month that looks light is usually a month not yet pasted in rather than a month
+                nothing happened in — the gap check above says which.
+              </p>
+            </>
+          )}
 
           <details className="mt-4">
             <summary className="cursor-pointer text-xs font-semibold text-accent hover:underline">
@@ -218,6 +330,7 @@ export default function StatementReader({ config }: { config: EngineConfig }) {
                     <th className="px-3 py-2 font-semibold">Read as</th>
                     <th className="px-3 py-2 text-right font-semibold">Amount</th>
                     <th className="px-3 py-2 text-right font-semibold">Balance</th>
+                    <th className="px-2 py-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -233,6 +346,18 @@ export default function StatementReader({ config }: { config: EngineConfig }) {
                       </td>
                       <td className="px-3 py-1.5 text-right tabular-nums text-muted">
                         {r.balance != null ? fmtCurrency(r.balance) : "—"}
+                      </td>
+                      {/* The log is the user's. Something pasted by mistake has
+                          to be removable, or the only remedy is starting over. */}
+                      <td className="px-2 py-1.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => forget(rowKey(r))}
+                          className="text-[11px] font-medium text-muted hover:text-danger-text"
+                          aria-label={`Remove ${r.description} on ${r.date}`}
+                        >
+                          Remove
+                        </button>
                       </td>
                     </tr>
                   ))}

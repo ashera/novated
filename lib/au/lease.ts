@@ -37,6 +37,7 @@ import {
   type QuoteLines,
 } from "./quote";
 import type { EngineConfig } from "./config";
+import type { StatementRow } from "./statement";
 import { DEFAULT_CONFIG } from "./config";
 
 /** The car. Defined once per lease, shared by every tool. */
@@ -202,6 +203,16 @@ export interface Lease {
   vehicle: VehicleSpec;
   scenario: ScenarioSpec;
   quotes: QuoteSpec[];
+  /**
+   * Transactions pasted from the provider's portal, kept over time.
+   *
+   * Inputs, not results: the rows are what the statement said, and every
+   * total, rate and trend is recomputed from them on read. A portal shows
+   * twenty-five rows at a time, so the only way to see a year is to keep what
+   * has been seen — and once it is kept, the interesting question stops being
+   * "does this window add up" and becomes "is anything missing".
+   */
+  statement?: StatementRow[];
   notes?: string;
   /**
    * The quote the user has settled on.
@@ -664,5 +675,11 @@ export function migrateLease(raw: unknown): Lease {
     // one being modelled — a lock left on a deleted or superseded quote would
     // claim a decision the user did not make.
     lockedQuoteId: l.lockedQuoteId,
+    // Every row needs a date and an amount to be worth anything: a row missing
+    // either cannot be ordered or totalled, and one that arrives from storage
+    // malformed would poison the reconciliation rather than fail visibly.
+    statement: Array.isArray(l.statement)
+      ? l.statement.filter((r) => r && typeof r.date === "string" && typeof r.amount === "number")
+      : [],
   };
 }

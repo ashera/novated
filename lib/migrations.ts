@@ -102,6 +102,11 @@ create table if not exists leases (
 -- input — and because everything in that blob is spread into LeaseInputs,
 -- where it has no business being.
 alter table leases add column if not exists locked_quote_id text;
+-- Transactions pasted from the provider's portal, kept over time. A column on
+-- the lease rather than a table of its own: they are inputs like the vehicle
+-- and the scenario, they are only ever read as a whole, and a five-year lease
+-- is a few hundred rows. If that stops being true it wants its own table.
+alter table leases add column if not exists statement jsonb not null default '[]'::jsonb;
 create index if not exists leases_user_idx on leases (user_id, updated_at desc);
 create unique index if not exists leases_share_uidx on leases (share_token) where share_token is not null;
 
