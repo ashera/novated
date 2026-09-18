@@ -12,11 +12,14 @@ import {
   quoteStatus,
   removeQuote,
   unlockQuote,
+  leaseToQuote,
+  type Lease,
   type QuoteSpec,
   type QuoteStatus,
 } from "@/lib/au/lease";
+import { decodeQuote, type QuoteFrequency } from "@/lib/au/quote";
 import type { EngineConfig } from "@/lib/au/config";
-import { fmtDate } from "@/lib/au/format";
+import { fmtCurrency, fmtCurrencyCents, fmtDate } from "@/lib/au/format";
 import type { UseLease } from "./useLease";
 import { track } from "@/lib/analytics";
 import SampleQuote from "./SampleQuote";
@@ -440,6 +443,8 @@ export default function QuotesCard({
         <LockConfirm
           label={quoteLabel(pending)}
           othersCount={lease.quotes.length - 1}
+          terms={lockTerms(lease, pending, config)}
+          startDate={lease.scenario.commencementDate ?? null}
           onCancel={() => setConfirming(null)}
           onConfirm={() => {
             store.update((l) => lockQuote(l, pending.id));
@@ -459,14 +464,93 @@ export default function QuotesCard({
  * no message goes anywhere, and it is reversible. Without that line the word
  * does the opposite of what this site is for.
  */
+/** The quote's own period, said as a person would. */
+const FREQ_NOUN: Record<QuoteFrequency, string> = {
+  weekly: "week",
+  fortnightly: "fortnight",
+  monthly: "month",
+};
+
+/**
+ * The figures behind the name, for the confirmation to read back.
+ *
+ * Solved rather than transcribed: the rate is the one the decoder recovers
+ * from the payment, which is the figure worth confirming precisely because no
+ * quote prints it. The residual is GST-inclusive, the way a quote states it
+ * and the way it falls due — it is the line people most often have not
+ * registered at all, and the last useful moment to notice it is here.
+ *
+ * Only what is known. A quote still being typed in shows fewer rows rather
+ * than a column of dashes.
+ */
+function lockTerms(
+  lease: Lease,
+  spec: QuoteSpec,
+  config: EngineConfig,
+): { label: string; value: string; note?: string }[] {
+  const quote = leaseToQuote(lease, spec);
+  const decode = decodeQuote(quote, config);
+  const noun = FREQ_NOUN[quote.frequency];
+  const rows: { label: string; value: string; note?: string }[] = [];
+
+  // Cents, on both figures read straight off the document. "$740" against a
+  // quote that says $740.19 is all the opening a provider needs to argue about
+  // the wrong thing — the same reason the rate working keeps them.
+  if (quote.lines.finance != null) {
+    rows.push({
+      label: "Finance payment",
+      value: fmtCurrencyCents(quote.lines.finance),
+      note: `a ${noun}`,
+    });
+  }
+  if (decode.impliedRatePct != null) {
+    rows.push({
+      label: "Interest rate",
+      value: `${decode.impliedRatePct.toFixed(2)}%`,
+      note: "solved from the payment",
+    });
+  }
+  if (decode.amountFinanced != null) {
+    rows.push({
+      label: "Amount financed",
+      value: fmtCurrency(decode.amountFinanced),
+      note: decode.financedWasDerived ? "worked out from the price" : undefined,
+    });
+  }
+  rows.push({ label: "Term", value: `${spec.termMonths} months` });
+  if (quote.residualIncGst != null) {
+    rows.push({
+      label: "Residual at the end",
+      value: fmtCurrency(quote.residualIncGst),
+      note: "GST included",
+    });
+  }
+  if (quote.statedPreTax != null) {
+    rows.push({
+      label: "Out of your pay",
+      value: fmtCurrencyCents(quote.statedPreTax),
+      note: `a ${noun}, before tax`,
+    });
+  }
+  return rows;
+}
+
 function LockConfirm({
   label,
   othersCount,
+  terms,
+  startDate,
   onCancel,
   onConfirm,
 }: {
   label: string;
   othersCount: number;
+  /** The figures this decision is a record of. Shown because "lock in
+   *  Provider A?" asks somebody to confirm a name, and what they are actually
+   *  settling on is a payment, a rate and a lump at the end. */
+  terms: { label: string; value: string; note?: string }[];
+  /** The one fact the dashboard needs that the quote does not carry. */
+  startDate: string | null;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -498,27 +582,98 @@ function LockConfirm({
           <h2 className="text-lg font-semibold text-ink">Lock in {label}?</h2>
         </div>
 
-        <div className="space-y-3 px-5 py-4 text-sm leading-relaxed text-subtle">
+        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4 text-sm leading-relaxed text-subtle">
           <p>
             You&apos;ve compared what you have and decided this is the one that works best for
-            you. That is all locking in records.
+            you. That is all locking in records — but it is worth reading the figures back before
+            you do, because from here on the page treats them as settled.
           </p>
-          <ul className="space-y-1.5">
-            {bullet(
-              <>
-                The figures on this page stay modelled on {label}, and we&apos;ll show you what
-                your payslip will look like once it starts.
-              </>,
-            )}
-            {othersCount > 0 &&
-              bullet(
+
+          {/* The terms themselves.
+
+              "Lock in Provider A?" asks somebody to confirm a name, and what
+              they are actually settling on is a payment, a rate and a lump due
+              at the end of five years. Reading it back is the last chance to
+              notice a figure that was typed wrong, and the residual is the one
+              people most often have not registered at all. */}
+          {terms.length > 0 && (
+            <div className="rounded-lg border border-line bg-panel-2 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                What you are locking in
+              </p>
+              <dl className="mt-2 space-y-1.5">
+                {terms.map((t) => (
+                  <div key={t.label} className="flex items-baseline justify-between gap-3">
+                    <dt className="text-xs text-muted">{t.label}</dt>
+                    <dd className="text-right">
+                      <span className="text-sm font-semibold tabular-nums text-ink">{t.value}</span>
+                      {t.note && (
+                        <span className="ml-1.5 text-[11px] text-muted">{t.note}</span>
+                      )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              What changes on this page
+            </p>
+            <ul className="mt-1.5 space-y-1.5">
+              {bullet(
                 <>
-                  Your other {othersCount === 1 ? "quote moves" : `${othersCount} quotes move`} to
-                  &ldquo;other quotes considered&rdquo;. Nothing is deleted.
+                  It becomes a <strong className="text-ink">tracking dashboard</strong> — payments
+                  made against the ones agreed, how much of the debt you have actually paid off,
+                  and what is sitting in the provider&apos;s account.
                 </>,
               )}
-            {bullet(<>You can unlock at any time and go back to comparing.</>)}
-          </ul>
+              {bullet(
+                <>
+                  The car is settled too. Its price sets the GST credit, the FBT base value and
+                  the amount financed, so it stops being editable while the quote is locked.
+                </>,
+              )}
+              {bullet(
+                <>
+                  The comparison against a loan and cash moves one click down. Nothing is lost —
+                  it is the reasoning behind the decision, and people come back to it.
+                </>,
+              )}
+              {othersCount > 0 &&
+                bullet(
+                  <>
+                    Your other {othersCount === 1 ? "quote moves" : `${othersCount} quotes move`} to
+                    &ldquo;other quotes considered&rdquo;. Nothing is deleted.
+                  </>,
+                )}
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              What to do next
+            </p>
+            <ul className="mt-1.5 space-y-1.5">
+              {!startDate &&
+                bullet(
+                  <>
+                    <strong className="text-ink">Set the lease start date.</strong> It is the one
+                    thing the quote doesn&apos;t carry, and without it we can&apos;t tell you how
+                    far through the term you are or whether a payment has been missed.
+                  </>,
+                )}
+              {bullet(
+                <>
+                  When the first statement arrives, paste the transactions in. The dashboard
+                  checks every payment against these figures and tracks the balance they hold.
+                </>,
+              )}
+              {bullet(<>You can unlock at any time and go back to comparing.</>)}
+            </ul>
+          </div>
+
           <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs text-muted">
             <strong className="text-subtle">This is a note to yourself.</strong> Nothing is sent
             to the provider, no application is made, and you are not committed to anything. The
