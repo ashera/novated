@@ -22,7 +22,7 @@ import { leaseProgress } from "@/lib/au/leaseProgress";
 import { byMonth, type LoggedRow } from "@/lib/au/statementLog";
 import type { RowKind } from "@/lib/au/statement";
 import type { Finding, FindingSeverity } from "@/lib/au/quote";
-import StatementPaste from "./StatementPaste";
+import StatementPaste, { ClearLedger } from "./StatementPaste";
 
 /**
  * One tracker, not three cards.
@@ -268,13 +268,16 @@ export default function LeaseDashboard({
             {log.length === 0 ? "Start your ledger" : "Your ledger"}
           </h2>
           {log.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setAdding((a) => !a)}
-              className="text-xs font-semibold text-accent hover:underline"
-            >
-              {adding ? "Done" : "Add transactions"}
-            </button>
+            <span className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setAdding((a) => !a)}
+                className="text-xs font-semibold text-accent hover:underline"
+              >
+                {adding ? "Done" : "Add transactions"}
+              </button>
+              <ClearLedger count={log.length} onClear={() => onAddRows([])} />
+            </span>
           )}
         </div>
 
@@ -284,7 +287,9 @@ export default function LeaseDashboard({
               Your provider holds an account with your money in it and pays the car&apos;s bills
               out of it. Open their portal, select the transactions and paste them here — any
               provider, any order, and pasting the same page twice is fine. Everything on this
-              dashboard is worked out from them, and nothing is uploaded.
+              dashboard is worked out from them, and nothing is uploaded. The example below is
+              somebody else&apos;s ledger, for seeing what this does — it can be cleared again in
+              one click.
             </p>
           </StatementPaste>
         ) : (

@@ -9,7 +9,7 @@ import {
   rowKey,
   type MergeResult,
 } from "@/lib/au/statementLog";
-import StatementPaste from "./StatementPaste";
+import StatementPaste, { ClearLedger } from "./StatementPaste";
 import type { EngineConfig } from "@/lib/au/config";
 import type { Finding, FindingSeverity } from "@/lib/au/quote";
 import { fmtCurrency } from "@/lib/au/format";
@@ -162,7 +162,13 @@ export default function StatementReader({
             />
           </div>
 
-          <h2 className="mt-8 text-base font-semibold text-ink">What the statement says</h2>
+          <div className="mt-8 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-base font-semibold text-ink">What the statement says</h2>
+            <ClearLedger
+              count={log.length}
+              onClear={() => store.update((l) => ({ ...l, statement: [] }))}
+            />
+          </div>
           <ul className="mt-3 space-y-3">
             {read.findings.map((f: Finding) => (
               <li key={f.key} className={`rounded-xl border p-4 ${TONE[f.severity].wrap}`}>

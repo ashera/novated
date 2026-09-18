@@ -120,4 +120,57 @@ export default function StatementPaste({
   );
 }
 
+/**
+ * Empty the ledger.
+ *
+ * Needed the moment the paste box offered an example: trying it merged
+ * somebody else's transactions into a real lease, and the only way back was
+ * "Start fresh" in the footer, which clears every lease in the browser. A
+ * demonstration you cannot undo is worse than no demonstration.
+ *
+ * Shared rather than written twice, because both places that build a ledger
+ * need it and the confirmation wording is the part worth keeping identical —
+ * it has to say what survives, or it reads as the bigger button next to it.
+ */
+export function ClearLedger({ count, onClear }: { count: number; onClear: () => void }) {
+  const [asking, setAsking] = useState(false);
+  if (count === 0) return null;
+
+  if (!asking) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAsking(true)}
+        className="text-xs font-medium text-muted hover:text-danger-text"
+      >
+        Clear the ledger
+      </button>
+    );
+  }
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      <span className="text-subtle">
+        Remove all {count} transactions? The lease, the quote and its figures stay.
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          track("Statement ledger cleared", { rows: String(count) });
+          onClear();
+          setAsking(false);
+        }}
+        className="font-semibold text-danger-text hover:underline"
+      >
+        Clear it
+      </button>
+      <span aria-hidden className="text-muted">
+        ·
+      </span>
+      <button type="button" onClick={() => setAsking(false)} className="text-muted hover:text-ink">
+        Cancel
+      </button>
+    </span>
+  );
+}
+
 export type { StatementRow };
