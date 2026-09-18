@@ -221,7 +221,10 @@ describe("What the statement says about the account", () => {
   it("notices when months of credits arrive in one batch", () => {
     const f = read.findings.find((x) => x.key === "gst-credits-delayed")!;
     expect(f.severity).toBe("warn");
-    expect(f.title).toMatch(/6 months of GST credits/);
+    // Credits, not months — only five of the six match a month's rental, and
+    // the title must not claim what the ledger does not say.
+    expect(f.title).toMatch(/6 GST credits arrived on one day/);
+    expect(f.title).not.toMatch(/months/);
     expect(f.detail).toMatch(/2026-08-10/);
     expect(f.question).toBeTruthy();
   });

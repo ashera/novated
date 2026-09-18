@@ -395,7 +395,10 @@ export function readStatement(rows: StatementRow[], config: EngineConfig): State
         key: "gst-credits-delayed",
         severity: "warn",
         category: "GST",
-        title: `${countOnBiggestDay} months of GST credits arrived on one day`,
+        // Credits, not months: on the real statement six landed together and
+        // only five of them were a month's rental GST. Calling them months
+        // states something the ledger does not say.
+        title: `${countOnBiggestDay} GST credits arrived on one day`,
         detail: `${money(biggest[1])} of credits was posted on ${biggest[0]} in ${countOnBiggestDay} separate lines. Until then the account was short by that much — your contributions were covering GST the employer had already reclaimed. It is worth asking how often those credits are passed back, because between batches the balance looks worse than the lease actually is.`,
         costOverTerm: biggest[1],
         question: `The GST credits came through in one batch on ${biggest[0]}, covering several months. How often are they passed back to my account?`,
