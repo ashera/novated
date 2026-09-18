@@ -117,6 +117,11 @@ export interface VehicleCardProps {
   /** Show the car as settled facts. Delivery stays editable — it belongs to
    *  the quote, not the car, and part-year FBT turns on it. */
   readOnlyVehicle?: boolean;
+  /** What to say under a read-only car, when the default — "it comes from your
+   *  lease, change it there" — is not the reason. On a locked lease the car is
+   *  settled by the decision rather than by living somewhere else, and the way
+   *  to change it is on this page. */
+  readOnlyNote?: React.ReactNode;
   /** Where to send someone who wants to change the car. */
   changeHref?: string;
   /** Every vehicle on offer, from the database. */
@@ -367,8 +372,16 @@ export default function VehicleCard(p: VehicleCardProps) {
 
             <div className="mt-4 space-y-4">
             <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
-              <Readout label="Make" value={selected?.make ?? "Not set"} />
-              <Readout label="Model" value={selected?.model ?? "Not set"} />
+              {/* The catalogue entry when there is one, otherwise what the
+                  user typed. Reading only `selected` printed "Not set" twice
+                  directly under a heading saying "Tesla Model Y", because a
+                  car we don't stock is described rather than picked — which is
+                  a normal state, not a missing answer. */}
+              <Readout label="Make" value={selected?.make ?? p.customMake?.trim() ?? "Not set"} />
+              <Readout
+                label="Model"
+                value={selected?.model ?? p.customModel?.trim() ?? "Not set"}
+              />
               <Readout
                 label="Price of the car"
                 value={p.price != null ? fmtCurrency(p.price) : "Not set"}
@@ -429,8 +442,8 @@ export default function VehicleCard(p: VehicleCardProps) {
             </div>
 
             <p className="text-[11px] text-muted">
-              The car comes from your lease.{" "}
-              {p.changeHref && (
+              {p.readOnlyNote ?? "The car comes from your lease."}{" "}
+              {!p.readOnlyNote && p.changeHref && (
                 <>
                   <Link href={p.changeHref} className="font-medium text-accent hover:underline">
                     Change it there

@@ -294,8 +294,26 @@ export default function LeaseCalculator({
               flow, then an aside — and the sidebar's position on the left at
               desktop is the bit that is decoration. */}
           <div className="space-y-6 lg:col-start-2 lg:row-start-1">
+          {/* Locked, the car is settled too.
+          
+              A quote is a quote for a particular car at a particular price —
+              the GST credit, the FBT base value and the amount financed all
+              come off it — so a price edited under a lock leaves the summary
+              beside it describing a car the quote was never written against.
+              Same rule the decoder has always applied to a locked quote: it is
+              the record of a decision, not a draft.
+          
+              Shown as values rather than disabled controls, because a greyed
+              row of selects invites a fight with the page instead of
+              explaining itself. */}
           <VehicleCard
             header={!readOnly && <LeaseBar store={store} signedIn={Boolean(user)} />}
+            readOnlyVehicle={Boolean(locked)}
+            readOnlyNote={
+              locked
+                ? "Settled with the quote you locked in — the price sets the GST credit, the FBT base value and the amount financed, so it cannot move while the quote does not. Unlock above to change the car."
+                : undefined
+            }
             stepHeading={!locked && <CardHeading step={1}>The vehicle</CardHeading>}
             catalogue={catalogue}
             vehicleId={inputs.vehicleId}
