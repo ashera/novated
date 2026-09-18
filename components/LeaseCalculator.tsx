@@ -357,7 +357,12 @@ export default function LeaseCalculator({
               first statement arrives and does not look like the quote. */}
           {locked && (
             <>
-              <LeaseDashboard lease={lease} config={config} quoteLabel={quoteLabel(locked)} />
+              <LeaseDashboard
+                lease={lease}
+                config={config}
+                quoteLabel={quoteLabel(locked)}
+                onUnlock={() => store.update(unlockQuote)}
+              />
 
               <details className="rounded-xl border border-line bg-panel-2 p-4">
                 <summary className="cursor-pointer text-sm font-semibold text-ink">

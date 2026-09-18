@@ -6,7 +6,7 @@ import type { EngineConfig } from "@/lib/au/config";
 import type { Lease } from "@/lib/au/lease";
 import { leaseProgress } from "@/lib/au/leaseProgress";
 import type { Finding, FindingSeverity } from "@/lib/au/quote";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 /**
  * A lease that is running, not one being chosen.
@@ -84,11 +84,14 @@ export default function LeaseDashboard({
   lease,
   config,
   quoteLabel,
+  onUnlock,
 }: {
   lease: Lease;
   config: EngineConfig;
   quoteLabel: string;
+  onUnlock: () => void;
 }) {
+  const [undoing, setUndoing] = useState(false);
   const progress = useMemo(() => leaseProgress(lease, config), [lease, config]);
   if (!progress.active) return null;
 
@@ -105,6 +108,49 @@ export default function LeaseDashboard({
               : "Start date not set"}
           </span>
         </div>
+
+        {/* The way out of the mode, on the mode.
+        
+            Unlocking was already possible and lived inside "The arrangement",
+            which is now one click down in a disclosure — so the only way back
+            from a lease locked by mistake was through the thing you would open
+            only if you already knew it was there. A mode you cannot see how to
+            leave is a trap, however easy the leaving turns out to be.
+        
+            Two steps, because it changes what the whole page is for, and worth
+            saying plainly that it destroys nothing: the quote, the figures and
+            the statement log all stay exactly where they are. */}
+        {undoing ? (
+          <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs text-subtle">
+            <span>
+              Go back to comparing quotes? Nothing is deleted — {quoteLabel}, your figures and
+              your statement log all stay.
+            </span>
+            <button
+              type="button"
+              onClick={onUnlock}
+              className="font-semibold text-accent hover:underline"
+            >
+              Yes, unlock it
+            </button>
+            <span aria-hidden>·</span>
+            <button
+              type="button"
+              onClick={() => setUndoing(false)}
+              className="hover:text-ink"
+            >
+              Cancel
+            </button>
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setUndoing(true)}
+            className="mt-2 text-xs font-medium text-accent hover:underline"
+          >
+            Not signed with them? Unlock and keep comparing
+          </button>
+        )}
 
         {payments && (
           <>
