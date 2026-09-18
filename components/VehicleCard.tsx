@@ -343,35 +343,39 @@ export default function VehicleCard(p: VehicleCardProps) {
           so a tall left column is right. Settled, it is a receipt: six short
           readouts and a thumbnail, and a column layout leaves two thirds of
           the card empty whichever side the taller content happens to land on.
-          So it becomes a band — a strip naming the car, then the facts across
+          So it became a band — a strip naming the car, then the facts across
           the full width.
+
+          Which was right while the card was a strip and wrong once the facts
+          grew to six or eight of them: a postage-stamp thumbnail over two
+          sparse rows of readouts, with the car — the thing the whole page is
+          about — the smallest element on it.
+
+          Now the picture takes the left third at a size worth looking at, and
+          the facts stack beside it in two columns. The heights match, so
+          neither side leaves a hole, and the car reads as the subject rather
+          than as an icon.
         */}
         {p.readOnlyVehicle ? (
           <>
-            {/* One row, not two. The strip is a thumbnail and a name and the
-                badge is a single sentence — each was taking a full row of the
-                card to say very little. */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-              <div className="flex shrink-0 items-center gap-3">
-                {/* Wide rather than tall: the artwork is a car in profile, and
-                    object-contain letterboxes it in anything squarer. Big
-                    enough to recognise the car at a glance, which is the only
-                    job it has here. */}
-                <div className="flex h-20 w-32 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-panel-2 sm:h-24 sm:w-44">
-                  {art}
-                </div>
-                <div className="min-w-0">
-                  <h2 className="truncate text-base font-semibold tracking-tight text-ink">
-                    {carName}
-                  </h2>
-                  {carSpec && <p className="truncate text-xs text-muted">{carSpec}</p>}
-                </div>
+            <div className="flex flex-col gap-5 sm:flex-row sm:gap-6">
+              {/* Wide rather than tall: the artwork is a car in profile, and
+                  object-contain letterboxes it in anything squarer. Sized to
+                  be looked at rather than identified — on a settled lease this
+                  is the car you have, not a picker thumbnail. */}
+              <div className="flex h-44 w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line bg-panel-2 sm:h-52 sm:w-80 lg:h-60 lg:w-96">
+                {art}
               </div>
-              {fbtBadge && <div className="min-w-0 flex-1">{fbtBadge}</div>}
-            </div>
 
-            <div className="mt-4 space-y-4">
-            <div className="grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold tracking-tight text-ink">{carName}</h2>
+                {carSpec && <p className="text-xs text-muted">{carSpec}</p>}
+
+            <div className="mt-3 space-y-4">
+            {/* Three across once the card is wide enough for it. Two columns
+                in a panel this wide left the right half of it empty and the
+                facts in a taller stack than the picture beside them. */}
+            <div className="grid grid-cols-2 gap-x-5 gap-y-3 lg:grid-cols-3">
               {/* The catalogue entry when there is one, otherwise what the
                   user typed. Reading only `selected` printed "Not set" twice
                   directly under a heading saying "Tesla Model Y", because a
@@ -441,7 +445,15 @@ export default function VehicleCard(p: VehicleCardProps) {
               )}
             </div>
 
-            <p className="text-[11px] text-muted">
+                {/* Under the facts it qualifies, not above the card. It is a
+                    sentence about this car's tax treatment and it reads as one
+                    more thing known about the car. */}
+                {fbtBadge && <div className="mt-4">{fbtBadge}</div>}
+              </div>
+              </div>
+            </div>
+
+            <p className="mt-4 text-[11px] text-muted">
               {p.readOnlyNote ?? "The car comes from your lease."}{" "}
               {!p.readOnlyNote && p.changeHref && (
                 <>
@@ -452,7 +464,6 @@ export default function VehicleCard(p: VehicleCardProps) {
                 </>
               )}
             </p>
-            </div>
           </>
         ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
