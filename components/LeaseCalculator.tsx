@@ -48,6 +48,7 @@ import LeaseBar from "./LeaseBar";
 import Disclosures from "./Disclosures";
 import Independence from "./Independence";
 import QuotesCard from "./QuotesCard";
+import LeaseDashboard from "./LeaseDashboard";
 import { track, trackLeasePricedConversion } from "@/lib/analytics";
 import { takeHandoff } from "@/lib/quoteHandoff";
 import { trackVisit } from "@/app/actions/track";
@@ -341,20 +342,54 @@ export default function LeaseCalculator({
             onState={(st) => setVehicle({ state: st })}
           />
 
-          {/* Settled, the quotes come back inline — there is no second column
-              to hold them, and the decision reads in order: the car, the quote
-              chosen, what it does to a payslip. */}
+          {/* Settled, the page changes job.
+              
+              Before the signature everything here is a comparison — three
+              columns, a crossover rate, what a different car would do. After
+              it there is one lease, the terms cannot move, and the only
+              questions left are whether it is being administered properly:
+              are the payments the agreed ones, what is still owed, and how
+              much of your pay is sitting in their account.
+              
+              So the comparison is not shrunk, it is put away. It is one click
+              down and still correct, because a signed lease is not a reason to
+              lose the reasoning behind it — people come back to it when the
+              first statement arrives and does not look like the quote. */}
           {locked && (
             <>
-              {quotesCard}
-              <LockedSummary
-                inputs={inputs}
-                result={result}
-                config={config}
-                quoteLabel={quoteLabel(locked)}
-                onUnlock={() => store.update(unlockQuote)}
-              />
-              <PayslipImpact result={result} config={config} quoteLabel={quoteLabel(locked)} />
+              <LeaseDashboard lease={lease} config={config} quoteLabel={quoteLabel(locked)} />
+
+              <details className="rounded-xl border border-line bg-panel-2 p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-ink">
+                  The quote, the modelling and the comparison
+                  <span className="ml-2 font-normal text-muted">
+                    — everything the decision was based on
+                  </span>
+                </summary>
+                <div className="mt-4 space-y-6">
+                  {quotesCard}
+                  <LockedSummary
+                    inputs={inputs}
+                    result={result}
+                    config={config}
+                    quoteLabel={quoteLabel(locked)}
+                    onUnlock={() => store.update(unlockQuote)}
+                  />
+                  <PayslipImpact result={result} config={config} quoteLabel={quoteLabel(locked)} />
+                  {/* The charts and the three-way comparison are not repeated
+                      here — they are the report, in full, and duplicating them
+                      inside a disclosure on the dashboard would be two copies
+                      of the same modelling to keep in step. */}
+                  <p className="text-sm text-subtle">
+                    The full modelling — the comparison against a loan and cash, the paydown chart,
+                    the early-exit position and every assumption behind them — is in{" "}
+                    <Link href="/report" className="font-semibold text-accent hover:underline">
+                      your report
+                    </Link>
+                    .
+                  </p>
+                </div>
+              </details>
             </>
           )}
 
@@ -611,7 +646,7 @@ export default function LeaseCalculator({
               carries specifications and not prices, so a car can be chosen and
               still have nothing to compute against. Showing results then would
               have swapped a visible default for an invisible one. */}
-          {lease.vehicle.price == null ? (
+          {locked ? null : lease.vehicle.price == null ? (
             <section className="rounded-xl border border-dashed border-line bg-panel-2 p-6">
               <CardHeading eyebrow="Result">Waiting on the price</CardHeading>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-subtle">
