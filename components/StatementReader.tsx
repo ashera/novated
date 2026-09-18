@@ -1,15 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { parseStatement, type RowKind, type StatementRow } from "@/lib/au/statement";
+import { type RowKind, type StatementRow } from "@/lib/au/statement";
 import {
   analyseLog,
   byMonth,
-  mergeRows,
   removeRows,
   rowKey,
   type MergeResult,
 } from "@/lib/au/statementLog";
+import StatementPaste from "./StatementPaste";
 import type { EngineConfig } from "@/lib/au/config";
 import type { Finding, FindingSeverity } from "@/lib/au/quote";
 import { fmtCurrency } from "@/lib/au/format";
@@ -100,34 +100,16 @@ export default function StatementReader({
   const store = useLease(signedIn);
   const log = useMemo(() => store.lease.statement ?? [], [store.lease.statement]);
 
-  const [text, setText] = useState("");
   const [lastMerge, setLastMerge] = useState<MergeResult | null>(null);
 
-  const parsed = useMemo(() => parseStatement(text), [text]);
   const read = useMemo(
     () => (log.length > 0 ? analyseLog(log, config) : null),
     [log, config],
   );
   const months = useMemo(() => (read ? byMonth(read.rows) : []), [read]);
 
-  const add = () => {
-    const result = mergeRows(log, parsed.rows);
-    setLastMerge(result);
-    store.update((l) => ({ ...l, statement: result.rows }));
-    setText("");
-    track("Statement rows merged", {
-      added: String(result.added),
-      known: String(result.alreadyKnown),
-    });
-  };
-
   const forget = (key: string) =>
     store.update((l) => ({ ...l, statement: removeRows(l.statement ?? [], [key]) }));
-
-  const load = () => {
-    setText(SAMPLE);
-    track("Statement sample loaded");
-  };
 
   return (
     <div className="mt-8">
@@ -141,59 +123,14 @@ export default function StatementReader({
             Nothing is uploaded: the reading happens in your browser.
           </strong>
         </p>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={() => parsed.rows.length > 0 && track("Statement pasted", { rows: String(parsed.rows.length) })}
-          rows={8}
-          spellCheck={false}
-          placeholder={"11 September 2026\tFunds from Payroll\t$1,698.98\t$2,665.26\n…"}
-          className="mt-3 w-full rounded-lg border border-line bg-panel-2 p-3 font-mono text-xs leading-relaxed text-ink outline-none focus:border-accent"
+        <StatementPaste
+          log={log}
+          sample={SAMPLE}
+          onMerge={(rows, result) => {
+            setLastMerge(result);
+            store.update((l) => ({ ...l, statement: rows }));
+          }}
         />
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-          {parsed.rows.length > 0 ? (
-            <>
-              <button
-                type="button"
-                onClick={add}
-                className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-accent-soft"
-              >
-                Add {parsed.rows.length} rows to my log
-              </button>
-              <button type="button" onClick={() => setText("")} className="font-semibold text-accent hover:underline">
-                Clear
-              </button>
-              {parsed.skipped.length > 0 && (
-                <span className="text-muted">{parsed.skipped.length} lines ignored</span>
-              )}
-            </>
-          ) : (
-            <button type="button" onClick={load} className="font-semibold text-accent hover:underline">
-              Try it with an example statement
-            </button>
-          )}
-        </div>
-
-        {/* What the merge did, in its own words. Pasting the same window twice
-            is the normal case rather than a mistake, so "nothing new" has to
-            read as a correct outcome and not a failure. */}
-        {lastMerge && (
-          <p className="mt-3 rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs leading-relaxed text-subtle">
-            {lastMerge.added > 0
-              ? `Added ${lastMerge.added} new transaction${lastMerge.added === 1 ? "" : "s"}.`
-              : "Nothing new in that one."}{" "}
-            {lastMerge.alreadyKnown > 0 &&
-              `${lastMerge.alreadyKnown} ${lastMerge.alreadyKnown === 1 ? "was" : "were"} already in your log, so ${lastMerge.alreadyKnown === 1 ? "it was" : "they were"} left alone. `}
-            {lastMerge.conflicts.length > 0 && (
-              <span className="text-warning-text">
-                {lastMerge.conflicts.length} row
-                {lastMerge.conflicts.length === 1 ? "" : "s"} matched something already stored but
-                with a different running balance — both are kept, and the gap check below will say
-                whether one of them is wrong.
-              </span>
-            )}
-          </p>
-        )}
       </div>
 
       {read && (
@@ -366,13 +303,6 @@ export default function StatementReader({
             </div>
           </details>
 
-          {parsed.skipped.length > 0 && (
-            <p className="mt-3 text-xs leading-relaxed text-muted">
-              Ignored {parsed.skipped.length} line{parsed.skipped.length === 1 ? "" : "s"} with no
-              date or no amount — headers, page counters and the like. If one of them was a
-              transaction, the totals above are short by it.
-            </p>
-          )}
         </>
       )}
     </div>

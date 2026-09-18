@@ -173,14 +173,28 @@ export default function LeaseCalculator({
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <div className="mb-5"><InfoBlastBanner /></div>
 
+        {/* The question the page is answering, which is not the same question
+            once a lease is running. "What would it cost you?" is conditional
+            tense addressed to somebody who has signed — and the taster under
+            it prices a decision they have already made. */}
         <div className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-            What would a novated lease actually cost you?
+            {locked ? "How your lease is tracking" : "What would a novated lease actually cost you?"}
           </h1>
           <p className="mt-1.5 max-w-3xl text-sm text-subtle">
-            Put in your salary and the car you have in mind. We&apos;ll show the pre-tax and
-            post-tax split, what FBT does to it, and how the total compares with buying the
-            same car another way — all on {config.financialYear} rules.
+            {locked ? (
+              <>
+                Payments against the ones you agreed to, how much of the car you have actually
+                paid off, and what is sitting in the account your provider holds. Build the
+                ledger by pasting their transactions and it all follows from that.
+              </>
+            ) : (
+              <>
+                Put in your salary and the car you have in mind. We&apos;ll show the pre-tax and
+                post-tax split, what FBT does to it, and how the total compares with buying the
+                same car another way — all on {config.financialYear} rules.
+              </>
+            )}
           </p>
           {/* Before the first number, not after the last one. A reader who
               assumes this is another provider's calculator reads everything
@@ -197,7 +211,7 @@ export default function LeaseCalculator({
             worth computing from; the car does not. Leading with "it costs you
             $354 a fortnight" for a $55,000 electric default nobody picked
             would be the most prominent wrong number on the site. */}
-        {hasChosenCar(lease.vehicle) && <CostTaster result={result} config={config} />}
+        {!locked && hasChosenCar(lease.vehicle) && <CostTaster result={result} config={config} />}
 
         {/* The page reads down one column now: the car, the terms it is on,
             then what those terms do to your pay. The quotes sit beside all of
@@ -380,6 +394,7 @@ export default function LeaseCalculator({
                 config={config}
                 quoteLabel={quoteLabel(locked)}
                 onUnlock={() => store.update(unlockQuote)}
+                onAddRows={(rows) => store.update((l) => ({ ...l, statement: rows }))}
               />
 
               <details className="rounded-xl border border-line bg-panel-2 p-4">
