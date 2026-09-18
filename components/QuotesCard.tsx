@@ -585,8 +585,9 @@ function LockConfirm({
         <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4 text-sm leading-relaxed text-subtle">
           <p>
             You&apos;ve compared what you have and decided this is the one that works best for
-            you. That is all locking in records — but it is worth reading the figures back before
-            you do, because from here on the page treats them as settled.
+            you. Your dashboard will now shift into showing you what you should expect to see on
+            your payslip each month and help decode the transactions you should see on your lease
+            account.
           </p>
 
           {/* The terms themselves.
