@@ -576,7 +576,11 @@ function LockConfirm({
         role="dialog"
         aria-modal="true"
         aria-label={`Lock in ${label}`}
-        className="relative z-10 w-full max-w-md rounded-xl border border-line bg-panel shadow-2xl"
+        /* Wider since it gained the terms and the two lists: at max-w-md the
+           same content ran to a column tall enough to scroll, and a dialog
+           people have to scroll to reach the button is one they dismiss. The
+           two halves sit side by side on anything but a phone. */
+        className="relative z-10 w-full max-w-3xl rounded-xl border border-line bg-panel shadow-2xl"
       >
         <div className="border-b border-line px-5 py-3.5">
           <h2 className="text-lg font-semibold text-ink">Lock in {label}?</h2>
@@ -597,6 +601,12 @@ function LockConfirm({
               at the end of five years. Reading it back is the last chance to
               notice a figure that was typed wrong, and the residual is the one
               people most often have not registered at all. */}
+          {/* Two columns that finish at about the same height. The terms are
+              short and the "what changes" list is long, so the next steps go
+              under the terms rather than beside them — stacked the other way
+              the left half ended halfway up and the right half overflowed. */}
+          <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+          <div className="space-y-4">
           {terms.length > 0 && (
             <div className="rounded-lg border border-line bg-panel-2 p-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -617,7 +627,31 @@ function LockConfirm({
               </dl>
             </div>
           )}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              What to do next
+            </p>
+            <ul className="mt-1.5 space-y-1.5">
+              {!startDate &&
+                bullet(
+                  <>
+                    <strong className="text-ink">Set the lease start date.</strong> It is the one
+                    thing the quote doesn&apos;t carry, and without it we can&apos;t tell you how
+                    far through the term you are or whether a payment has been missed.
+                  </>,
+                )}
+              {bullet(
+                <>
+                  When the first statement arrives, paste the transactions in. The dashboard
+                  checks every payment against these figures and tracks the balance they hold.
+                </>,
+              )}
+              {bullet(<>You can unlock at any time and go back to comparing.</>)}
+            </ul>
+          </div>
+          </div>
 
+          <div className="space-y-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
               What changes on this page
@@ -652,27 +686,8 @@ function LockConfirm({
             </ul>
           </div>
 
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-              What to do next
-            </p>
-            <ul className="mt-1.5 space-y-1.5">
-              {!startDate &&
-                bullet(
-                  <>
-                    <strong className="text-ink">Set the lease start date.</strong> It is the one
-                    thing the quote doesn&apos;t carry, and without it we can&apos;t tell you how
-                    far through the term you are or whether a payment has been missed.
-                  </>,
-                )}
-              {bullet(
-                <>
-                  When the first statement arrives, paste the transactions in. The dashboard
-                  checks every payment against these figures and tracks the balance they hold.
-                </>,
-              )}
-              {bullet(<>You can unlock at any time and go back to comparing.</>)}
-            </ul>
+
+          </div>
           </div>
 
           <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs text-muted">
