@@ -554,15 +554,25 @@ export default function LeaseCalculator({
                         )}{" "}
                         a year — whatever is left of it can absorb the car instead.
                       </span>
+                      {/* Same as the percentage below: blank rather than a
+                          zero nobody can delete. */}
                       <input
                         type="number"
                         min="0"
                         step="500"
-                        value={inputs.capUsedSpendable ?? 0}
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={inputs.capUsedSpendable ?? ""}
                         disabled={readOnly}
                         onChange={(e) => {
-                          const n = parseFloat(e.target.value);
-                          set("capUsedSpendable", Number.isNaN(n) ? undefined : Math.max(0, n));
+                          const raw = e.target.value;
+                          if (raw === "") return set("capUsedSpendable", undefined);
+                          const n = parseFloat(raw);
+                          set("capUsedSpendable", Number.isNaN(n) ? undefined : n);
+                        }}
+                        onBlur={() => {
+                          const n = inputs.capUsedSpendable;
+                          if (n != null && n < 0) set("capUsedSpendable", 0);
                         }}
                         className="mt-2 w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm tabular-nums text-ink focus:border-accent focus:outline-none disabled:opacity-60"
                       />
@@ -586,19 +596,38 @@ export default function LeaseCalculator({
                       scheme, not the financier&apos;s.
                     </span>
                     <div className="mt-2 flex items-center gap-2">
+                      {/* Empty, not zero, when unset.
+                          A `?? 0` fallback pins a 0 in the box that cannot be
+                          deleted — select it, type 4, and the field reads 04,
+                          because the control re-renders the old value straight
+                          back. Blank is the only value a number input can be
+                          cleared TO, which is why QuoteField has always done
+                          it this way.
+
+                          Clamped on blur rather than on every keystroke, so
+                          typing is never rewritten underneath the cursor. The
+                          engine clamps regardless, so a moment of 150 on
+                          screen costs nothing. */}
                       <input
                         type="number"
                         min="0"
                         max="100"
                         step="5"
-                        value={inputs.employerSavingSharePct ?? 0}
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={inputs.employerSavingSharePct ?? ""}
                         disabled={readOnly}
                         onChange={(e) => {
-                          const n = parseFloat(e.target.value);
-                          set(
-                            "employerSavingSharePct",
-                            Number.isNaN(n) ? undefined : Math.min(100, Math.max(0, n)),
-                          );
+                          const raw = e.target.value;
+                          if (raw === "") return set("employerSavingSharePct", undefined);
+                          const n = parseFloat(raw);
+                          set("employerSavingSharePct", Number.isNaN(n) ? undefined : n);
+                        }}
+                        onBlur={() => {
+                          const n = inputs.employerSavingSharePct;
+                          if (n == null) return;
+                          const clamped = Math.min(100, Math.max(0, n));
+                          if (clamped !== n) set("employerSavingSharePct", clamped);
                         }}
                         className="w-full min-w-0 rounded-lg border border-line bg-panel px-3 py-2 text-sm tabular-nums text-ink focus:border-accent focus:outline-none disabled:opacity-60"
                       />

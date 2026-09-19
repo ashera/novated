@@ -29,11 +29,44 @@ import { useEffect, useId, useRef, useState } from "react";
  * The text moved off aria-label and onto the tooltip the button describes. As
  * a label it made the accessible name of the control the whole paragraph, so a
  * screen reader read three sentences of tax law where it wanted a button name.
+ *
+ * And it STILL did not work on a phone, for a reason none of that touched: the
+ * icon is 16px square, and a 16px target is about a third of the 44px a thumb
+ * needs. Driven from a script, which taps the exact centre every time, the
+ * toggle passed; held in a hand it mostly missed. So the hit area is now a
+ * 44px box centred on the icon, added as a pseudo-element so the icon stays
+ * the size it is drawn and nothing in the line around it moves.
+ *
+ * The tooltip is also clamped to the viewport. Centred under a 16px icon, a
+ * 224px panel hangs 112px either side — which runs off the screen whenever the
+ * icon sits near an edge, and an explanation half off the page is the same
+ * failure as no explanation. It is measured once on open and nudged back
+ * inside, which is the only way to do it: the overflow depends on where the
+ * icon happens to land, and CSS cannot see that.
  */
 export default function InfoTip({ text, className = "" }: { text: string; className?: string }) {
   const [open, setOpen] = useState(false);
+  /** Horizontal nudge, in px, that keeps the panel on screen. */
+  const [shift, setShift] = useState(0);
   const id = useId();
   const wrap = useRef<HTMLSpanElement>(null);
+  const tip = useRef<HTMLSpanElement>(null);
+
+  /*
+   * Measured on open, with the shift reset to zero first so the reading is of
+   * the unshifted position. It cannot loop: the effect watches `open`, and
+   * setting the shift does not change it.
+   */
+  useEffect(() => {
+    if (!open) return setShift(0);
+    const el = tip.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const margin = 8;
+    if (r.left < margin) setShift(margin - r.left);
+    else if (r.right > window.innerWidth - margin)
+      setShift(window.innerWidth - margin - r.right);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,14 +111,19 @@ export default function InfoTip({ text, className = "" }: { text: string; classN
         // should not, or the toggle can never close.
         onFocus={(e) => e.currentTarget.matches(":focus-visible") && setOpen(true)}
         onBlur={() => setOpen(false)}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-muted/50 text-[10px] font-semibold leading-none text-muted transition hover:border-accent hover:text-accent"
+        /* The ::before is the tap target: 44px square, centred on the icon,
+           and invisible. Laid out absolutely so the icon keeps its 16px
+           footprint and the text beside it does not shift. */
+        className="relative inline-flex h-4 w-4 items-center justify-center rounded-full border border-muted/50 text-[10px] font-semibold leading-none text-muted transition before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] hover:border-accent hover:text-accent"
       >
         i
       </button>
       <span
+        ref={tip}
         id={id}
         role="tooltip"
-        className={`pointer-events-none absolute left-1/2 top-full z-30 mt-1.5 w-56 max-w-[70vw] -translate-x-1/2 rounded-lg border border-line bg-panel px-3 py-2 text-xs font-normal leading-snug text-ink shadow-xl transition-opacity duration-150 ${
+        style={{ transform: `translateX(calc(-50% + ${shift}px))` }}
+        className={`pointer-events-none absolute left-1/2 top-full z-30 mt-1.5 w-56 max-w-[calc(100vw-1rem)] rounded-lg border border-line bg-panel px-3 py-2 text-xs font-normal leading-snug text-ink shadow-xl transition-opacity duration-150 ${
           open ? "opacity-100" : "opacity-0"
         }`}
       >

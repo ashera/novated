@@ -18,7 +18,7 @@
  * need, or be able to use, admin rights.
  */
 
-import { chromium } from "playwright";
+import { chromium, devices } from "playwright";
 import pg from "pg";
 
 export const BASE = (process.env.E2E_BASE_URL ?? "").replace(/\/$/, "");
@@ -97,6 +97,23 @@ export async function launch() {
  */
 export async function guestPage(browser) {
   const ctx = await browser.newContext({ locale: "en-AU", timezoneId: "Australia/Sydney" });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(20_000);
+  return page;
+}
+
+/**
+ * A phone, with touch events rather than a mouse.
+ *
+ * The distinction is the whole point of the specs that use it: a pointer that
+ * hovers and a finger that taps take different paths through the same code,
+ * and the desktop path has repeatedly worked while the touch one did not.
+ * Playwright also taps the exact centre of an element every time, which a
+ * thumb does not — so a spec here has to check the SIZE of what it is tapping
+ * as well as the result of tapping it.
+ */
+export async function phonePage(browser) {
+  const ctx = await browser.newContext({ ...devices["iPhone 13"] });
   const page = await ctx.newPage();
   page.setDefaultTimeout(20_000);
   return page;
