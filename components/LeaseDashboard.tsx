@@ -4,10 +4,12 @@ import { useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
+  ComposedChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  Line,
   ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
@@ -20,6 +22,7 @@ import type { EngineConfig } from "@/lib/au/config";
 import type { Lease } from "@/lib/au/lease";
 import { leaseProgress } from "@/lib/au/leaseProgress";
 import { byMonth, removeRows, type LoggedRow } from "@/lib/au/statementLog";
+import { resaleValue } from "@/lib/au/resale";
 import type { RowKind } from "@/lib/au/statement";
 import type { Finding, FindingSeverity } from "@/lib/au/quote";
 import StatementPaste, { ClearLedger } from "./StatementPaste";
@@ -136,11 +139,41 @@ export default function LeaseDashboard({
 
   /* The paydown, thinned for drawing. Sixty points is more than a chart this
      size can resolve and more than anyone reads — quarterly keeps the shape,
-     which is the only thing it is there for. */
+     which is the only thing it is there for.
+  
+     With what the car is worth beside it, because the gap between the two IS
+     the position: where the value line sits below the owing line, selling
+     leaves a shortfall to find, and on most leases that is true for the first
+     couple of years. Against the CAR's price, not the drive-away total and not
+     the amount financed — nobody buying it second-hand pays back the stamp
+     duty. */
   const paydownData =
     paydown?.schedule
       .filter((pt, i) => i % 3 === 0 || i === paydown.schedule.length - 1)
-      .map((pt) => ({ month: pt.month, owing: Math.round(pt.balance) })) ?? [];
+      .map((pt) => ({
+        month: pt.month,
+        owing: Math.round(pt.balance),
+        worth:
+          lease.vehicle.price != null
+            ? Math.round(resaleValue(lease.vehicle.price, lease.vehicle.fuelType, pt.month, config).value)
+            : null,
+      })) ?? [];
+
+  /*
+   * Where the car is worth less than is owed on it, and when that ends.
+   *
+   * Three outcomes, and they want three different sentences. A lease with
+   * on-roads financed in usually starts underwater and climbs out; one on a
+   * cheap car may never dip; a long term on a fast-depreciating car may never
+   * recover. Saying "it catches up at month 0" for the second case is true and
+   * useless — it means it never went under.
+   */
+  const underwater = paydownData.filter((d) => d.worth != null && d.worth < d.owing);
+  const evenAt =
+    underwater.length === 0
+      ? null
+      : (paydownData.find((d) => d.month > underwater[0].month && d.worth != null && d.worth >= d.owing)
+          ?.month ?? null);
 
   const balanceData = months
     .filter((m) => m.balance != null)
@@ -367,10 +400,22 @@ export default function LeaseDashboard({
               <p className="mt-1 text-xs leading-relaxed text-muted">
                 The curve lands on the residual, not on zero — and it falls slowly at first,
                 because the early payments are mostly interest.
+                {lease.vehicle.price != null && (
+                  <>
+                    {" "}
+                    The lighter line is what the car is likely to be worth: an estimate from
+                    published resale data, not a valuation.{" "}
+                    {underwater.length === 0
+                      ? "On these figures it stays above the debt throughout, so selling would clear what is owed."
+                      : evenAt != null
+                        ? `On these figures it catches up with the debt around month ${evenAt} — before that, selling means finding the difference.`
+                        : "On these figures it stays below the debt for the whole term, so selling early would leave a shortfall to find."}
+                  </>
+                )}
               </p>
               <div className="mt-3 h-52">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={paydownData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+                  <ComposedChart data={paydownData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
                     <XAxis
                       dataKey="month"
@@ -382,7 +427,10 @@ export default function LeaseDashboard({
                     <YAxis tick={axis} tickLine={false} axisLine={false} tickFormatter={fmtCompact} width={48} />
                     <Tooltip
                       contentStyle={tooltipStyle}
-                      formatter={(v: number) => [fmtCurrency(v), "Still owing"]}
+                      formatter={(v: number, name: string) => [
+                        fmtCurrency(v),
+                        name === "worth" ? "Car likely worth" : "Still owing",
+                      ]}
                       labelFormatter={(m: number) => `Month ${m}`}
                     />
                     <Area
@@ -401,6 +449,19 @@ export default function LeaseDashboard({
                         label={{ value: "Residual", position: "insideBottomRight", fontSize: 10, fill: "var(--color-muted)" }}
                       />
                     )}
+                    {/* An estimate, so a line rather than the filled area the
+                        debt gets — the debt is arithmetic and this is a guess,
+                        and the drawing should not give them equal weight. */}
+                    {lease.vehicle.price != null && (
+                      <Line
+                        type="monotone"
+                        dataKey="worth"
+                        stroke="var(--color-muted)"
+                        strokeWidth={2}
+                        strokeDasharray="5 3"
+                        dot={false}
+                      />
+                    )}
                     {/* Where they actually are, which is the point of drawing
                         it on a running lease rather than a prospective one. */}
                     {paydown?.now && (
@@ -413,7 +474,7 @@ export default function LeaseDashboard({
                         strokeWidth={2}
                       />
                     )}
-                  </AreaChart>
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </section>
