@@ -103,6 +103,42 @@ export async function guestPage(browser) {
 }
 
 /**
+ * Wait until React has actually taken over a given element.
+ *
+ * Server-rendered HTML contains the button long before anything is listening
+ * to it, and Playwright will happily click it: visible, enabled, actionable,
+ * and completely inert. The click lands, nothing happens, and the failure
+ * arrives twenty seconds later as a navigation timeout that says nothing about
+ * the cause. That is exactly how the signed-in half of the share spec failed —
+ * the guest half only passed because five assertions ran first and hydration
+ * finished while they did.
+ *
+ * `networkidle` plus a sleep would paper over it, but this app polls its own
+ * version endpoint, so the network is never reliably idle, and a sleep is a
+ * guess that gets slower or flakier as the page changes.
+ *
+ * React attaches a `__reactProps$…` key to every DOM node it owns, and it does
+ * so at hydration. Its presence on THIS element is the precise fact we want:
+ * not "the page looks settled" but "this button now has a handler".
+ */
+export async function hydrated(locator, timeout = 20_000) {
+  await locator.waitFor({ state: "visible", timeout });
+  await locator.evaluate(
+    (el, deadline) =>
+      new Promise((resolve, reject) => {
+        const tick = () => {
+          if (Object.keys(el).some((k) => k.startsWith("__reactProps$"))) return resolve(true);
+          if (Date.now() > deadline) return reject(new Error("element never hydrated"));
+          requestAnimationFrame(tick);
+        };
+        tick();
+      }),
+    Date.now() + timeout,
+  );
+  return locator;
+}
+
+/**
  * A context that has signed in with the test account.
  *
  * Reads the page back when it does not leave /login, rather than letting

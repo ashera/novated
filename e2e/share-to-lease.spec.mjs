@@ -22,6 +22,7 @@ import {
   db,
   describe,
   guestPage,
+  hydrated,
   signedInPage,
   testUserId,
 } from "./harness.mjs";
@@ -107,10 +108,8 @@ export default async function run(browser) {
   describe("Adopting it without an account");
 
   await check("lands on a workspace of the reader's own", async () => {
-    await Promise.all([
-      page.waitForURL((u) => u.pathname === "/", { timeout: 20_000 }),
-      page.getByRole("button", { name: /price it against my salary/i }).click(),
-    ]);
+    const cta = await hydrated(page.getByRole("button", { name: /price it against my salary/i }));
+    await Promise.all([page.waitForURL((u) => u.pathname === "/", { timeout: 20_000 }), cta.click()]);
   });
 
   await check("brings the quote across", async () => {
@@ -200,9 +199,12 @@ export default async function run(browser) {
     signedIn = await signedInPage(browser);
     await signedIn.goto(shareUrl, { waitUntil: "domcontentloaded" });
     await signedIn.waitForSelector("text=What would this quote cost you?");
+    const cta = await hydrated(
+      signedIn.getByRole("button", { name: /price it against my salary/i }),
+    );
     await Promise.all([
       signedIn.waitForURL((u) => u.pathname === "/", { timeout: 20_000 }),
-      signedIn.getByRole("button", { name: /price it against my salary/i }).click(),
+      cta.click(),
     ]);
     await signedIn.waitForSelector("text=/Provider A/i", { timeout: 20_000 });
     // The save is debounced, so give it a beat to land rather than racing it.
