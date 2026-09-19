@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import QuoteField from "./QuoteField";
 import VehicleArt from "./VehicleArt";
@@ -208,6 +208,9 @@ export default function VehicleCard(p: VehicleCardProps) {
   const [building, setBuilding] = useState(false);
   const [pendingMake, setPendingMake] = useState("");
   const [adding, setAdding] = useState(false);
+  /* The Make select is labelled explicitly rather than by being wrapped —
+     see the note where it is rendered. */
+  const makeId = useId();
   const make = selected?.make ?? pendingMake;
 
   const models = make ? vehiclesForMake(p.catalogue, make) : [];
@@ -540,9 +543,31 @@ export default function VehicleCard(p: VehicleCardProps) {
             </div>
           ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
+            {/*
+              A div with an explicit label, not a <label> wrapping everything.
+
+              "Can't find your car?" is a button, and it used to sit inside the
+              label for this select. A label's text becomes the accessible NAME
+              of the control it labels, so screen readers announced the select
+              as "Make Can't find your car?" — and the button itself vanished
+              from the accessibility tree entirely, which is how it was found:
+              Playwright's getByRole("button") could not see it at all, while
+              it was plainly there on screen.
+
+              Nesting one control inside another's label is also ambiguous for
+              pointer and keyboard users, since activating a label activates
+              the control it belongs to.
+
+              So the select is labelled by htmlFor/id and the button is a
+              sibling. The markup around them is unchanged — the flex header
+              with two children is what keeps this select aligned with Model,
+              which was a 4px fight once already.
+            */}
+            <div className="block">
               <span className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-sm font-medium text-ink">Make</span>
+                <label htmlFor={makeId} className="text-sm font-medium text-ink">
+                  Make
+                </label>
                 <button
                   type="button"
                   onClick={() => setAdding(true)}
@@ -552,6 +577,7 @@ export default function VehicleCard(p: VehicleCardProps) {
                 </button>
               </span>
               <select
+                id={makeId}
                 value={make}
                 onChange={(e) => {
                   setPendingMake(e.target.value);
@@ -566,7 +592,7 @@ export default function VehicleCard(p: VehicleCardProps) {
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
 
             {custom ? (
               <label className="block">

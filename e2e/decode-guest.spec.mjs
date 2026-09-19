@@ -81,7 +81,15 @@ export default async function run(browser) {
   describe("Adding a car the catalogue doesn't have");
 
   await check("the modal saves the car onto the lease", async () => {
-    await page.locator("button", { hasText: /find your car/i }).first().click();
+    /*
+       Addressed by ROLE on purpose, and this is load-bearing.
+
+       The button used to sit inside the <label> for the Make select, which
+       made its text part of that select's accessible name and took the button
+       out of the accessibility tree altogether — findable by text, invisible
+       to getByRole, and unreachable for anyone not using a mouse. Locating it
+       this way means the spec fails if it is ever wrapped back up. */
+    await page.getByRole("button", { name: /find your car/i }).first().click();
     const dialog = page.locator('[role="dialog"]');
     await dialog.waitFor({ state: "visible", timeout: 10_000 });
     await dialog.getByPlaceholder("Skoda").fill("Skoda");
@@ -113,6 +121,15 @@ export default async function run(browser) {
 
   await check("the car it added is named on the page", async () => {
     assert(/Skoda/.test(await page.locator("body").innerText()), "the car is not shown");
+  });
+
+  /** The select's own name, kept clean of the button beside it. */
+  await check("the Make select is announced as just 'Make'", async () => {
+    const label = await page.evaluate(() => {
+      const sel = document.querySelector("select");
+      return sel?.labels?.[0]?.textContent?.trim() ?? null;
+    });
+    assertEqual(label, "Make", "the select's label has absorbed something else");
   });
 
   await page.context().close();
