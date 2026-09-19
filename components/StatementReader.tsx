@@ -2,14 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { type RowKind, type StatementRow } from "@/lib/au/statement";
-import {
-  analyseLog,
-  byMonth,
-  removeRows,
-  rowKey,
-  type MergeResult,
-} from "@/lib/au/statementLog";
+import { analyseLog, byMonth, removeRows, type MergeResult } from "@/lib/au/statementLog";
 import StatementPaste, { ClearLedger } from "./StatementPaste";
+import LedgerTable, { KIND_LABEL } from "./LedgerTable";
 import type { EngineConfig } from "@/lib/au/config";
 import type { Finding, FindingSeverity } from "@/lib/au/quote";
 import { fmtCurrency } from "@/lib/au/format";
@@ -44,22 +39,6 @@ const TONE: Record<FindingSeverity, { wrap: string; chip: string }> = {
   critical: { wrap: "border-danger/40 bg-danger-subtle", chip: "bg-danger-subtle text-danger-text" },
   warn: { wrap: "border-warning bg-warning-subtle", chip: "bg-warning-subtle text-warning-text" },
   ok: { wrap: "border-line bg-panel", chip: "bg-accent-subtle text-accent" },
-};
-
-const KIND_LABEL: Record<RowKind, string> = {
-  payroll: "From your pay",
-  finance: "Finance",
-  "gst-credit": "GST credit",
-  fuel: "Fuel or charging",
-  insurance: "Insurance",
-  registration: "Registration",
-  maintenance: "Servicing",
-  tyres: "Tyres",
-  roadside: "Roadside",
-  fee: "Fee",
-  fbt: "FBT / post-tax",
-  refund: "Refund",
-  unknown: "Not categorised",
 };
 
 const SAMPLE = `11 September 2026\tFunds from Payroll\t$1,698.98\t$2,665.26
@@ -107,9 +86,6 @@ export default function StatementReader({
     [log, config],
   );
   const months = useMemo(() => (read ? byMonth(read.rows) : []), [read]);
-
-  const forget = (key: string) =>
-    store.update((l) => ({ ...l, statement: removeRows(l.statement ?? [], [key]) }));
 
   return (
     <div className="mt-8">
@@ -264,51 +240,15 @@ export default function StatementReader({
             <summary className="cursor-pointer text-xs font-semibold text-accent hover:underline">
               Show every row as we read it ({read.rows.length})
             </summary>
-            <div className="mt-3 overflow-x-auto rounded-xl border border-line bg-panel">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-line text-left uppercase tracking-wide text-muted">
-                    <th className="px-3 py-2 font-semibold">Date</th>
-                    <th className="px-3 py-2 font-semibold">Description</th>
-                    <th className="px-3 py-2 font-semibold">Read as</th>
-                    <th className="px-3 py-2 text-right font-semibold">Amount</th>
-                    <th className="px-3 py-2 text-right font-semibold">Balance</th>
-                    <th className="px-2 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {read.rows.map((r: StatementRow, i) => (
-                    <tr key={`${r.date}-${i}`} className="border-b border-line-soft last:border-0">
-                      <td className="whitespace-nowrap px-3 py-1.5 text-muted">{r.date}</td>
-                      <td className="px-3 py-1.5 text-ink">{r.description}</td>
-                      <td className="px-3 py-1.5 text-muted">{KIND_LABEL[r.kind]}</td>
-                      <td
-                        className={`px-3 py-1.5 text-right tabular-nums ${r.amount < 0 ? "text-subtle" : "text-success-text"}`}
-                      >
-                        {fmtCurrency(r.amount)}
-                      </td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-muted">
-                        {r.balance != null ? fmtCurrency(r.balance) : "—"}
-                      </td>
-                      {/* The log is the user's. Something pasted by mistake has
-                          to be removable, or the only remedy is starting over. */}
-                      <td className="px-2 py-1.5 text-right">
-                        <button
-                          type="button"
-                          onClick={() => forget(rowKey(r))}
-                          className="text-[11px] font-medium text-muted hover:text-danger-text"
-                          aria-label={`Remove ${r.description} on ${r.date}`}
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-3">
+              <LedgerTable
+                rows={read.rows}
+                onForget={(key) =>
+                  store.update((l) => ({ ...l, statement: removeRows(l.statement ?? [], [key]) }))
+                }
+              />
             </div>
           </details>
-
         </>
       )}
     </div>

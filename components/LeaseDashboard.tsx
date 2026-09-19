@@ -19,10 +19,11 @@ import { fmtCompact, fmtCurrency } from "@/lib/au/format";
 import type { EngineConfig } from "@/lib/au/config";
 import type { Lease } from "@/lib/au/lease";
 import { leaseProgress } from "@/lib/au/leaseProgress";
-import { byMonth, type LoggedRow } from "@/lib/au/statementLog";
+import { byMonth, removeRows, type LoggedRow } from "@/lib/au/statementLog";
 import type { RowKind } from "@/lib/au/statement";
 import type { Finding, FindingSeverity } from "@/lib/au/quote";
 import StatementPaste, { ClearLedger } from "./StatementPaste";
+import LedgerTable, { KIND_LABEL } from "./LedgerTable";
 
 /**
  * One tracker, not three cards.
@@ -49,22 +50,6 @@ const TONE: Record<FindingSeverity, { wrap: string; chip: string }> = {
   critical: { wrap: "border-danger/40 bg-danger-subtle", chip: "bg-danger-subtle text-danger-text" },
   warn: { wrap: "border-warning bg-warning-subtle", chip: "bg-warning-subtle text-warning-text" },
   ok: { wrap: "border-line bg-panel", chip: "bg-accent-subtle text-accent" },
-};
-
-const KIND_LABEL: Record<RowKind, string> = {
-  payroll: "From your pay",
-  finance: "Finance",
-  "gst-credit": "GST credits",
-  fuel: "Fuel / charging",
-  insurance: "Insurance",
-  registration: "Registration",
-  maintenance: "Servicing",
-  tyres: "Tyres",
-  roadside: "Roadside",
-  fee: "Fees",
-  fbt: "FBT / post-tax",
-  refund: "Refunds",
-  unknown: "Uncategorised",
 };
 
 /** The running costs, which are the half a driver has some say over. */
@@ -130,7 +115,12 @@ export default function LeaseDashboard({
   onAddRows: (rows: LoggedRow[]) => void;
 }) {
   const [undoing, setUndoing] = useState(false);
-  const [adding, setAdding] = useState(false);
+  /* One panel at a time under the ledger heading: add rows, or look at the
+     ones already there. They answer different questions and both are wanted
+     often enough that neither should be a page away — and showing both at once
+     puts a forty-row table between somebody and the box they came to paste
+     into. */
+  const [panel, setPanel] = useState<"none" | "add" | "rows">("none");
   const progress = useMemo(() => leaseProgress(lease, config), [lease, config]);
   const log = useMemo(() => lease.statement ?? [], [lease.statement]);
   const months = useMemo(() => byMonth(log), [log]);
@@ -268,14 +258,29 @@ export default function LeaseDashboard({
             {log.length === 0 ? "Start your ledger" : "Your ledger"}
           </h2>
           {log.length > 0 && (
-            <span className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setAdding((a) => !a)}
-                className="text-xs font-semibold text-accent hover:underline"
-              >
-                {adding ? "Done" : "Add transactions"}
-              </button>
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex overflow-hidden rounded-md border border-line">
+                {(
+                  [
+                    ["add", "Add transactions"],
+                    ["rows", `View all ${log.length}`],
+                  ] as const
+                ).map(([key, text]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={panel === key}
+                    onClick={() => setPanel((p) => (p === key ? "none" : key))}
+                    className={`px-2.5 py-1 text-xs font-semibold transition ${
+                      panel === key
+                        ? "bg-accent-subtle text-accent"
+                        : "bg-panel text-subtle hover:text-ink"
+                    }`}
+                  >
+                    {text}
+                  </button>
+                ))}
+              </span>
               <ClearLedger count={log.length} onClear={() => onAddRows([])} />
             </span>
           )}
@@ -298,13 +303,21 @@ export default function LeaseDashboard({
               {log.length} transactions from {log[0].date} to {log.at(-1)!.date}
               {reserve && ` · ${fmtCurrency(reserve.contributed)} out of your pay so far`}
             </p>
-            {adding && (
+            {panel === "add" && (
               <StatementPaste log={log} onMerge={(rows) => onAddRows(rows)}>
                 <p className="mt-3 text-xs text-muted">
                   Paste the next window from the portal. Anything already here is recognised and
                   left alone, so overlapping pages are fine.
                 </p>
               </StatementPaste>
+            )}
+            {panel === "rows" && (
+              <div className="mt-3">
+                <LedgerTable
+                  rows={log}
+                  onForget={(key) => onAddRows(removeRows(log, [key]))}
+                />
+              </div>
             )}
           </>
         )}
