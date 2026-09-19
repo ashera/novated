@@ -147,6 +147,10 @@ export interface UseLease {
   update: (fn: (l: Lease) => Lease) => void;
   switchTo: (id: string) => void;
   create: () => void;
+  /** Save a lease built elsewhere as a new one, and switch to it. Used by the
+   *  share link's "price this for me", which arrives with the car and the
+   *  quote already decided and only needs somewhere to put them. */
+  createFrom: (lease: Lease) => void;
   remove: (id: string) => void;
 }
 
@@ -376,6 +380,19 @@ export function useLease(signedIn: boolean): UseLease {
     void persist(fresh, null);
   }, [all.length, persist]);
 
+  // Same as create(), minus the deciding what goes in it. Kept separate rather
+  // than given create() an optional argument, because the two callers want
+  // different things from the name: create() numbers a blank lease by how many
+  // exist, and this one is handed a name that means something.
+  const createFrom = useCallback(
+    (fresh: Lease) => {
+      setLease(fresh);
+      setLeaseId(null);
+      void persist(fresh, null);
+    },
+    [persist],
+  );
+
   const remove = useCallback(
     (id: string) => {
       void (async () => {
@@ -401,5 +418,5 @@ export function useLease(signedIn: boolean): UseLease {
     [signedIn, leaseId, switchTo],
   );
 
-  return { lease, leaseId, all, loading, adopted, saving, update, switchTo, create, remove };
+  return { lease, leaseId, all, loading, adopted, saving, update, switchTo, create, createFrom, remove };
 }

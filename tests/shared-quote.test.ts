@@ -1,0 +1,238 @@
+import { describe, it, expect, beforeEach } from "vitest";
+import { DEFAULT_CONFIG } from "@/lib/au/config";
+import { decodeQuote } from "@/lib/au/quote";
+import {
+  leaseFromSharedQuote,
+  leaseToQuote,
+  newLease,
+  type Lease,
+  type QuoteSpec,
+  type VehicleSpec,
+} from "@/lib/au/lease";
+import { stashSharedQuote, takeSharedQuote } from "@/lib/quoteHandoff";
+
+const config = DEFAULT_CONFIG;
+
+/**
+ * Turning somebody else's quote into your own lease.
+ *
+ * A share link is read-only and narrow by design: it carries a car and one
+ * provider's document, and nothing about the person who was quoted. That makes
+ * it safe to send and useless to act on — the figures are priced against a
+ * salary that isn't the reader's, and two people on the same car at the same
+ * rate can be thousands apart once their brackets and HELP are in it.
+ *
+ * So the reader gets a copy to work from. What matters is what a copy does
+ * and does not contain, and the "does not" is the half that can leak somebody
+ * else's finances without anybody noticing.
+ */
+
+/** The car on the share — a real quote's figures, de-identified. */
+const vehicle: VehicleSpec = {
+  make: "Example",
+  model: "EV",
+  fuelType: "electric",
+  price: 57_196,
+  annualKm: 15_000,
+  state: "VIC",
+};
+
+/** The sender's quote, including the salary it was written against. */
+const senderSpec = (over: Partial<QuoteSpec> = {}): QuoteSpec => ({
+  id: "q-original",
+  label: "Provider A",
+  frequency: "monthly",
+  termMonths: 48,
+  amountFinanced: 54_000.36,
+  residualIncGst: 16_709.33,
+  lines: { finance: 965.76 },
+  salary: 185_000,
+  createdAt: "2025-01-01T00:00:00.000Z",
+  updatedAt: "2025-02-01T00:00:00.000Z",
+  ...over,
+});
+
+const senderLease = (): Lease => ({
+  ...newLease("Their lease"),
+  vehicle,
+  scenario: { ...newLease().scenario, salary: 185_000 },
+  quotes: [senderSpec()],
+  lockedQuoteId: "q-original",
+});
+
+describe("A quote somebody shared, made your own", () => {
+  it("brings the car and the provider's figures across", () => {
+    const copy = leaseFromSharedQuote(vehicle, senderSpec(), config, "Example EV");
+    expect(copy.vehicle).toEqual(vehicle);
+    expect(copy.quotes).toHaveLength(1);
+    const q = copy.quotes[0];
+    expect(q.amountFinanced).toBe(54_000.36);
+    expect(q.residualIncGst).toBe(16_709.33);
+    expect(q.lines.finance).toBe(965.76);
+    expect(q.label).toBe("Provider A");
+    expect(copy.name).toBe("Example EV");
+  });
+
+  /**
+   * The one that matters. A QuoteSpec can carry the salary it was written
+   * against; the share page strips it before serialising, and this strips it
+   * again — because a second caller should not have to know to.
+   */
+  it("leaves the sender's salary behind", () => {
+    const copy = leaseFromSharedQuote(vehicle, senderSpec(), config, "Example EV");
+    expect(copy.quotes[0].salary).toBeUndefined();
+    // And not hiding anywhere else in what got copied.
+    expect(JSON.stringify(copy)).not.toContain("185000");
+  });
+
+  it("gives the copy its own identity", () => {
+    const copy = leaseFromSharedQuote(vehicle, senderSpec(), config, "Example EV");
+    expect(copy.quotes[0].id).not.toBe("q-original");
+    // "Processed on" means when it reached THIS workspace.
+    expect(copy.quotes[0].createdAt).not.toBe("2025-01-01T00:00:00.000Z");
+    expect(copy.quotes[0].updatedAt).toBeUndefined();
+  });
+
+  /** A four-year quote modelled over five is not that quote any more. */
+  it("takes the term from the quote rather than a default", () => {
+    expect(leaseFromSharedQuote(vehicle, senderSpec(), config, "x").scenario.termYears).toBe(4);
+    expect(
+      leaseFromSharedQuote(vehicle, senderSpec({ termMonths: 60 }), config, "x").scenario.termYears,
+    ).toBe(5);
+  });
+
+  /**
+   * A lock is a decision — "this is the lease I am having" — and it turns the
+   * page into a payslip. Inheriting somebody else's would tell the reader they
+   * had signed for a car they have not been quoted on.
+   */
+  it("arrives undecided, however settled the sender was", () => {
+    const copy = leaseFromSharedQuote(vehicle, senderSpec(), config, "x");
+    expect(copy.lockedQuoteId).toBeUndefined();
+    expect(senderLease().lockedQuoteId).toBe("q-original");
+  });
+
+  /**
+   * The point of the whole exercise: the reader sees the same document, and
+   * the rate it implies is a fact about the document rather than about whose
+   * salary it was priced against. If these diverged, the copy would be
+   * answering a different question from the page that offered it.
+   */
+  it("decodes to the same rate the reader was shown", () => {
+    const theirs = senderLease();
+    const before = decodeQuote(leaseToQuote(theirs, theirs.quotes[0]), config);
+
+    const copy = leaseFromSharedQuote(vehicle, senderSpec(), config, "Example EV");
+    const after = decodeQuote(leaseToQuote(copy, copy.quotes[0]), config);
+
+    expect(after.impliedRatePct).toBeCloseTo(before.impliedRatePct!, 6);
+    expect(after.amountFinanced).toBe(before.amountFinanced);
+    expect(after.totalInterest).toBeCloseTo(before.totalInterest!, 6);
+  });
+
+  /**
+   * Attached is not enough. A reader who followed a link about one quote and
+   * landed on figures computed from our own default rate would be reading an
+   * answer to a question nobody asked — and it looks like an answer, which is
+   * what makes it worse than a blank.
+   */
+  it("models the quote, rather than merely holding it", () => {
+    const copy = leaseFromSharedQuote(vehicle, senderSpec(), config, "Example EV");
+    const solved = decodeQuote(leaseToQuote(copy, copy.quotes[0]), config).impliedRatePct!;
+
+    expect(copy.scenario.fromQuoteId).toBe(copy.quotes[0].id);
+    // To 2dp: the scenario stores a rate a person could have typed, and the
+    // solver's is carried to more places than that.
+    expect(copy.scenario.interestRatePct).toBeCloseTo(solved, 2);
+    // And that is not simply the default it would have had anyway.
+    expect(copy.scenario.interestRatePct).not.toBeCloseTo(newLease().scenario.interestRatePct, 2);
+  });
+
+  /** A quote too thin to solve still tells us the term. The arithmetic falls
+   *  back to defaults; the term is not a default. */
+  it("keeps the term when the quote cannot be solved", () => {
+    const thin = senderSpec({ amountFinanced: undefined, lines: {}, termMonths: 36 });
+    const copy = leaseFromSharedQuote(vehicle, thin, config, "x");
+    expect(copy.scenario.termYears).toBe(3);
+    expect(copy.quotes).toHaveLength(1);
+    expect(copy.scenario.fromQuoteId).toBeUndefined();
+  });
+
+  it("does not disturb the lease it was copied from", () => {
+    const theirs = senderLease();
+    const snapshot = JSON.stringify(theirs);
+    leaseFromSharedQuote(theirs.vehicle, theirs.quotes[0], config, "Mine");
+    expect(JSON.stringify(theirs)).toBe(snapshot);
+  });
+});
+
+/**
+ * The handoff itself: one shot, and gone on read.
+ *
+ * Someone who followed a share link, wandered off and came back next week
+ * should not find a stranger's quote waiting in their workspace.
+ */
+describe("Carrying a shared quote to the calculator", () => {
+  beforeEach(() => {
+    const map = new Map<string, string>();
+    (globalThis as { sessionStorage?: Storage }).sessionStorage = {
+      get length() {
+        return map.size;
+      },
+      key: (i: number) => [...map.keys()][i] ?? null,
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => void map.set(k, v),
+      removeItem: (k: string) => void map.delete(k),
+      clear: () => map.clear(),
+    } as Storage;
+  });
+
+  const payload = () => ({
+    vehicle,
+    quote: { ...senderSpec(), salary: undefined },
+    leaseName: "Example EV",
+  });
+
+  it("round-trips what the page put in it", () => {
+    stashSharedQuote(payload());
+    const back = takeSharedQuote();
+    expect(back?.leaseName).toBe("Example EV");
+    expect(back?.quote.lines.finance).toBe(965.76);
+    expect(back?.vehicle.price).toBe(57_196);
+  });
+
+  it("is consumed once", () => {
+    stashSharedQuote(payload());
+    expect(takeSharedQuote()).not.toBeNull();
+    expect(takeSharedQuote()).toBeNull();
+  });
+
+  it("says nothing when there is nothing", () => {
+    expect(takeSharedQuote()).toBeNull();
+  });
+
+  /** Half a lease is worse than none: without a term there is nothing to
+   *  amortise, and the reader would land on a workspace that cannot answer. */
+  it("refuses a payload that could not build a lease", () => {
+    for (const bad of [
+      { vehicle, leaseName: "x" },
+      { quote: senderSpec(), leaseName: "x" },
+      { vehicle, quote: { ...senderSpec(), termMonths: 0 }, leaseName: "x" },
+      { vehicle, quote: { ...senderSpec(), termMonths: undefined }, leaseName: "x" },
+    ]) {
+      sessionStorage.setItem("leasewiz-shared-quote", JSON.stringify(bad));
+      expect(takeSharedQuote()).toBeNull();
+    }
+  });
+
+  it("survives a corrupt payload without throwing", () => {
+    sessionStorage.setItem("leasewiz-shared-quote", "{not json");
+    expect(takeSharedQuote()).toBeNull();
+  });
+
+  /** It is browser state the app wrote, so "Start fresh" has to reach it. */
+  it("uses a key the data reset will claim", async () => {
+    const { isAppStorageKey } = await import("@/lib/localData");
+    expect(isAppStorageKey("leasewiz-shared-quote")).toBe(true);
+  });
+});

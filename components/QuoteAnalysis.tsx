@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { fmtCurrency, fmtCurrencyCents } from "@/lib/au/format";
+import { stashSharedQuote, type SharedQuoteHandoff } from "@/lib/quoteHandoff";
 import type { EngineConfig } from "@/lib/au/config";
 import { CYCLES_PER_YEAR, decodeQuote, type Quote, type FindingSeverity } from "@/lib/au/quote";
 import RateWorking from "./RateWorking";
@@ -54,15 +56,36 @@ export default function QuoteAnalysis({
   config,
   carName,
   providerLabel,
+  adoptable,
 }: {
   quote: Quote;
   config: EngineConfig;
   carName: string;
   providerLabel: string;
+  /**
+   * The car and the quote, ready to become the reader's own lease.
+   *
+   * Assembled on the server so the sender's salary is never serialised into
+   * this page at all — a QuoteSpec can carry one, and stripping it in the
+   * browser would be stripping it after it had already arrived. Absent means
+   * no offer is made, which is what any other caller of this component gets.
+   */
+  adoptable?: SharedQuoteHandoff;
 }) {
+  const router = useRouter();
   const decode = useMemo(() => decodeQuote(quote, config), [quote, config]);
   const noun = FREQ_NOUN[quote.frequency];
   const perYear = CYCLES_PER_YEAR[quote.frequency];
+
+  /* Stash and go. The lease is built on the other side rather than here, so
+   * the one place that decides what a copied quote contains stays in the
+   * model, and a reader who never arrives leaves nothing behind but a session
+   * key that deletes itself on read. */
+  const adopt = () => {
+    if (!adoptable) return;
+    stashSharedQuote(adoptable);
+    router.push("/");
+  };
 
   return (
     <div className="space-y-6">
@@ -239,6 +262,36 @@ export default function QuoteAnalysis({
         </section>
       )}
 
+      {/* The reader is not the person who was quoted, and the figures above are
+          not about them. This is the only thing on the page that can fix that. */}
+      {adoptable && (
+        <section className="rounded-xl border border-accent-border bg-accent-subtle p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-ink">What would this quote cost you?</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-subtle">
+            Everything above is priced against the salary of whoever was sent it. On the same car at
+            the same rate your own position can be a long way from theirs — the bracket you are in,
+            whether you are paying off HELP, and whether the electric vehicle exemption applies each
+            move the answer by thousands.
+          </p>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-subtle">
+            Take a copy into a workspace of your own. The car and the provider&apos;s figures come
+            across as they are; you add your salary, and the same document is priced against your
+            tax.
+          </p>
+          <button
+            type="button"
+            onClick={adopt}
+            className="mt-4 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            Price it against my salary
+          </button>
+          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
+            It is a copy, and a one-way one. Nothing you do there reaches the person who shared
+            this, and you do not need an account to start.
+          </p>
+        </section>
+      )}
+
       <section className="rounded-xl border border-line bg-panel-2 p-5 text-sm leading-relaxed text-subtle">
         <p>
           <strong className="text-ink">This is an analysis, not the quote itself.</strong> It was
@@ -250,7 +303,7 @@ export default function QuoteAnalysis({
         <p className="mt-3">
           Got a quote of your own?{" "}
           <Link href="/decode" className="font-semibold text-accent hover:underline">
-            Decode it the same way
+            Decode that one instead
           </Link>{" "}
           — it is free, and we sell nothing.
         </p>

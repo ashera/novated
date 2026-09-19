@@ -36,6 +36,7 @@ import {
 import type { EngineConfig } from "@/lib/au/config";
 import {
   applyScenarioFromQuote,
+  leaseFromSharedQuote,
   hasChosenCar,
   leaseToInputs,
   lockedQuote,
@@ -51,7 +52,7 @@ import Independence from "./Independence";
 import QuotesCard from "./QuotesCard";
 import LeaseDashboard from "./LeaseDashboard";
 import { track, trackLeasePricedConversion } from "@/lib/analytics";
-import { takeHandoff } from "@/lib/quoteHandoff";
+import { takeHandoff, takeSharedQuote } from "@/lib/quoteHandoff";
 import { trackVisit } from "@/app/actions/track";
 
 export default function LeaseCalculator({
@@ -93,8 +94,20 @@ export default function LeaseCalculator({
     if (sharedLease) return setHydrated(true);
     if (store.loading || applied.current) return;
     applied.current = true;
+    /*
+     * Both are read even though at most one is acted on.
+     * 
+     * Each deletes itself on read, and that is what stops a stale one
+     * surfacing later — so leaving the loser in place would just defer the
+     * surprise to the next page load. A shared quote wins where both exist:
+     * it means the reader arrived here from somebody else's link just now,
+     * which is more recent intent than a handoff they left behind.
+     */
+    const shared = takeSharedQuote();
     const handed = takeHandoff();
-    if (handed) {
+    if (shared) {
+      store.createFrom(leaseFromSharedQuote(shared.vehicle, shared.quote, config, shared.leaseName));
+    } else if (handed) {
       store.update((l) => applyScenarioFromQuote(l, handed.inputs, handed.quoteId));
     }
     setHydrated(true);

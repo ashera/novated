@@ -10,6 +10,7 @@
 // should not silently resurrect a quote the user has forgotten about.
 
 import type { LeaseInputs } from "./au/novated";
+import type { QuoteSpec, VehicleSpec } from "./au/lease";
 
 const KEY = "leasewiz-handoff";
 
@@ -42,6 +43,57 @@ export function takeHandoff(): QuoteHandoff | null {
     sessionStorage.removeItem(KEY);
     const parsed = JSON.parse(raw) as QuoteHandoff;
     if (!parsed?.inputs || typeof parsed.inputs.salary !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+// ── A quote somebody shared, on its way to becoming the reader's lease ──────
+
+/**
+ * Why this is its own payload rather than the one above.
+ *
+ * The handoff above answers "model these numbers", and its whole point is that
+ * it carries a solved scenario — which is why `takeHandoff` refuses anything
+ * without a salary in it. A shared quote is the opposite case: the salary is
+ * the one thing it must NOT carry, because it is the sender's. Widening the
+ * first payload to allow that would remove the check that makes it safe.
+ *
+ * Same discipline, though, and for the same reasons: session storage, one
+ * shot, deleted on read. Someone who followed a share link, wandered off and
+ * came back a week later should not find a stranger's quote waiting in their
+ * workspace.
+ */
+const SHARED_KEY = "leasewiz-shared-quote";
+
+export interface SharedQuoteHandoff {
+  vehicle: VehicleSpec;
+  /** Already stripped of the sender's salary, server-side. */
+  quote: QuoteSpec;
+  /** What to call the lease it becomes — the car, or the provider. */
+  leaseName: string;
+}
+
+export function stashSharedQuote(h: SharedQuoteHandoff): void {
+  try {
+    sessionStorage.setItem(SHARED_KEY, JSON.stringify(h));
+  } catch {
+    /* storage blocked — the reader lands on an ordinary empty lease */
+  }
+}
+
+/** Read and remove it. Null when there is none, or when what is there could
+ *  not build a lease — a quote with no term cannot be amortised, and half a
+ *  lease is worse than none. */
+export function takeSharedQuote(): SharedQuoteHandoff | null {
+  try {
+    const raw = sessionStorage.getItem(SHARED_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(SHARED_KEY);
+    const parsed = JSON.parse(raw) as SharedQuoteHandoff;
+    if (!parsed?.quote || !parsed.vehicle) return null;
+    if (typeof parsed.quote.termMonths !== "number" || parsed.quote.termMonths <= 0) return null;
     return parsed;
   } catch {
     return null;

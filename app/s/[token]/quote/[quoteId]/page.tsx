@@ -74,6 +74,30 @@ export default async function SharedQuotePage({
   const config = await getActiveConfig();
   const catalogue = await getCatalogue();
   const quote = leaseToQuote(lease, spec);
+  // Empty rather than "Your car": the heading builds a sentence around it, and
+  // "Provider A on a Your car" is what the default produces. Naming the car is
+  // optional on a quote by design.
+  const carName = vehicleName(lease.vehicle, catalogue, "");
+
+  /*
+   * What the reader is allowed to take with them.
+   *
+   * Built here, on the server, for one reason: a QuoteSpec can carry the
+   * salary the quote was written against, and that is the sender's. Stripping
+   * it in the browser would be stripping it after it had already been
+   * serialised into the page, where anyone can read it — so it never leaves
+   * this function. The rest of the spec is the provider's own document, which
+   * is the thing being shared.
+   *
+   * The car goes across whole. Every field on it is already on screen above or
+   * is about the vehicle rather than its driver, and a copy that lost the car
+   * would make the reader retype what they were just shown.
+   */
+  const adoptable = {
+    vehicle: lease.vehicle,
+    quote: { ...spec, salary: undefined },
+    leaseName: carName || `${quoteLabel(spec, "Shared")} quote`,
+  };
 
   return (
     <>
@@ -82,11 +106,9 @@ export default async function SharedQuotePage({
         <QuoteAnalysis
           quote={{ ...quote, salary: undefined }}
           config={config}
-          // Empty rather than "Your car": the heading builds a sentence around
-          // it, and "Provider A on a Your car" is what the default produces.
-          // Naming the car is optional on a quote by design.
-          carName={vehicleName(lease.vehicle, catalogue, "")}
+          carName={carName}
           providerLabel={quoteLabel(spec)}
+          adoptable={adoptable}
         />
       </main>
     </>

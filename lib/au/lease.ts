@@ -410,6 +410,69 @@ export function newQuoteSpec(label = "", termMonths = 60): QuoteSpec {
   };
 }
 
+/**
+ * A lease of your own, from a quote somebody sent you.
+ *
+ * The share link is read-only and deliberately narrow — it carries the car and
+ * one provider's document, and nothing about the person who was quoted. That
+ * makes it a good thing to be sent and a dead end to act on: the figures on it
+ * are priced against somebody else's salary, and the reader's own position can
+ * be very different on the same quote. Two people on the same car and the same
+ * rate can be tens of thousands apart once their brackets, HELP and FBT
+ * position are in it.
+ *
+ * So this takes the two things the share DOES carry and builds a workspace
+ * around them. The reader lands on a lease that already knows the car and
+ * already holds the quote, with only their own salary left to enter — which is
+ * the one thing we could not have known and the one thing that makes the
+ * answer theirs.
+ *
+ * It is a COPY, in every sense that matters. A fresh id, so nothing here can
+ * be confused with the sender's quote; a fresh createdAt, because "processed
+ * on" means when it reached this workspace; and no salary, because a quote may
+ * have been written against one and it is not the reader's business. Nothing
+ * the reader does afterwards reaches the sender — there is no link back, by
+ * design.
+ *
+ * The quote is activated, not merely attached. Landing on a lease that holds
+ * the document but models our own default rate would answer a question nobody
+ * asked — the reader followed a link about THIS quote, and a headline figure
+ * computed from something else is worse than no figure, because it looks like
+ * an answer. Where the quote cannot be solved `activateQuote` declines, and
+ * the term set below is what survives: the arithmetic falls back, the term
+ * does not.
+ */
+export function leaseFromSharedQuote(
+  vehicle: VehicleSpec,
+  spec: QuoteSpec,
+  config: EngineConfig,
+  name = "My lease",
+): Lease {
+  const base = newLease(name);
+  const quote: QuoteSpec = {
+    ...spec,
+    id: newQuoteSpec().id,
+    createdAt: new Date().toISOString(),
+    updatedAt: undefined,
+    // Stripped on the server before it is ever serialised to the reader; done
+    // again here because this is the function that decides what a copy IS, and
+    // a second caller should not have to know to strip it.
+    salary: undefined,
+  };
+  const seeded: Lease = {
+    ...base,
+    vehicle,
+    scenario: {
+      ...base.scenario,
+      // The term belongs to the quote, not to the reader's preferences — a
+      // four-year quote modelled over five is not that quote any more.
+      termYears: spec.termMonths / 12,
+    },
+    quotes: [quote],
+  };
+  return activateQuote(seeded, quote.id, config);
+}
+
 // ── Composing what the engine expects ───────────────────────────────────────
 
 /** The lease as calculator inputs: the shared car, plus the scenario. */
