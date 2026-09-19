@@ -193,11 +193,32 @@ export default function QuoteDecoder({
    * event in the same tick writes to it instead of making another.
    */
   const setQuote = (fn: (q: Quote) => Quote) => {
-    const next = fn(quote);
+    /*
+     * The worked example is a demonstration, not a draft.
+     *
+     * It is priced at $85,000 to make a point, and an edit that started from
+     * it would carry that car onto the lease as though the user had chosen it.
+     * So the first keystroke starts a real quote against nothing, and what
+     * they typed is the only thing on it.
+     */
+    const base = isExample ? leaseToQuote(lease, newQuoteSpec("", leaseTermMonths)) : quote;
+    const next = fn(base);
+    /*
+     * A locked quote keeps the lease's car whatever the form says; an unlocked
+     * one is allowed to define it.
+     *
+     * This used to overlay the lease's vehicle on every edit, which was the
+     * right guard when the decoder showed the car as settled and offered no
+     * way to change it. Now that this page can set the car up itself — it has
+     * to, or arriving here without a lease is a dead end — the overlay was the
+     * thing stopping it: applyQuoteEdit splits the car back onto the lease,
+     * and the overlay put the old one back first.
+     */
+    const withCar = (l: Lease, q: Quote) => (locked ? withLeaseVehicle(l, q) : q);
     const existingId = activeSpec?.id ?? createdQuoteId.current;
 
     if (existingId) {
-      store.update((l) => applyQuoteEdit(l, existingId, withLeaseVehicle(l, next)));
+      store.update((l) => applyQuoteEdit(l, existingId, withCar(l, next)));
       return;
     }
 
@@ -205,7 +226,7 @@ export default function QuoteDecoder({
     createdQuoteId.current = spec.id;
     setActiveQuoteId(spec.id);
     store.update((l) =>
-      applyQuoteEdit({ ...l, quotes: [...l.quotes, spec] }, spec.id, withLeaseVehicle(l, next)),
+      applyQuoteEdit({ ...l, quotes: [...l.quotes, spec] }, spec.id, withCar(l, next)),
     );
   };
   const set = <K extends keyof Quote>(key: K, value: Quote[K]) =>
@@ -447,18 +468,17 @@ export default function QuoteDecoder({
             so this page cannot be the one to release it. */}
         {needsCar && !locked && (
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent-border bg-accent-subtle px-4 py-3">
+            {/* Points at the field below it rather than at another page. This
+                used to send people to the calculator to set up a car and back
+                again, which is a round trip for one number — and the number is
+                a price they are reading off the quote in their hand. */}
             <p className="max-w-3xl text-sm text-ink">
-              <strong>Start with the car.</strong> A quote can only be checked against the car
-              it is for — the price sets the FBT, the GST the financier claims back and how much
-              of the amount financed makes sense. Below is a worked example so you can see what
-              this page does; your own figures unlock once there is a car on the lease.
+              <strong>Start with the price of the car.</strong> A quote can only be checked
+              against the car it is for — the price sets the FBT, the GST the financier claims
+              back, and whether the amount financed makes sense. Put it in the card below and the
+              rest of this page opens up. A make and model are optional. Until then, what you see
+              is a worked example.
             </p>
-            <Link
-              href="/"
-              className="shrink-0 whitespace-nowrap rounded bg-accent px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
-            >
-              Set up your car
-            </Link>
             {/* The other reason somebody lands here with nothing to type: they
                 have an advertisement rather than a quote. That is a different
                 tool, and without this line it is a dead end. */}
@@ -496,6 +516,12 @@ export default function QuoteDecoder({
         )}
 
         <div className="mb-6">
+          {/* Editable here, because /decode is an entry point and not only a
+              step. Somebody holding a quote and no lease yet should be able to
+              type the car's price and get on with it — sending them to another
+              page to set up a car and then back was a round trip for one
+              number. Read-only only once the quote is locked, when the car is
+              settled along with it. */}
           <VehicleCard
             header={
               <div className="space-y-3">
@@ -512,8 +538,13 @@ export default function QuoteDecoder({
                 </div>
               </div>
             }
-            readOnlyVehicle
-            changeHref="/"
+            readOnlyVehicle={Boolean(locked)}
+            readOnlyNote={
+              locked
+                ? "Settled with the quote you locked in. Unlock it on your lease to change the car."
+                : undefined
+            }
+            priceHint="The car itself, GST included. A make and model are optional — the price is what the figures need."
             catalogue={catalogue}
             vehicleId={quote.vehicleId}
             onVehicle={(v) =>
