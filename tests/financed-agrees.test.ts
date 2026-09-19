@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_CONFIG } from "@/lib/au/config";
-import { derivedAmountFinanced, financeBasis, type Quote } from "@/lib/au/quote";
+import { decodeQuote, derivedAmountFinanced, financeBasis, type Quote } from "@/lib/au/quote";
 import { calculateLease, defaultInputs, type LeaseInputs } from "@/lib/au/novated";
 
 const config = DEFAULT_CONFIG;
@@ -94,5 +94,82 @@ describe("What the lease is written over", () => {
     )!;
     // Every dollar above the limit is financed in full, credit unchanged.
     expect(above - atLimit).toBeCloseTo(10_000, 6);
+  });
+});
+
+/**
+ * The residual is a check on the amount financed.
+ *
+ * Almost every quote sets the residual at the ATO minimum for the term, so the
+ * percentage is effectively known — which makes it a way of testing the figure
+ * it is a percentage OF.
+ *
+ * Reported from a real quote. The price was entered without on-road costs, the
+ * derived amount financed came out $2,004 short, and the rate solved at 11.84%
+ * instead of 10.46%: a point and a half of error in the headline figure, with
+ * nothing on the page suggesting anything was wrong.
+ */
+describe("When the derived amount financed looks short", () => {
+  const smartleasing = (over: Partial<Quote> = {}): Quote => ({
+    frequency: "monthly",
+    fuelType: "electric",
+    termMonths: 60,
+    vehiclePrice: 57_195.90,
+    residualIncGst: 16_709.33,
+    lines: { finance: 965.76 },
+    salary: 110_000,
+    ...over,
+  });
+  const finding = (q: Quote) =>
+    decodeQuote(q, config).findings.find((f) => f.key === "financed-may-be-short");
+
+  it("notices a residual that is not the ATO minimum of what we derived", () => {
+    const f = finding(smartleasing())!;
+    expect(f.severity).toBe("warn");
+    expect(f.title).toMatch(/29\.21%/);
+    expect(f.title).toMatch(/28\.13%/);
+  });
+
+  it("names the amount financed the ATO percentage implies, and the gap", () => {
+    const f = finding(smartleasing())!;
+    expect(f.detail).toMatch(/\$54,000/);
+    expect(f.detail).toMatch(/\$2,004/);
+    expect(f.detail).toMatch(/on-road costs financed in/i);
+  });
+
+  // Why it is worth a warning rather than a note.
+  it("is worth a point and a half on the rate", () => {
+    const short = decodeQuote(smartleasing(), config).impliedRatePct!;
+    const right = decodeQuote(smartleasing({ onRoadCosts: 2_004.08 }), config).impliedRatePct!;
+    expect(short).toBeCloseTo(11.84, 1);
+    expect(right).toBeCloseTo(10.46, 1);
+  });
+
+  it("goes quiet once the on-roads are entered", () => {
+    expect(finding(smartleasing({ onRoadCosts: 2_004.08 }))).toBeUndefined();
+  });
+
+  /** Nothing to second-guess when the figure came off the document. */
+  it("says nothing when the amount financed was typed", () => {
+    expect(finding(smartleasing({ amountFinanced: 54_000.36 }))).toBeUndefined();
+    // Even where that typed figure is the short one.
+    expect(finding(smartleasing({ amountFinanced: 51_996.27 }))).toBeUndefined();
+  });
+
+  /**
+   * A provider is allowed to set a residual above the minimum, and the
+   * existing residual finding covers that. This one only speaks up when the
+   * gap is big enough to be a missing chunk of principal.
+   *
+   * Tested against a quote whose amount financed is already right — the first
+   * attempt nudged the residual on the SHORT quote, which was 1.08 points
+   * above the minimum before the nudge and further above it after.
+   */
+  it("tolerates a residual a little above the minimum", () => {
+    const barely = smartleasing({
+      onRoadCosts: 2_004.08,
+      residualIncGst: 16_709.33 * 1.005,
+    });
+    expect(finding(barely)).toBeUndefined();
   });
 });

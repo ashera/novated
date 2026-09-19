@@ -923,6 +923,48 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
   }
 
   // Do the itemised lines actually add up to the deduction they state?
+  /*
+   * The residual as a percentage is a check on the amount financed.
+   *
+   * Almost every quote sets the residual at the ATO minimum for the term — it
+   * is the lowest the rules allow and the one financiers quote — so the
+   * percentage is effectively known. Which makes it a way of testing the
+   * figure it is a percentage OF: if the residual works out at 29.21% of what
+   * we derived, either the provider chose an unusual residual or the amount
+   * financed is not what we think it is.
+   *
+   * Reported from a real quote. The price was entered without on-road costs,
+   * so the derived amount financed came out $2,004 short, and the rate solved
+   * at 11.84% instead of 10.46% — a point and a half of error in the headline
+   * figure, with nothing on the page suggesting anything was wrong.
+   *
+   * Only where the amount financed was DERIVED. If somebody typed it off the
+   * quote there is nothing to second-guess.
+   */
+  if (
+    financedWasDerived &&
+    amountFinanced != null &&
+    residualExGst != null &&
+    residualPctOfFinanced != null
+  ) {
+    const years = String(Math.round(quote.termMonths / 12));
+    const atoPct = config.lease.residualMinPct[years];
+    if (atoPct != null && residualPctOfFinanced > atoPct + 0.25) {
+      const impliedFinanced = residualExGst / (atoPct / 100);
+      const missing = impliedFinanced - amountFinanced;
+      if (missing > Math.max(500, amountFinanced * 0.01)) {
+        findings.push({
+          key: "financed-may-be-short",
+          severity: "warn",
+          category: "Adds up?",
+          title: `The residual is ${pct(residualPctOfFinanced)} of what we think is financed, not the usual ${pct(atoPct)}`,
+          detail: `We worked the amount financed out as ${money(amountFinanced)} from the price — nobody typed it. Against that, the residual you entered is ${pct(residualPctOfFinanced)}. Providers almost always use the ATO minimum, which is ${pct(atoPct)} over ${years} years, and at that percentage the amount financed would be ${money(impliedFinanced)} — about ${money(missing)} more. On-road costs financed in with the car are the usual explanation, and they are not in the price you entered. It matters: the interest rate is solved against this figure, so ${money(missing)} of it moves the rate.`,
+          question: `Does the amount financed include the stamp duty, registration and CTP — and what is it exactly?`,
+        });
+      }
+    }
+  }
+
   if (rateAfterDeferralPct != null && rate != null && rate - rateAfterDeferralPct > 0.05) {
     findings.push({
       key: "deferral-explains-part-of-the-rate",
