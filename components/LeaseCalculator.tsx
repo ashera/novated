@@ -18,6 +18,7 @@ import LockedSummary from "./LockedSummary";
 import EarlyExit from "./EarlyExit";
 import SuperImpact from "./SuperImpact";
 import CostTaster from "./CostTaster";
+import LeaseSkeleton from "./LeaseSkeleton";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import {
@@ -211,6 +212,16 @@ export default function LeaseCalculator({
             worth computing from; the car does not. Leading with "it costs you
             $354 a fortnight" for a $55,000 electric default nobody picked
             would be the most prominent wrong number on the site. */}
+        {/* Nothing below the hero until the lease has actually arrived.
+
+            The store opens on defaults and swaps once local storage or the
+            account answers, so the page rendered a $55,000 electric car
+            nobody chose and then jumped to the real one. Holding the shape
+            until it is known costs a beat and removes the flash. */}
+        {store.loading ? (
+          <LeaseSkeleton />
+        ) : (
+        <>
         {!locked && hasChosenCar(lease.vehicle) && <CostTaster result={result} config={config} />}
 
         {/* The page reads down one column now: the car, the terms it is on,
@@ -923,6 +934,8 @@ export default function LeaseCalculator({
           </div>
 
         </div>
+        </>
+        )}
 
         {/* The decoder, the comparison and the printed report all carry this.
             The calculator produces the largest figures on the site and was
