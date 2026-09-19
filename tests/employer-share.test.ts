@@ -211,9 +211,22 @@ describe("Recognising one on a quote", () => {
     expect(f.question).toMatch(/what percentage is it/i);
   });
 
-  /** Priced, because it is a real cost over a real term. */
-  it("prices what it costs over the term", () => {
-    expect(found(real())!.costOverTerm).toBeCloseTo(11_291, -2);
+  /**
+   * Priced at what it COSTS, not at what the employer receives.
+   *
+   * The two differ by about a third, because the share sits before tax and
+   * part of it is funded by tax no longer collected. The employer gets
+   * $3,764 a year — $11,291 over this term — and the reader's take-home
+   * falls by $7,678 of that. A page built to catch a provider overstating a
+   * saving does not get to overstate a cost.
+   */
+  it("prices what it costs the reader, not what the employer receives", () => {
+    const f = found(real())!;
+    expect(f.costOverTerm).toBeCloseTo(7_678, -2);
+    // Strictly less than the employer's take, and by a real margin.
+    expect(f.costOverTerm!).toBeLessThan(11_291);
+    expect(f.detail).toMatch(/costs you less than your employer receives/i);
+    expect(f.detail).toMatch(/tax nobody collects/i);
   });
 
   /** It replaces the vaguer finding rather than sitting beside it — two
@@ -321,5 +334,54 @@ describe("The same gap, on a quote somebody shared", () => {
   it("says nothing explains it when it really did look", () => {
     const f = reconciliation(shared({ salary: 140_000, statedPreTax: 1_100 }))!;
     expect(f.detail).toMatch(/Nothing on the quote explains/i);
+  });
+});
+
+/**
+ * What the employer gets, and what it costs you.
+ *
+ * Two different numbers, and the difference is about a third. The share is
+ * deducted before tax, so part of it is funded by tax no longer collected
+ * rather than out of the employee's pay. Reporting only the employer's figure
+ * would overstate the loss — and a site built to catch a provider overstating
+ * a saving does not get to overstate a cost in the other direction.
+ */
+describe("What the share takes against what it costs", () => {
+  it("costs the employee less than the employer receives", () => {
+    const r = run(50);
+    expect(r.package.employerShareNetCost).toBeGreaterThan(0);
+    expect(r.package.employerShareNetCost).toBeLessThan(r.package.employerShare);
+  });
+
+  /** The counterfactual, computed the long way round: the same lease with no
+   *  arrangement at all. The two must agree, or one of them is wrong. */
+  it("is exactly what the lease costs with the share less without it", () => {
+    const r = run(50);
+    expect(r.package.employerShareNetCost).toBeCloseTo(
+      r.package.netAnnualCost - run(0).package.netAnnualCost,
+      6,
+    );
+  });
+
+  it("carries the same relationship over the term", () => {
+    const r = run(50);
+    // Off the result's own term, not a literal — this fixture is a 3-year
+    // lease and a hardcoded 5 quietly asserts the wrong thing.
+    expect(r.term.employerShareNetCost).toBeCloseTo(
+      r.package.employerShareNetCost * r.term.years,
+      6,
+    );
+    expect(r.term.employerShareNetCost).toBeLessThan(r.term.employerShare);
+  });
+
+  it("is nothing at all when there is no arrangement", () => {
+    expect(run(0).package.employerShareNetCost).toBe(0);
+    expect(run(undefined).term.employerShareNetCost).toBe(0);
+  });
+
+  it("says both figures, and whose the difference is", () => {
+    const w = run(50).warnings.find((x) => /employer keeps/i.test(x))!;
+    expect(w).toMatch(/costs you less than they receive/i);
+    expect(w).toMatch(/tax nobody collects/i);
   });
 });

@@ -131,7 +131,9 @@ export default function PayPacketSplit({ result }: { result: LeaseResult }) {
               {fmtCurrency(pkg.employerShare)}
             </dd>
             <p className="mt-1 text-[11px] leading-snug text-muted">
-              a second pre-tax deduction, beside the lease
+              a second pre-tax deduction, beside the lease — costing you{" "}
+              <strong className="text-ink">{fmtCurrency(pkg.employerShareNetCost)}</strong>, the
+              rest being tax nobody collects
             </p>
           </div>
         )}

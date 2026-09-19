@@ -357,6 +357,20 @@ export interface PackageBreakdown {
    * and this much of it went somewhere other than your pocket.
    */
   employerShare: number;
+  /**
+   * What that share actually costs you, which is less than the employer gets.
+   *
+   * The share is deducted before tax, so it relieves tax of its own. The
+   * employer receives the whole of `employerShare`; your take-home falls by
+   * this, and the difference is tax the ATO no longer collects. On the default
+   * example a 50% share hands the employer $2,578 a year and costs the
+   * employee $1,753 — the other $825 is not paid by anybody.
+   *
+   * Both numbers are reported because quoting only the larger one overstates
+   * what a reader loses, and this site does not get to do that in either
+   * direction.
+   */
+  employerShareNetCost: number;
   /** The blended rate the pre-tax dollars are relieved at. */
   effectiveReliefRate: number;
   /** True cost to the employee for the year: pre-tax cost after relief, plus
@@ -500,6 +514,9 @@ export interface LeaseResult {
     taxSaved: number;
     /** Of that saving, what the employer kept over the whole term. */
     employerShare: number;
+    /** What that cost the employee over the whole term, after the relief the
+     *  share itself creates. Always less than `employerShare`. */
+    employerShareNetCost: number;
     /** Net of the GST paid on buying the residual back. */
     gstSaved: number;
     /** Including the GST due on the buyout — what has to be found on the day. */
@@ -1251,11 +1268,31 @@ export function calculateLease(
   const netAnnualCost =
     preTaxAnnual + employerShare - relief.taxSaved + postTaxAnnual + outOfPackageRunning;
 
+  /*
+   * What the arrangement costs the employee, as against not having one.
+   *
+   * Not the same as what the employer receives, and the difference is not
+   * small: the share is deducted pre-tax, so part of it is funded by tax that
+   * is no longer collected rather than by the employee. Quoting the
+   * employer's figure as the employee's loss overstates it by about a third.
+   *
+   * One extra relief calculation to get the counterfactual — the same lease
+   * with no share — which is cheap and is the only honest way to name the
+   * number, since it depends on where the deduction sits in the brackets.
+   */
+  const employerShareNetCost =
+    employerShare > 0
+      ? employerShare -
+        (relief.taxSaved -
+          marginalRelief(inputs.salary, preTaxAnnual, config, reliefBefore, reliefAfter).taxSaved)
+      : 0;
+
   const pkg: PackageBreakdown = {
     preTaxAnnual,
     postTaxAnnual,
     taxSaved: relief.taxSaved,
     employerShare,
+    employerShareNetCost,
     effectiveReliefRate: relief.effectiveRate,
     netAnnualCost,
     takeHomeBefore: before.net,
@@ -1281,7 +1318,7 @@ export function calculateLease(
    */
   if (employerShare > 0) {
     warnings.push(
-      `Your employer keeps ${sharePct}% of the tax saving this lease creates. The packaging saves ${fmt(relief.taxSaved)} of tax a year; ${fmt(employerShare)} of that goes to your employer as a second pre-tax deduction, and you keep ${fmt(relief.taxSaved - employerShare)}. Over ${inputs.termYears} years that is ${fmt(employerShare * inputs.termYears)} of the benefit you don't receive. It is a term of your employer's scheme rather than anything the financier controls, so it is worth confirming the percentage on your own payslip.`,
+      `Your employer keeps ${sharePct}% of the tax saving this lease creates. The packaging saves ${fmt(relief.taxSaved)} of tax a year, and ${fmt(employerShare)} of that goes to your employer as a second pre-tax deduction beside the lease. Because it comes out before tax, it costs you less than they receive: your take-home falls by ${fmt(employerShareNetCost)} a year, or ${fmt(employerShareNetCost * inputs.termYears)} over ${inputs.termYears} years, and the remaining ${fmt(employerShare - employerShareNetCost)} a year is tax nobody collects. It is a term of your employer's scheme rather than anything the financier controls, so it is worth confirming the percentage on your own payslip.`,
     );
   }
   if (finance.luxuryCarTax > 0) {
@@ -1449,6 +1486,7 @@ export function calculateLease(
       netCost: netAnnualCost * inputs.termYears + (inputs.establishmentFee ?? config.lease.defaultEstablishmentFee),
       taxSaved: relief.taxSaved * inputs.termYears,
       employerShare: employerShare * inputs.termYears,
+      employerShareNetCost: employerShareNetCost * inputs.termYears,
       // Net, not gross. The credit on the car is real, but the part of the car
       // bought back at the end has its GST paid — so a "GST you avoid" figure
       // that counts only the credit is overstating it by that much.

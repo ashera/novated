@@ -71,6 +71,12 @@ export default async function Page() {
       note: "a second pre-tax deduction",
     },
     {
+      label: "What the arrangement costs you, a year",
+      plain: 0,
+      shared: pkg.employerShareNetCost,
+      note: "less than they get \u2014 see below",
+    },
+    {
       label: "The car's real cost, a year",
       plain: plain.package.netAnnualCost,
       shared: pkg.netAnnualCost,
@@ -193,6 +199,32 @@ export default async function Page() {
         </section>
 
         <section className="mt-8 space-y-4 text-base leading-relaxed text-subtle">
+          <h2 className="text-xl font-semibold tracking-tight text-ink">
+            What they get and what it costs you are different numbers
+          </h2>
+          <p>
+            It would be easy to read the employer&rsquo;s{" "}
+            {fmtCurrency(pkg.employerShare)} a year as your loss. It is not, and the gap is not
+            small. Because the share is deducted <em>before</em> tax, part of it is funded by tax
+            that is no longer collected rather than out of your pay.
+          </p>
+          <p>
+            Your employer receives{" "}
+            <strong className="text-ink">{fmtCurrency(pkg.employerShare)}</strong> a year. Your
+            take-home falls by{" "}
+            <strong className="text-ink">{fmtCurrency(pkg.employerShareNetCost)}</strong>. The
+            remaining{" "}
+            {fmtCurrency(pkg.employerShare - pkg.employerShareNetCost)} is paid by nobody — it is
+            revenue the Commonwealth does not raise. Over {years} years the arrangement moves{" "}
+            {fmtCurrency(shared.term.employerShare)} to your employer and costs you{" "}
+            <strong className="text-ink">{fmtCurrency(shared.term.employerShareNetCost)}</strong>.
+          </p>
+          <p>
+            That is worth being precise about in both directions. It is a smaller loss than the
+            headline suggests — and it is still a loss, taken from a benefit that was described
+            to you as yours.
+          </p>
+
           <h2 className="text-xl font-semibold tracking-tight text-ink">
             Why the share is bigger than half of what the lease saves
           </h2>

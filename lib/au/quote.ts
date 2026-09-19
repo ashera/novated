@@ -518,7 +518,12 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
    * is roughly twice a gap already on the page and so discloses nothing the
    * reader could not have worked out.
    */
-  let employerShareGuess: { pct: number; annual: number; taxSaved: number } | null = null;
+  let employerShareGuess: {
+    pct: number;
+    annual: number;
+    taxSaved: number;
+    costsYou: number;
+  } | null = null;
   if (
     reconciliationGap != null &&
     reconciliationGap > 50 &&
@@ -534,7 +539,23 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     const relieved = marginalRelief(quote.salary, annualStatedDeduction, config).taxSaved;
     const asPct = relieved > 0 ? (reconciliationGap / relieved) * 100 : 0;
     if (!explainedByLca && asPct >= 44 && asPct <= 56) {
-      employerShareGuess = { pct: asPct, annual: reconciliationGap, taxSaved: relieved };
+      /*
+       * What it costs, which is not what it takes.
+       *
+       * The share sits before tax, so part of it is funded by tax no longer
+       * collected rather than out of the reader's pay. Quoting the employer's
+       * figure as the reader's loss overstates it by about a third — and a
+       * page that exists to catch a provider overstating a saving does not
+       * get to overstate a cost.
+       */
+      const withoutIt = marginalRelief(quote.salary, annualPackageTotal, config).taxSaved;
+      const costsYou = reconciliationGap - (relieved - withoutIt);
+      employerShareGuess = {
+        pct: asPct,
+        annual: reconciliationGap,
+        taxSaved: relieved,
+        costsYou,
+      };
     }
   }
 
@@ -1050,7 +1071,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
   }
 
   if (employerShareGuess) {
-    const { pct: sharePct, annual, taxSaved } = employerShareGuess;
+    const { pct: sharePct, annual, taxSaved, costsYou } = employerShareGuess;
     const years = quote.termMonths / 12;
     // Half is the common arrangement, so a fit near it is worth saying out
     // loud; further away, the same mechanism is still the likeliest
@@ -1061,8 +1082,8 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
       severity: "warn",
       category: "Adds up?",
       title: `${money(annual)} a year of your deduction isn't paying for the car`,
-      detail: `The inclusions you listed come to ${money(annualPackageTotal)} a year, but ${money(annualStatedDeduction!)} is coming out of your pay — a difference of ${money(annual)}. This packaging relieves about ${money(taxSaved)} of tax a year, and the difference is ${pct(sharePct)} of exactly that${nearHalf ? " — half, which is the usual arrangement" : ""}. That pattern is an employer keeping a share of the saving: common in public health, ambulance services and universities, where the packaging is run as a scheme and part of the benefit goes back to the employer as a second pre-tax deduction. It is a term of your employment, not something the financier sets or profits from — and over ${years} years it is ${money(annual * years)} of the benefit that does not reach you. Providers quote what you keep, which is accurate, without saying it is a share.`,
-      costOverTerm: annual * years,
+      detail: `The inclusions you listed come to ${money(annualPackageTotal)} a year, but ${money(annualStatedDeduction!)} is coming out of your pay — a difference of ${money(annual)}. This packaging relieves about ${money(taxSaved)} of tax a year, and the difference is ${pct(sharePct)} of exactly that${nearHalf ? " — half, which is the usual arrangement" : ""}. That pattern is an employer keeping a share of the saving: common in public health, ambulance services and universities, where the packaging is run as a scheme and part of the benefit goes back to the employer as a second pre-tax deduction. It is a term of your employment, not something the financier sets or profits from. Because it comes out before tax it costs you less than your employer receives: ${money(costsYou)} a year off your take-home against the ${money(annual)} they get, the difference being tax nobody collects — ${money(costsYou * years)} over ${years} years. Providers quote what you keep, which is accurate, without saying it is a share.`,
+      costOverTerm: costsYou * years,
       question: `My pre-tax deduction is ${money(annualStatedDeduction!)} a year but the itemised inclusions come to ${money(annualPackageTotal)}. Is the difference my employer's share of the tax saving, and what percentage is it?`,
     });
   }
