@@ -34,8 +34,15 @@ import { analyseLog, type LogAnalysis } from "./statementLog";
 export interface PaymentProgress {
   /** Finance payments actually seen in the statement log. */
   made: number;
-  /** What the quote says each one should be, monthly. */
+  /** What the quote says each one should be, monthly, as the quote states it —
+   *  which is ex-GST, the way a deduction is written. */
   expected: number | null;
+  /** The same rental with GST on it, which is what a provider's account is
+   *  usually debited by before crediting the GST back. */
+  expectedIncGst: number | null;
+  /** Which of the two the ledger's debits actually match, once there are any
+   *  to compare. Null where nothing matches either, or nothing is logged. */
+  basis: "ex-gst" | "inc-gst" | null;
   /** Total paid to the financier so far. */
   paidToDate: number;
   /** Payments whose amount is not the quoted one. */
@@ -115,20 +122,47 @@ export function leaseProgress(
    * against the quote, and any that differs is worth a question. Compared in
    * monthly terms because that is what the schedule below is built in, and a
    * quote written fortnightly still amortises monthly.
+   *
+   * GST is why this needs two figures rather than one.
+   *
+   * A quote states the rental the way a deduction is written, which is ex-GST
+   * — and that is the figure the rate is solved from, against an amount
+   * financed that has the GST credit already taken out. A provider's account
+   * is then usually debited the GST-INCLUSIVE rental and credited the GST back
+   * as its own transaction, days or months later. On the real ledger this
+   * built against, that is $1,602.81 out and $145.71 back, exactly a tenth.
+   *
+   * Comparing the debit with the quote directly is therefore comparing two
+   * different things and disagreeing by 10% on every single payment, which is
+   * what it did. Both conventions exist, and nothing on a quote says which one
+   * a provider uses — so a payment counts as right if it matches EITHER, and
+   * the one it matches is reported rather than assumed.
    */
   const expected = decode.monthlyFinancePayment;
+  const expectedIncGst = expected != null ? expected * (1 + config.gst.rate) : null;
   const financeRows = rows.filter((r) => r.kind === "finance" && r.amount < 0);
   const paidToDate = financeRows.reduce((t, r) => t + Math.abs(r.amount), 0);
-  const offQuote =
-    expected != null
-      ? financeRows
-          .filter((r) => Math.abs(Math.abs(r.amount) - expected) > 1)
-          .map((r) => ({ date: r.date, amount: Math.abs(r.amount) }))
-      : [];
+
+  const matches = (paid: number, target: number | null) =>
+    target != null && Math.abs(paid - target) <= 1;
+
+  // Whichever the majority of the debits line up with. Read off the ledger
+  // rather than configured, because it is a fact about the provider and they
+  // do not publish it.
+  const exCount = financeRows.filter((r) => matches(Math.abs(r.amount), expected)).length;
+  const incCount = financeRows.filter((r) => matches(Math.abs(r.amount), expectedIncGst)).length;
+  const basis: "ex-gst" | "inc-gst" | null =
+    exCount === 0 && incCount === 0 ? null : incCount > exCount ? "inc-gst" : "ex-gst";
+
+  const offQuote = financeRows
+    .filter((r) => !matches(Math.abs(r.amount), expected) && !matches(Math.abs(r.amount), expectedIncGst))
+    .map((r) => ({ date: r.date, amount: Math.abs(r.amount) }));
 
   const payments: PaymentProgress = {
     made: financeRows.length,
     expected,
+    expectedIncGst,
+    basis,
     paidToDate,
     offQuote,
     termMonths: spec.termMonths,
@@ -178,16 +212,34 @@ export function leaseProgress(
     });
   }
 
-  if (payments.offQuote.length > 0 && expected != null) {
+  if (payments.offQuote.length > 0 && expected != null && expectedIncGst != null) {
     const first = payments.offQuote[0];
+    // Measured against whichever basis the rest of the ledger uses, so the
+    // difference quoted back is the real one rather than a GST rounding of it.
+    const target = basis === "inc-gst" ? expectedIncGst : expected;
     findings.push({
       key: "payment-off-quote",
       severity: "warn",
       category: "Payments",
       title: `${payments.offQuote.length} payment${payments.offQuote.length === 1 ? "" : "s"} differ from the quote`,
-      detail: `The quote fixes the finance rental at ${cents(expected)} a month. On ${first.date} the ledger shows ${cents(first.amount)}. A fixed rate does not move, so either something else has been bundled into that line, or the payment covers a different period.`,
-      costOverTerm: payments.offQuote.reduce((t, p) => t + Math.abs(p.amount - expected), 0),
-      question: `My rental is ${cents(expected)}, but the payment on ${first.date} was ${cents(first.amount)}. What was the difference for?`,
+      detail: `The quote fixes the finance rental at ${cents(expected)} a month, which is ${cents(expectedIncGst)} with GST. On ${first.date} the ledger shows ${cents(first.amount)}, which is neither. A fixed rate does not move, so either something else has been bundled into that line, or the payment covers a different period.`,
+      costOverTerm: payments.offQuote.reduce((t, p) => t + Math.abs(p.amount - target), 0),
+      question: `My rental is ${cents(expected)} plus GST. The payment on ${first.date} was ${cents(first.amount)}. What was the difference for?`,
+    });
+  }
+
+  /*
+   * Where the debits are GST-inclusive, say so once rather than leaving the
+   * card and the ledger disagreeing by ten per cent with no explanation.
+   */
+  if (basis === "inc-gst" && expected != null && expectedIncGst != null) {
+    const gstBack = (expectedIncGst - expected) * payments.made;
+    findings.push({
+      key: "payments-include-gst",
+      severity: "ok",
+      category: "Payments",
+      title: `The ledger is debited ${cents(expectedIncGst)}, not the ${cents(expected)} on the quote`,
+      detail: `Your quote states the rental the way a deduction is written, without GST. The provider's account is debited the GST-inclusive figure and the GST comes back as its own transaction — ${money(gstBack)} so far across ${payments.made} payment${payments.made === 1 ? "" : "s"}. Both figures are right; they are the same rental counted before and after the credit, and the finance has cost you the smaller one.`,
     });
   }
 

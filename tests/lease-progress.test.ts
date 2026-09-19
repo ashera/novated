@@ -117,6 +117,73 @@ describe("Tracking the payments", () => {
     expect(f.question).toMatch(/What was the difference for/);
   });
 
+  /**
+   * GST, which made this fire on every single payment.
+   *
+   * A quote states the rental the way a deduction is written — ex-GST — and
+   * that is the figure the rate is solved from. The provider's account is then
+   * debited the GST-INCLUSIVE rental and the GST comes back as its own
+   * transaction, days or months later: $1,602.81 out, $145.71 back. Comparing
+   * the debit with the quote is comparing two different things, and it
+   * disagreed by exactly 10% every month.
+   */
+  describe("when the ledger is debited GST-inclusive", () => {
+    /** The same lease, with the quote's rental written ex-GST as a quote does. */
+    const exGstQuote = (): Lease => {
+      const l = signedLease();
+      const ex = 1_602.81 / 1.1;
+      l.quotes[0].lines = { finance: ex };
+      return l;
+    };
+
+    it("does not call a GST-inclusive debit a mismatch", () => {
+      const p = leaseProgress(exGstQuote(), config, TODAY);
+      expect(p.payments!.offQuote).toEqual([]);
+      expect(p.findings.map((f) => f.key)).not.toContain("payment-off-quote");
+    });
+
+    it("reports which basis the ledger actually uses", () => {
+      expect(leaseProgress(exGstQuote(), config, TODAY).payments!.basis).toBe("inc-gst");
+      // And the other way round, where a provider debits the quoted figure.
+      expect(leaseProgress(signedLease(), config, TODAY).payments!.basis).toBe("ex-gst");
+    });
+
+    it("carries both figures, so a card and a ledger can agree", () => {
+      const p = leaseProgress(exGstQuote(), config, TODAY).payments!;
+      expect(p.expected).toBeCloseTo(1_602.81 / 1.1, 2);
+      expect(p.expectedIncGst).toBeCloseTo(1_602.81, 2);
+    });
+
+    it("explains the difference once rather than flagging it every month", () => {
+      const f = leaseProgress(exGstQuote(), config, TODAY).findings.find(
+        (x) => x.key === "payments-include-gst",
+      )!;
+      expect(f.severity).toBe("ok");
+      expect(f.detail).toMatch(/comes back as its own transaction/);
+      expect(f.detail).toMatch(/Both figures are right/);
+    });
+
+    it("says nothing about GST where the debits match the quote as written", () => {
+      const keys = leaseProgress(signedLease(), config, TODAY).findings.map((f) => f.key);
+      expect(keys).not.toContain("payments-include-gst");
+    });
+
+    /** A payment matching neither is still a real mismatch. */
+    it("still catches a payment that is neither figure", () => {
+      const l = exGstQuote();
+      l.statement = l.statement!.map((r) =>
+        r.kind === "finance" && r.date === "2026-08-14" ? { ...r, amount: -1_900 } : r,
+      );
+      const p = leaseProgress(l, config, TODAY);
+      expect(p.payments!.offQuote).toHaveLength(1);
+      const f = p.findings.find((x) => x.key === "payment-off-quote")!;
+      // Names both, so the reader can see it is neither rather than wonder
+      // which one we meant.
+      expect(f.detail).toMatch(/which is \$1,602\.81 with GST/);
+      expect(f.detail).toMatch(/which is neither/);
+    });
+  });
+
   it("notices payments that should have been taken and are not logged", () => {
     // Commenced a year before the ledger starts, so most rentals are missing.
     const lease = signedLease({ commencedOn: "2025-09-01" });

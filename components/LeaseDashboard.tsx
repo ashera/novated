@@ -202,10 +202,24 @@ export default function LeaseDashboard({
                 note={`${payments.made} of ${payments.termMonths} payments`}
                 strong
               />
+              {/* The figure the ledger actually shows, where those differ.
+                  A card reading $1,457 beside a ledger reading $1,602.81 is
+                  two numbers for one rental with nothing saying so — and the
+                  GST comes back as its own line further down the same ledger. */}
               <Figure
                 label="Each month"
-                value={payments.expected != null ? fmtCurrency(payments.expected) : "—"}
-                note="fixed for the term"
+                value={
+                  payments.basis === "inc-gst" && payments.expectedIncGst != null
+                    ? fmtCurrency(payments.expectedIncGst)
+                    : payments.expected != null
+                      ? fmtCurrency(payments.expected)
+                      : "—"
+                }
+                note={
+                  payments.basis === "inc-gst" && payments.expected != null
+                    ? `${fmtCurrency(payments.expected)} once the GST comes back`
+                    : "fixed for the term"
+                }
               />
               <Figure
                 label="Still owing"
