@@ -251,6 +251,9 @@ export interface QuoteDecode {
    * different questions.
    */
   ratePaidOnBorrowingPct: number | null;
+  /** The rate on the money once a disclosed deferral is accounted for. Null
+   *  where none is disclosed, or the figures it needs are missing. */
+  rateAfterDeferralPct: number | null;
   findings: Finding[];
   questions: string[];
 }
@@ -306,6 +309,44 @@ export function derivedAmountFinanced(quote: Quote, config: EngineConfig): numbe
   const driveAway = quote.vehiclePrice + (quote.onRoadCosts ?? 0);
   const creditable = Math.min(quote.vehiclePrice, config.gst.carLimit);
   return driveAway - (creditable - creditable / (1 + config.gst.rate));
+}
+
+/**
+ * The rate on a schedule that starts late.
+ *
+ * Solved rather than read off, because a deferral compounds at the very rate
+ * being solved for — the principal it grows depends on the answer. The payment
+ * still rises monotonically with the rate, so bisection settles it; this is
+ * impliedRate's method against the schedule a deferral actually produces.
+ *
+ * Extracted because two places want it: the rate on the borrowing once
+ * disclosed fees are set aside, and the rate on the money once a deferral is
+ * accounted for. Written twice they would drift, and the second copy is how
+ * the first one's fix gets missed.
+ */
+export function rateWithDeferral(
+  principal: number,
+  balloon: number,
+  payment: number,
+  termMonths: number,
+  deferredMonths: number,
+  extendsTerm: boolean,
+): number | null {
+  const payments = extendsTerm ? termMonths : termMonths - deferredMonths;
+  if (!(principal > 0) || !(payment > 0) || payments <= 0) return null;
+
+  const payAt = (x: number) =>
+    annuityPayment(principal * Math.pow(1 + x / 100 / 12, deferredMonths), balloon, x, payments);
+
+  let lo = -5;
+  let hi = 60;
+  if (payAt(hi) < payment || payAt(lo) > payment) return null;
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    if (payAt(mid) < payment) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
 }
 
 export function financeBasis(quote: Quote, config: EngineConfig): FinanceBasis {
@@ -532,31 +573,14 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     const financePart = monthlyFinance - annualise(explainedPerPayment, f) / 12;
     const principal = amountFinanced + explainedFinanced;
     if (deferred > 0) {
-      /*
-       * Solved rather than read off, because the deferral compounds at the
-       * very rate being solved for — the principal it grows depends on the
-       * answer. The payment rises monotonically with the rate either way, so
-       * bisection still settles it; this is impliedRate's method with the
-       * schedule the deferral actually produces.
-       */
-      const payments = quote.deferralExtendsTerm ? quote.termMonths : quote.termMonths - deferred;
-      const payAt = (x: number) =>
-        annuityPayment(
-          principal * Math.pow(1 + x / 100 / 12, deferred),
-          residualExGst,
-          x,
-          payments,
-        );
-      let lo = -5;
-      let hi = 60;
-      if (financePart > 0 && payments > 0 && payAt(hi) >= financePart && payAt(lo) <= financePart) {
-        for (let i = 0; i < 200; i++) {
-          const mid = (lo + hi) / 2;
-          if (payAt(mid) < financePart) lo = mid;
-          else hi = mid;
-        }
-        ratePaidOnBorrowingPct = (lo + hi) / 2;
-      }
+      ratePaidOnBorrowingPct = rateWithDeferral(
+        principal,
+        residualExGst,
+        financePart,
+        quote.termMonths,
+        deferred,
+        Boolean(quote.deferralExtendsTerm),
+      );
     } else {
       ratePaidOnBorrowingPct = impliedRate(
         principal,
@@ -596,6 +620,31 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
       }. If that is not how theirs is written, the figure moves.`
     );
   };
+
+  /*
+   * What the deferral alone does to the rate.
+   *
+   * The solved rate is the all-in one: it asks what a lender charging nothing
+   * but interest would have to charge to produce this payment, and a deferral
+   * inflates that because the money was out for months before anything came
+   * back. That is not margin, and it is printed on the quote — "Months
+   * deferred: 2" — so it can be taken out and the difference shown.
+   *
+   * Deliberately outside the reconciliation. That machinery needs a rate the
+   * provider stated, and real quotes disclose the deferral and not the rate,
+   * so tying the two together left the commonest case doing nothing at all.
+   */
+  let rateAfterDeferralPct: number | null = null;
+  if (deferred > 0 && amountFinanced != null && residualExGst != null && monthlyFinance != null) {
+    rateAfterDeferralPct = rateWithDeferral(
+      amountFinanced,
+      residualExGst,
+      monthlyFinance,
+      quote.termMonths,
+      deferred,
+      Boolean(quote.deferralExtendsTerm),
+    );
+  }
 
   // ── Findings ─────────────────────────────────────────────────────────────
 
@@ -874,6 +923,17 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
   }
 
   // Do the itemised lines actually add up to the deduction they state?
+  if (rateAfterDeferralPct != null && rate != null && rate - rateAfterDeferralPct > 0.05) {
+    findings.push({
+      key: "deferral-explains-part-of-the-rate",
+      severity: "ok",
+      category: "Rate",
+      title: `The ${deferred}-month deferral accounts for ${pct(rate - rateAfterDeferralPct)} of that rate`,
+      detail: `Nothing is repaid for the first ${deferred} month${deferred === 1 ? "" : "s"}, so interest accrues on the whole balance before a single payment lands — and solving the payment as though repayment started on day one attributes that to the rate. Taking it out, the money itself is at ${pct(rateAfterDeferralPct)} rather than ${pct(rate)}${quote.deferralExtendsTerm ? ", on a lease running the deferral's length longer" : ", on a lease still ending on its original date"}. Both are real: ${pct(rate)} is what the payment costs you, ${pct(rateAfterDeferralPct)} is what the financier is charging. Worth confirming which structure it is, because the other one moves this figure.`,
+      question: `Your quote defers ${deferred} months. Does the lease still end on its original date, or does it run ${deferred} months longer?`,
+    });
+  }
+
   if (reconciliationGap != null && Math.abs(reconciliationGap) > 50) {
     // Said in the quote's own period, because that is the figure they typed
     // and the one printed on the document beside them.
@@ -1011,6 +1071,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     statedRateGap,
     reconciliation,
     ratePaidOnBorrowingPct,
+    rateAfterDeferralPct,
     findings,
     questions: findings.map((x) => x.question).filter((q): q is string => Boolean(q)),
   };

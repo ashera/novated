@@ -731,8 +731,8 @@ export default function QuoteDecoder({
                     </p>
                     <p className="mt-1.5 text-[11px] leading-snug text-muted">
                       A fee added to what you borrow is not the same as one inside each payment,
-                      so they go in separately. A deferral isn&apos;t either — it changes the
-                      schedule rather than an amount.
+                      so they go in separately. If they said it was the deferral, that goes under
+                      the term above.
                     </p>
                     <div className="mt-3 space-y-3">
                       <QuoteField
@@ -749,57 +749,6 @@ export default function QuoteDecoder({
                         placeholder="0"
                         hint={`Per ${freqWord} — an insurance or warranty bundled into the finance line.`}
                       />
-                      {/* The commonest verbal answer to "why is it more than
-                          your rate?", and the only one that costs them nothing
-                          to say. It is usually true and it is bounded, which
-                          together are what make it worth testing rather than
-                          accepting. */}
-                      <QuoteField
-                        label="Months deferred before the first payment"
-                        prefix={null}
-                        suffix="months"
-                        value={quote.deferredMonths}
-                        onChange={(v) => set("deferredMonths", v)}
-                        placeholder="0"
-                        hint="Often two, while payroll sets the deductions up. Interest runs from the day they pay the dealer."
-                      />
-                      {(quote.deferredMonths ?? 0) > 0 && (
-                        <fieldset>
-                          <legend className="text-xs font-semibold text-ink">
-                            Does the lease still end on the same date?
-                          </legend>
-                          {/* The question that decides how much the deferral
-                              is worth, and the one nobody volunteers. Holding
-                              the end date costs two payments; moving it costs
-                              two months' interest. On five years at 9.5% that
-                              is the difference between +4.3% and +1.9%. */}
-                          <p className="mt-1 text-[11px] leading-snug text-muted">
-                            It changes the answer by more than most fees do, so it is worth
-                            asking. If they haven&apos;t said, the first is the usual
-                            arrangement.
-                          </p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {[
-                              [false, "Same end date"],
-                              [true, `Runs ${quote.deferredMonths} months longer`],
-                            ].map(([value, label]) => (
-                              <button
-                                key={String(value)}
-                                type="button"
-                                onClick={() => set("deferralExtendsTerm", value as boolean)}
-                                aria-pressed={Boolean(quote.deferralExtendsTerm) === value}
-                                className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold transition ${
-                                  Boolean(quote.deferralExtendsTerm) === value
-                                    ? "border-accent bg-accent-subtle text-accent"
-                                    : "border-line bg-panel text-subtle hover:text-ink"
-                                }`}
-                              >
-                                {label as string}
-                              </button>
-                            ))}
-                          </div>
-                        </fieldset>
-                      )}
                     </div>
                   </div>
                 )}
@@ -828,6 +777,64 @@ export default function QuoteDecoder({
                       : undefined
                   }
                 />
+
+                {/* A fact about the schedule, so it sits with the term.
+
+                    It used to appear only inside "Asked them what's in it?",
+                    which opens when a quote's own stated rate disagrees with
+                    what it charges — so a quote that prints "Months deferred:
+                    2" and no rate, which is exactly what the real ones do, had
+                    nowhere to put it. A deferral is not an explanation offered
+                    after an argument; it is a term of the lease, printed on the
+                    document beside the term itself. */}
+                <QuoteField
+                  readOnly={readOnly}
+                  label="Months deferred before the first payment"
+                  alsoCalled={["Months Deferred", "Deferred Payments"]}
+                  prefix={null}
+                  suffix="months"
+                  value={quote.deferredMonths}
+                  onChange={(v) => set("deferredMonths", v)}
+                  placeholder="0"
+                  hint="Often two, while payroll sets the deductions up. Interest runs from the day they pay the dealer, so a deferral raises the payment."
+                />
+
+                {(quote.deferredMonths ?? 0) > 0 && !readOnly && (
+                  <fieldset>
+                    <legend className="text-xs font-semibold text-ink">
+                      Does the lease still end on the same date?
+                    </legend>
+                    {/* The question that decides how much the deferral is
+                        worth, and the one nobody volunteers. Holding the end
+                        date costs two payments; moving it costs two months'
+                        interest. On five years at 9.5% that is the difference
+                        between +4.3% and +1.9%. */}
+                    <p className="mt-1 text-[11px] leading-snug text-muted">
+                      It changes the answer by more than most fees do, so it is worth asking. If
+                      they haven&apos;t said, the first is the usual arrangement.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {[
+                        [false, "Same end date"],
+                        [true, `Runs ${quote.deferredMonths} months longer`],
+                      ].map(([value, label]) => (
+                        <button
+                          key={String(value)}
+                          type="button"
+                          onClick={() => set("deferralExtendsTerm", value as boolean)}
+                          aria-pressed={Boolean(quote.deferralExtendsTerm) === value}
+                          className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold transition ${
+                            Boolean(quote.deferralExtendsTerm) === value
+                              ? "border-accent bg-accent-subtle text-accent"
+                              : "border-line bg-panel text-subtle hover:text-ink"
+                          }`}
+                        >
+                          {label as string}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                )}
               </div>
             </section>
 

@@ -195,3 +195,74 @@ describe("It survives being stored", () => {
     expect(back.deferralExtendsTerm).toBe(true);
   });
 });
+
+/**
+ * A deferral on its own, with no rate stated to reconcile against.
+ *
+ * The reconciliation needs a rate the provider claimed, and real quotes
+ * disclose the deferral and not the rate — "Months deferred: 2" printed
+ * beside the term, nothing about interest anywhere. Tying the two together
+ * meant the commonest case did nothing at all: somebody typed the 2 off their
+ * document and no figure on the page moved.
+ */
+describe("What a disclosed deferral does to the solved rate", () => {
+  /** The real quote it was checked against: $965.76 a month, 60 months, two
+   *  deferred, no rate anywhere on the document. */
+  const real = (over: Partial<Quote> = {}): Quote => ({
+    frequency: "monthly",
+    fuelType: "electric",
+    termMonths: 60,
+    vehiclePrice: 57_196,
+    amountFinanced: 54_000.36,
+    residualIncGst: 16_709.33,
+    lines: { finance: 965.76 },
+    salary: 110_000,
+    ...over,
+  });
+
+  it("says nothing when no deferral is disclosed", () => {
+    const d = decodeQuote(real(), config);
+    expect(d.rateAfterDeferralPct).toBeNull();
+    expect(d.findings.some((f) => f.key === "deferral-explains-part-of-the-rate")).toBe(false);
+  });
+
+  it("works with no stated rate at all, which is the case that matters", () => {
+    const d = decodeQuote(real({ deferredMonths: 2 }), config);
+    expect(d.statedRatePct).toBeNull();
+    expect(d.reconciliation).toBeNull();
+    // And still says something useful.
+    expect(d.rateAfterDeferralPct).toBeCloseTo(9.2, 1);
+  });
+
+  /** The two structures are worth very different amounts, and which one it is
+   *  is the question the finding sends back. */
+  it("prices both structures", () => {
+    expect(decodeQuote(real({ deferredMonths: 2 }), config).rateAfterDeferralPct).toBeCloseTo(9.2, 1);
+    expect(
+      decodeQuote(real({ deferredMonths: 2, deferralExtendsTerm: true }), config)
+        .rateAfterDeferralPct,
+    ).toBeCloseTo(9.86, 1);
+  });
+
+  it("leaves the all-in rate alone — it is what the payment costs", () => {
+    for (const over of [{}, { deferredMonths: 2 }, { deferredMonths: 2, deferralExtendsTerm: true }]) {
+      expect(decodeQuote(real(over), config).impliedRatePct).toBeCloseTo(10.46, 1);
+    }
+  });
+
+  it("names both rates and says what each one is", () => {
+    const f = decodeQuote(real({ deferredMonths: 2 }), config).findings.find(
+      (x) => x.key === "deferral-explains-part-of-the-rate",
+    )!;
+    expect(f.severity).toBe("ok");
+    expect(f.detail).toMatch(/what the payment costs you/);
+    expect(f.detail).toMatch(/what the financier is charging/);
+    expect(f.question).toMatch(/end on its original date/);
+  });
+
+  // A deferral that explains nothing is not worth a finding.
+  it("stays quiet where it makes no difference", () => {
+    const d = decodeQuote(real({ deferredMonths: 0 }), config);
+    expect(d.findings.some((f) => f.key === "deferral-explains-part-of-the-rate")).toBe(false);
+  });
+});
