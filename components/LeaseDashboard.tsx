@@ -119,8 +119,14 @@ export default function LeaseDashboard({
      ones already there. They answer different questions and both are wanted
      often enough that neither should be a page away — and showing both at once
      puts a forty-row table between somebody and the box they came to paste
-     into. */
-  const [panel, setPanel] = useState<"none" | "add" | "rows">("none");
+     into.
+  
+     Opens on the rows. A ledger somebody has built is a thing to read, and
+     hiding it behind a toggle asked them to click to see what they already
+     knew was there. Adding is the occasional act; looking is the frequent one.
+     Either toggle still collapses to nothing when the charts are what is
+     wanted. */
+  const [panel, setPanel] = useState<"none" | "add" | "rows">("rows");
   const progress = useMemo(() => leaseProgress(lease, config), [lease, config]);
   const log = useMemo(() => lease.statement ?? [], [lease.statement]);
   const months = useMemo(() => byMonth(log), [log]);
@@ -287,7 +293,14 @@ export default function LeaseDashboard({
         </div>
 
         {log.length === 0 ? (
-          <StatementPaste log={log} onMerge={(rows) => onAddRows(rows)} sample={SAMPLE}>
+          <StatementPaste
+            log={log}
+            onMerge={(rows) => {
+              onAddRows(rows);
+              setPanel("rows");
+            }}
+            sample={SAMPLE}
+          >
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-subtle">
               Your provider holds an account with your money in it and pays the car&apos;s bills
               out of it. Open their portal, select the transactions and paste them here — any
@@ -304,7 +317,15 @@ export default function LeaseDashboard({
               {reserve && ` · ${fmtCurrency(reserve.contributed)} out of your pay so far`}
             </p>
             {panel === "add" && (
-              <StatementPaste log={log} onMerge={(rows) => onAddRows(rows)}>
+              <StatementPaste
+                log={log}
+                onMerge={(rows) => {
+                  onAddRows(rows);
+                  // Straight to the rows, so the answer to "did that work?" is
+                  // the ledger itself rather than a sentence about it.
+                  setPanel("rows");
+                }}
+              >
                 <p className="mt-3 text-xs text-muted">
                   Paste the next window from the portal. Anything already here is recognised and
                   left alone, so overlapping pages are fine.
