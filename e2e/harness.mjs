@@ -18,7 +18,7 @@
  * need, or be able to use, admin rights.
  */
 
-import { chromium, devices } from "playwright";
+import { chromium, webkit, devices } from "playwright";
 import pg from "pg";
 
 export const BASE = (process.env.E2E_BASE_URL ?? "").replace(/\/$/, "");
@@ -117,6 +117,33 @@ export async function phonePage(browser) {
   const page = await ctx.newPage();
   page.setDefaultTimeout(20_000);
   return page;
+}
+
+/**
+ * A phone running Safari's engine, not Chromium wearing an iPhone's
+ * user-agent.
+ *
+ * The difference is not academic, and this project has now paid for learning
+ * it twice. Safari fires pointerdown and pointerup with pointerType "touch"
+ * and then fires the CLICK with pointerType "mouse"; Chromium says "touch"
+ * throughout. Code that reads the type off the click therefore works
+ * everywhere except the browser most Australians open a link in — and a
+ * Chromium-based mobile spec reports it green.
+ *
+ * Anything whose behaviour turns on touch versus mouse belongs here. The
+ * caller closes the browser it is given.
+ */
+export async function launchWebkit() {
+  const headed = process.argv.includes("--headed");
+  return webkit.launch({ headless: !headed, slowMo: headed ? 250 : 0 });
+}
+
+export async function safariPhonePage() {
+  const browser = await launchWebkit();
+  const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(20_000);
+  return { browser, page };
 }
 
 /**

@@ -37,6 +37,19 @@ import { useEffect, useId, useRef, useState } from "react";
  * 44px box centred on the icon, added as a pseudo-element so the icon stays
  * the size it is drawn and nothing in the line around it moves.
  *
+ * And it STILL did not open, on Safari only, for the reason the
+ * mouse-versus-touch guard below was written to handle. Safari fires
+ * pointerdown and pointerup with pointerType "touch", correctly — and then
+ * fires the click with pointerType "mouse". Reading the type off the click
+ * therefore classified every tap on an iPhone as a mouse click and returned
+ * without toggling. Chromium reports "touch" there, which is why every test
+ * written against it passed while the thing remained broken in a hand.
+ *
+ * So the type is taken from pointerdown, which is the event that tells the
+ * truth, and remembered for the click that follows. A keyboard activation
+ * fires no pointerdown at all, so the remembered value is empty and the toggle
+ * runs — which is what a keyboard wants.
+ *
  * The tooltip is also clamped to the viewport. Centred under a 16px icon, a
  * 224px panel hangs 112px either side — which runs off the screen whenever the
  * icon sits near an edge, and an explanation half off the page is the same
@@ -51,6 +64,9 @@ export default function InfoTip({ text, className = "" }: { text: string; classN
   const id = useId();
   const wrap = useRef<HTMLSpanElement>(null);
   const tip = useRef<HTMLSpanElement>(null);
+  /** What kind of pointer started the current interaction. Empty for the
+   *  keyboard, which fires no pointer events before its click. */
+  const via = useRef("");
 
   /*
    * Measured on open, with the shift reset to zero first so the reading is of
@@ -98,13 +114,21 @@ export default function InfoTip({ text, className = "" }: { text: string; classN
         aria-label="More information"
         aria-expanded={open}
         aria-describedby={id}
-        onClick={(e) => {
+        // Recorded here and not read off the click, because Safari reports the
+        // click as a mouse event even when a finger caused it. This is the
+        // event that says "touch" on a phone.
+        onPointerDown={(e) => {
+          via.current = e.pointerType;
+        }}
+        onClick={() => {
           // A mouse click arrives on something hover has already opened, so
           // toggling there closes what the pointer is still pointing at —
           // "I clicked the info icon and the info went away". Hover governs
-          // the mouse; the toggle is for touch and for the keyboard, where
-          // pointerType is empty.
-          if ((e.nativeEvent as PointerEvent).pointerType === "mouse") return;
+          // the mouse; the toggle is for touch and for the keyboard, which
+          // reaches here with nothing recorded.
+          const mouse = via.current === "mouse";
+          via.current = "";
+          if (mouse) return;
           setOpen((o) => !o);
         }}
         // Keyboard focus should reveal it; the focus a tap leaves behind
