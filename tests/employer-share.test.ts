@@ -3,6 +3,7 @@ import { DEFAULT_CONFIG } from "@/lib/au/config";
 import { calculateLease, defaultInputs, type LeaseInputs } from "@/lib/au/novated";
 import { marginalRelief } from "@/lib/au/tax";
 import { leaseToInputs, newLease, type Lease } from "@/lib/au/lease";
+import { decodeQuote, type Quote } from "@/lib/au/quote";
 
 const config = DEFAULT_CONFIG;
 
@@ -161,5 +162,105 @@ describe("An employer's share of the saving", () => {
     );
     expect(Number.isFinite(r.package.employerShare)).toBe(true);
     expect(r.package.employerShare).toBeGreaterThanOrEqual(0);
+  });
+});
+
+/**
+ * Spotting one on a quote that never names it.
+ *
+ * The arrangement is rarely itemised. The inclusions list the car's costs, the
+ * deduction coming out of pay is bigger, and nothing explains the difference —
+ * which until now read as "the numbers don't add up", true but not useful.
+ *
+ * The signal is that the excess is a round share of the tax the deduction
+ * actually relieves. That is a far more specific coincidence than a gap, and
+ * it is what lets the finding name a cause instead of an absence.
+ */
+describe("Recognising one on a quote", () => {
+  /** The real quote: inclusions $717.96 a fortnight, but $862.72 leaves the
+   *  pay packet — $717.96 of lease and $144.76 of share. */
+  const real = (over: Partial<Quote> = {}): Quote => ({
+    frequency: "fortnightly",
+    fuelType: "electric",
+    termMonths: 36,
+    vehiclePrice: 62_200,
+    amountFinanced: 60_035.45,
+    residualIncGst: 30_959.08,
+    salary: 140_000,
+    annualKm: 7_000,
+    statedPreTax: 862.72,
+    lines: {
+      finance: 599.46,
+      managementFee: 3.0,
+      registration: 38.46,
+      tyres: 6.73,
+      maintenance: 11.54,
+      insurance: 58.77,
+    },
+    ...over,
+  });
+
+  const found = (q: Quote) =>
+    decodeQuote(q, config).findings.find((f) => f.key === "employer-share-of-saving");
+
+  it("names the cause where the excess is half the relief", () => {
+    const f = found(real())!;
+    expect(f).toBeTruthy();
+    expect(f.detail).toMatch(/half, which is the usual arrangement/);
+    expect(f.detail).toMatch(/public health/i);
+    expect(f.question).toMatch(/what percentage is it/i);
+  });
+
+  /** Priced, because it is a real cost over a real term. */
+  it("prices what it costs over the term", () => {
+    expect(found(real())!.costOverTerm).toBeCloseTo(11_291, -2);
+  });
+
+  /** It replaces the vaguer finding rather than sitting beside it — two
+   *  findings about one gap, one saying it is unexplained, is worse than
+   *  either alone. */
+  it("stands the generic reconciliation down", () => {
+    const keys = decodeQuote(real(), config).findings.map((f) => f.key);
+    expect(keys).toContain("employer-share-of-saving");
+    expect(keys).not.toContain("reconciliation");
+  });
+
+  it("says nothing when the deduction matches the inclusions", () => {
+    expect(found(real({ statedPreTax: 717.96 }))).toBeUndefined();
+  });
+
+  /** Without a salary there is no relief to be a share OF, so there is no
+   *  hypothesis — only the honest gap. */
+  it("says nothing without a salary to measure against", () => {
+    const q = real({ salary: undefined });
+    expect(found(q)).toBeUndefined();
+    expect(decodeQuote(q, config).findings.map((f) => f.key)).toContain("reconciliation");
+  });
+
+  /**
+   * The discipline that makes it worth having. A gap that is merely SOME
+   * fraction of the relief is every quote that doesn't add up; claiming this
+   * mechanism for those would tell readers their employer is taking money
+   * when a financed insurance explains it.
+   */
+  it("does not claim a gap that is not an even split", () => {
+    for (const preTax of [760, 800, 1_050, 1_400]) {
+      expect(found(real({ statedPreTax: preTax }))).toBeUndefined();
+    }
+  });
+
+  it("leaves a gap the luxury car adjustment explains alone", () => {
+    // A car well over the limit, with a gap the size of the adjustment.
+    const q = real({ vehiclePrice: 130_000, amountFinanced: 125_000, salary: 250_000 });
+    const f = found(q);
+    if (f) expect(f.detail).not.toMatch(/luxury/i);
+  });
+
+  // It is a term of employment, not a financier's doing, and must not read as
+  // an accusation against either.
+  it("does not accuse the provider of it", () => {
+    const f = found(real())!;
+    expect(f.detail).toMatch(/not something the financier sets/i);
+    expect(`${f.title} ${f.detail}`).not.toMatch(/\b(scam|hidden fee|dishonest|deceptive)\b/i);
   });
 });

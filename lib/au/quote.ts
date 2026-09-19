@@ -14,6 +14,7 @@
 // opinion — see EngineConfig.benchmarks and lib/au/sources.ts.
 
 import type { AuState, EngineConfig } from "./config";
+import { marginalRelief } from "./tax";
 import { fbtProRataFactor, fbtYearFor, daysAvailableInFirstFbtYear } from "./fbtYear";
 import {
   annuityPayment,
@@ -458,12 +459,77 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
   }
   const annualPackageTotal = Object.values(annualLines).reduce((a, b) => a + b, 0);
 
+  /* The financed figure the luxury car test needs, as far as it is known here
+   * — the solve proper happens below, and this must not reorder it. */
+  const amountFinancedForLca =
+    quote.amountFinanced ?? (quote.vehiclePrice != null ? quote.vehiclePrice : null);
+
   const annualStatedDeduction =
     quote.statedPreTax != null || quote.statedPostTax != null
       ? annualise((quote.statedPreTax ?? 0) + (quote.statedPostTax ?? 0), f)
       : null;
   const reconciliationGap =
     annualStatedDeduction != null ? annualStatedDeduction - annualPackageTotal : null;
+
+  /*
+   * A gap that looks like an employer keeping part of the saving.
+   *
+   * Public health services, ambulance services and universities commonly run
+   * the packaging as a scheme and take a share — usually half — of the tax
+   * benefit it creates. On a payslip it is a second pre-tax line beside the
+   * lease, often called "share of saving". On a quote it is frequently not
+   * itemised at all: the inclusions list the car's costs, the deduction is
+   * bigger, and nothing says why.
+   *
+   * Which is exactly the shape this looks for. The excess is measured against
+   * the tax the whole deduction actually relieves, because that is what a
+   * share is a share OF — and a fraction of the relief landing in a plausible
+   * band is a far more specific signal than "the numbers don't add up".
+   *
+   * Reported from a real quote: inclusions of $717.96 a fortnight against a
+   * deduction of $862.72, the $144.76 difference being precisely half the
+   * $289.53 of tax the packaging saved.
+   *
+   * The band is deliberately narrow, and that is the whole design.
+   *
+   * Any unexplained gap is SOME fraction of the relief, so a wide band claims
+   * this mechanism for every quote that simply doesn't add up — which is both
+   * wrong and worse than the honest "nothing explains the difference" the
+   * generic finding already gives. Written wide, it fired on five existing
+   * fixtures that have nothing to do with employers at all.
+   *
+   * So it looks only for the arrangement that actually exists at scale: an
+   * even split. The public health schemes this comes from take half, and a
+   * gap landing within a few points of exactly half the relief is a specific
+   * enough coincidence to be worth naming. A quarter-share would be missed —
+   * and that is the right trade, because the generic finding still fires and
+   * still asks the right question. A missed detection costs a reader one
+   * sharper sentence; a false one tells them their employer is taking money
+   * that a financed insurance actually explains.
+   *
+   * A luxury car adjustment is excluded first for the same reason: it is a
+   * known cause of exactly this gap, and it has a real figure behind it
+   * rather than a fitted one.
+   */
+  let employerShareGuess: { pct: number; annual: number; taxSaved: number } | null = null;
+  if (
+    reconciliationGap != null &&
+    reconciliationGap > 50 &&
+    annualStatedDeduction != null &&
+    quote.salary != null &&
+    quote.salary > 0
+  ) {
+    const lca =
+      quote.lines.luxuryCarAdjustment == null && amountFinancedForLca != null
+        ? luxuryCarAdjustment(amountFinancedForLca, config)
+        : 0;
+    const explainedByLca = lca > 0 && Math.abs(reconciliationGap - lca) < lca * 0.35;
+    const relieved = marginalRelief(quote.salary, annualStatedDeduction, config).taxSaved;
+    const asPct = relieved > 0 ? (reconciliationGap / relieved) * 100 : 0;
+    if (!explainedByLca && asPct >= 44 && asPct <= 56) {
+      employerShareGuess = { pct: asPct, annual: reconciliationGap, taxSaved: relieved };
+    }
+  }
 
   /*
    * What the quote says its rate is, against what its payment actually does.
@@ -976,7 +1042,25 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     });
   }
 
-  if (reconciliationGap != null && Math.abs(reconciliationGap) > 50) {
+  if (employerShareGuess) {
+    const { pct: sharePct, annual, taxSaved } = employerShareGuess;
+    const years = quote.termMonths / 12;
+    // Half is the common arrangement, so a fit near it is worth saying out
+    // loud; further away, the same mechanism is still the likeliest
+    // explanation but the percentage is more of a guess.
+    const nearHalf = Math.abs(sharePct - 50) < 3;
+    findings.push({
+      key: "employer-share-of-saving",
+      severity: "warn",
+      category: "Adds up?",
+      title: `${money(annual)} a year of your deduction isn't paying for the car`,
+      detail: `The inclusions you listed come to ${money(annualPackageTotal)} a year, but ${money(annualStatedDeduction!)} is coming out of your pay — a difference of ${money(annual)}. On a ${money(quote.salary!)} salary this packaging relieves about ${money(taxSaved)} of tax a year, and the difference is ${pct(sharePct)} of exactly that${nearHalf ? " — half, which is the usual arrangement" : ""}. That pattern is an employer keeping a share of the saving: common in public health, ambulance services and universities, where the packaging is run as a scheme and part of the benefit goes back to the employer as a second pre-tax deduction. It is a term of your employment, not something the financier sets or profits from — and over ${years} years it is ${money(annual * years)} of the benefit that does not reach you. Providers quote what you keep, which is accurate, without saying it is a share.`,
+      costOverTerm: annual * years,
+      question: `My pre-tax deduction is ${money(annualStatedDeduction!)} a year but the itemised inclusions come to ${money(annualPackageTotal)}. Is the difference my employer's share of the tax saving, and what percentage is it?`,
+    });
+  }
+
+  if (reconciliationGap != null && Math.abs(reconciliationGap) > 50 && !employerShareGuess) {
     // Said in the quote's own period, because that is the figure they typed
     // and the one printed on the document beside them.
     const perCycle = (quote.statedPreTax ?? 0) + (quote.statedPostTax ?? 0);
