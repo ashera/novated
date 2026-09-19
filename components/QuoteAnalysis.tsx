@@ -242,7 +242,7 @@ export default function QuoteAnalysis({
       <section className="rounded-xl border border-line bg-panel-2 p-5 text-sm leading-relaxed text-subtle">
         <p>
           <strong className="text-ink">This is an analysis, not the quote itself.</strong> It was
-          produced by <Link href="/" className="text-accent hover:underline">LeaseWiz</Link> from
+          produced by <Link href="/" className="text-accent hover:underline">LeaseInspector</Link> from
           the figures somebody typed off a provider&apos;s document, and it is general information
           rather than financial or tax advice. Nothing here is sent to the provider, and the person
           who shared it can revoke this link at any time.

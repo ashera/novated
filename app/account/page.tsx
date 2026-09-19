@@ -11,7 +11,7 @@ export const metadata = { title: "Your account", robots: { index: false } };
 const NOTICES: Record<string, { tone: "ok" | "error"; text: string }> = {
   linked: { tone: "ok", text: "Google connected — you can now sign in with Google." },
   disconnected: { tone: "ok", text: "Google disconnected." },
-  google_in_use: { tone: "error", text: "That Google account is already linked to another LeaseWiz account." },
+  google_in_use: { tone: "error", text: "That Google account is already linked to another LeaseInspector account." },
   no_password: { tone: "error", text: "Set a password first (use “Forgot password”) so you don’t lose access, then disconnect Google." },
   google_cancelled: { tone: "error", text: "Connecting Google was cancelled." },
   google_state: { tone: "error", text: "That link expired — please try again." },
@@ -55,7 +55,7 @@ export default async function AccountPage({
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-5 py-10">
       <div className="rounded-2xl border border-line bg-panel p-8">
-        <Link href="/" className="mb-6 flex justify-center" aria-label="LeaseWiz home">
+        <Link href="/" className="mb-6 flex justify-center" aria-label="LeaseInspector home">
           <Logo className="h-10 w-auto" />
         </Link>
         <h1 className="text-2xl font-bold text-ink">Your account</h1>

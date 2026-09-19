@@ -11,7 +11,7 @@ export default function ForgotPasswordForm() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
       <div className="rounded-2xl border border-line bg-panel p-8">
-        <Link href="/" className="mb-6 flex justify-center" aria-label="LeaseWiz home">
+        <Link href="/" className="mb-6 flex justify-center" aria-label="LeaseInspector home">
           <Logo className="h-12 w-auto" />
         </Link>
 

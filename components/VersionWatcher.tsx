@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { BUILD } from "@/lib/version";
 
-// LeaseWiz is a single-page app, so a tab left open across a deploy keeps running the
+// LeaseInspector is a single-page app, so a tab left open across a deploy keeps running the
 // JS it first loaded — which can show stale numbers (e.g. a budget figure computed by
 // old logic). This polls the deployed build number and, when it's newer than the one
 // baked into this bundle, offers a reload. Checks on an interval and whenever the tab
@@ -45,7 +45,7 @@ export default function VersionWatcher() {
         className="flex items-center gap-3 rounded-full border border-accent/40 bg-panel/95 px-4 py-2.5 text-sm shadow-2xl backdrop-blur"
       >
         <span aria-hidden>✨</span>
-        <span className="text-ink">A new version of LeaseWiz is available.</span>
+        <span className="text-ink">A new version of LeaseInspector is available.</span>
         <button
           onClick={() => window.location.reload()}
           className="rounded-full bg-accent px-3.5 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"

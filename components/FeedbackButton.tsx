@@ -89,7 +89,7 @@ export default function FeedbackButton() {
             {/* Header */}
             <div className="flex items-start justify-between gap-3 border-b border-line px-6 py-4">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-widest text-accent">Help shape LeaseWiz</div>
+                <div className="text-xs font-semibold uppercase tracking-widest text-accent">Help shape LeaseInspector</div>
                 <h2 className="mt-1 text-lg font-bold text-ink">Your feedback</h2>
               </div>
               <button onClick={close} aria-label="Close" className="rounded-lg p-1 text-muted transition hover:bg-panel-2 hover:text-ink">
@@ -102,7 +102,7 @@ export default function FeedbackButton() {
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-2xl">🙏</div>
                 <p className="text-lg font-semibold text-ink">Thank you!</p>
                 <p className="mt-2 text-sm text-muted">
-                  Every note genuinely helps us make LeaseWiz better. We read all of it.
+                  Every note genuinely helps us make LeaseInspector better. We read all of it.
                 </p>
                 <button
                   onClick={close}
@@ -114,7 +114,7 @@ export default function FeedbackButton() {
             ) : (
               <div className="overflow-y-auto px-6 py-5">
                 <p className="text-sm leading-relaxed text-ink">
-                  LeaseWiz is a <strong className="text-ink">new tool that we&apos;re actively building and
+                  LeaseInspector is a <strong className="text-ink">new tool that we&apos;re actively building and
                   improving every day.</strong> If something is confusing, missing, or wrong — or you just
                   have an idea — we&apos;d value your thoughts <em>immensely</em>. It shapes what we build next.
                 </p>

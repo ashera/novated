@@ -6,7 +6,7 @@ import { SITE_URL } from "@/lib/site";
 // reports and accounts, and shared-scenario capability links.
 const DISALLOW = ["/admin", "/report", "/account", "/s/"];
 
-// AI/LLM crawlers we EXPLICITLY welcome, so LeaseWiz can be retrieved and cited by
+// AI/LLM crawlers we EXPLICITLY welcome, so LeaseInspector can be retrieved and cited by
 // generative engines (GEO). The "*" rule already permits them, but naming them makes
 // the intent unambiguous and survives any future tightening of the wildcard.
 const AI_BOTS = [

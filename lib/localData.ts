@@ -13,7 +13,17 @@
  * the naming convention the app already follows.
  */
 
-/** Every key this site writes starts with one of these. */
+/**
+ * Every key this site writes starts with one of these.
+ *
+ * They still say "leasewiz" after the site was renamed to LeaseInspector, and
+ * deliberately so: a storage key is an address, not a label. Renaming these
+ * would orphan every lease already sitting in somebody's browser — the new
+ * code would look under the new prefix, find nothing, and the user would be
+ * told they have no saved leases while the old keys sat there untouched and
+ * unreachable, including by the reset below. The prefix is invisible to
+ * everyone but a developer reading this file; the cost of changing it is not.
+ */
 export const APP_STORAGE_PREFIXES = ["leasewiz-", "lw_"] as const;
 
 export function isAppStorageKey(key: string): boolean {

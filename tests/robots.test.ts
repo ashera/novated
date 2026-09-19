@@ -62,7 +62,7 @@ describe("Search indexing — which host asked", () => {
   it("refuses a host nobody thought to put on a list", () => {
     // The point of testing the canonical rather than a suffix list: the set of
     // addresses that ARE the site has one member, and it can't go stale.
-    expect(shouldIndex("leasewiz.fly.dev", site)).toBe(false);
+    expect(shouldIndex("leaseinspector.fly.dev", site)).toBe(false);
     expect(shouldIndex("staging.leaseinspector.com.au", site)).toBe(false);
     expect(shouldIndex("leaseinspector.com.au.evil.example", site)).toBe(false);
   });

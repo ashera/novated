@@ -1,4 +1,4 @@
-# LeaseWiz — working notes
+# LeaseInspector — working notes
 
 An Australian novated lease explainer and calculator. Read `README.md` first for the
 stack, setup and how the engine is put together; this file covers the conventions that

@@ -4,7 +4,7 @@ import "server-only";
 // logging when RESEND_API_KEY isn't set, so flows are testable in dev / before
 // the provider is configured. Never throws — callers shouldn't fail on email.
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM ?? "LeaseWiz <no-reply@leaseinspector.com.au>";
+const EMAIL_FROM = process.env.EMAIL_FROM ?? "LeaseInspector <no-reply@leaseinspector.com.au>";
 
 export interface EmailMessage {
   to: string;

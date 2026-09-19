@@ -1,4 +1,4 @@
-# LeaseWiz — Australian Novated Lease Explainer & Calculator
+# LeaseInspector — Australian Novated Lease Explainer & Calculator
 
 A Next.js app that explains how a novated lease actually works and models what one
 would cost a particular person: the pre-tax and post-tax split of the salary

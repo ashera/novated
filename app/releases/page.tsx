@@ -6,9 +6,9 @@ import ReleasesList from "@/components/ReleasesList";
 import { listPublishedReleases } from "@/lib/releases";
 import { SITE_URL } from "@/lib/site";
 
-const title = "What’s new — LeaseWiz release notes";
+const title = "What’s new — LeaseInspector release notes";
 const description =
-  "Every update we ship to LeaseWiz, in plain language — new features, improvements and fixes, with dates and versions.";
+  "Every update we ship to LeaseInspector, in plain language — new features, improvements and fixes, with dates and versions.";
 
 export const metadata: Metadata = {
   title,
@@ -23,7 +23,7 @@ export default async function ReleasesPage() {
   return (
     <main className="mx-auto max-w-3xl px-5 py-10">
       <div className="mb-8 flex items-center justify-between gap-3">
-        <Link href="/" aria-label="LeaseWiz home">
+        <Link href="/" aria-label="LeaseInspector home">
           <Logo className="h-10 w-auto" />
         </Link>
         <Link href="/" className="text-sm text-muted hover:text-ink">
@@ -34,7 +34,7 @@ export default async function ReleasesPage() {
       <header className="mb-8">
         <div className="text-sm font-semibold uppercase tracking-widest text-accent">What&apos;s new</div>
         <h1 className="mt-1 text-3xl font-bold text-ink">Release notes</h1>
-        <p className="mt-2 text-muted">Every update we ship to LeaseWiz, in plain language.</p>
+        <p className="mt-2 text-muted">Every update we ship to LeaseInspector, in plain language.</p>
       </header>
 
       <ReleasesList releases={releases} />
