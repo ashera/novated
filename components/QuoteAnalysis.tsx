@@ -291,10 +291,11 @@ export default function QuoteAnalysis({
         <section className="rounded-xl border border-accent-border bg-accent-subtle p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-ink">What would this quote cost you?</h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-subtle">
-            Everything above is priced against the salary of whoever was sent it. On the same car at
-            the same rate your own position can be a long way from theirs — the bracket you are in,
-            whether you are paying off HELP, and whether the electric vehicle exemption applies each
-            move the answer by thousands.
+            The rate and the interest above are facts about the document — they are the same
+            whoever reads it. What the lease would cost <em>you</em> is not on this page at all. A
+            quote carries no salary, so nothing here knows the bracket you are in, whether you are
+            paying off HELP, or whether the electric vehicle exemption changes your position — and
+            each of those moves the answer by thousands.
           </p>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-subtle">
             Take a copy into a workspace of your own. The car and the provider&apos;s figures come
