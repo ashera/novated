@@ -102,16 +102,41 @@ export async function guestPage(browser) {
   return page;
 }
 
-/** A context that has signed in with the test account. */
+/**
+ * A context that has signed in with the test account.
+ *
+ * Reads the page back when it does not leave /login, rather than letting
+ * waitForURL time out. A bad password and a broken login form both look
+ * identical from a timeout — twenty seconds of nothing and a stack trace
+ * pointing at the harness — and the first is a note to the operator while the
+ * second is a bug. The form says which; this repeats what it said.
+ */
 export async function signedInPage(browser) {
   const page = await guestPage(browser);
   await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
   await page.fill('input[name="email"]', EMAIL);
   await page.fill('input[name="password"]', PASSWORD);
-  await Promise.all([
-    page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 20_000 }),
-    page.click('button[type="submit"]'),
-  ]);
+  await page.click('button[type="submit"]');
+  try {
+    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 20_000 });
+  } catch {
+    const said = await page
+      .locator("body")
+      .innerText()
+      .then((t) =>
+        t
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .find((l) => /incorrect|invalid|suspend|required|must be/i.test(l)),
+      )
+      .catch(() => null);
+    await page.context().close();
+    throw new Error(
+      said
+        ? `Sign-in refused: "${said}" — check E2E_EMAIL / E2E_PASSWORD in .env.local.`
+        : "Sign-in never left /login, and the page gave no reason.",
+    );
+  }
   return page;
 }
 

@@ -180,15 +180,24 @@ export default async function run(browser) {
   // ── And the same thing with an account behind it ──────────────────────────
 
   describe("Adopting it while signed in");
-  const signedIn = await signedInPage(browser);
-
   /** Ids held before the adopt, so cleanup can delete exactly what this run
    *  made rather than anything that happens to be recent. */
   let idsBefore = [];
 
+  /*
+   * Signing in happens INSIDE the check, not before it.
+   *
+   * Outside, a refused password throws past the harness and takes the cleanup
+   * with it — which is how the first run of this spec left a seeded lease in
+   * the production database. A bad credential is an ordinary failure to
+   * report, not a reason to abandon rows we created.
+   */
+  let signedIn = null;
+
   await check("writes the copy to the account, not the browser", async () => {
     const before = await db("select id from leases where user_id = $1", [userId]);
     idsBefore = before.rows.map((r) => r.id);
+    signedIn = await signedInPage(browser);
     await signedIn.goto(shareUrl, { waitUntil: "domcontentloaded" });
     await signedIn.waitForSelector("text=What would this quote cost you?");
     await Promise.all([
@@ -205,7 +214,7 @@ export default async function run(browser) {
     );
   });
 
-  await signedIn.context().close();
+  if (signedIn) await signedIn.context().close();
 
   /*
    * Delete exactly what this run made.
