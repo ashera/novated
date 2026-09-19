@@ -240,6 +240,20 @@ export interface LeaseInputs {
    * which is both the default position and the one that costs the employee.
    */
   employerPaysSuperOnPreSacrifice?: boolean;
+  /**
+   * The share of the tax saving the employer keeps, as a percentage.
+   *
+   * Common in public health, ambulance services and universities, where the
+   * packaging is run as a scheme and the employer takes half the benefit it
+   * creates. It appears on a payslip as a second pre-tax line beside the
+   * lease — "Share of Saving" — and nowhere in a provider's headline figures,
+   * which quote what the employee keeps without saying that it is a half.
+   *
+   * Absent or zero means the employee keeps the lot: the ordinary
+   * private-sector arrangement, and what every scenario saved before this
+   * existed was modelled as.
+   */
+  employerSavingSharePct?: number;
 }
 
 export interface AnnualRunningCosts {
@@ -329,8 +343,20 @@ export interface PackageBreakdown {
   preTaxAnnual: number;
   /** Deducted after tax: the ECM contribution (nil for an exempt EV). */
   postTaxAnnual: number;
-  /** Income tax + Medicare + HELP the pre-tax deduction avoids. */
+  /** Income tax + Medicare + HELP the pre-tax deduction avoids.
+   *
+   *  The whole relief, before any employer share is taken out of it — this is
+   *  tax that is genuinely not paid. Who ends up with it is `employerShare`. */
   taxSaved: number;
+  /**
+   * The slice of that saving the employer keeps, as a second pre-tax
+   * deduction. Zero for everybody without such an arrangement.
+   *
+   * Reported rather than netted off `taxSaved`, because the two facts are
+   * different and a reader is entitled to both: this much tax was avoided,
+   * and this much of it went somewhere other than your pocket.
+   */
+  employerShare: number;
   /** The blended rate the pre-tax dollars are relieved at. */
   effectiveReliefRate: number;
   /** True cost to the employee for the year: pre-tax cost after relief, plus
@@ -472,6 +498,8 @@ export interface LeaseResult {
     years: number;
     netCost: number;
     taxSaved: number;
+    /** Of that saving, what the employer kept over the whole term. */
+    employerShare: number;
     /** Net of the GST paid on buying the residual back. */
     gstSaved: number;
     /** Including the GST due on the buyout — what has to be found on the day. */
@@ -1161,16 +1189,52 @@ export function calculateLease(
   const postTaxAnnual = Math.min(fbt.employeeContribution, packagedTotal);
   const preTaxAnnual = Math.max(0, packagedTotal - postTaxAnnual);
 
+  /*
+   * An employer's share of the saving, where there is one.
+   *
+   * Self-referential, and that is not a subtlety that can be skipped. The
+   * share is a percentage of the relief on the lease PLUS the share, because
+   * the share is itself deducted pre-tax and so relieves its own tax. Taking
+   * the percentage off the relief on the lease alone understates it: on the
+   * real payslip this was built against, that shortcut gives $121.62 a
+   * fortnight where the document says $144.76.
+   *
+   * So it is solved rather than approximated. Each pass moves by the relief
+   * rate — about a third — of the last correction, so it converges in a
+   * handful of them; the loop is bounded anyway, because an engine that can
+   * spin is worse than one that is a cent out.
+   */
+  const reliefBefore = { hasHelpDebt: inputs.hasHelpDebt };
+  const reliefAfter = {
+    hasHelpDebt: inputs.hasHelpDebt,
+    repaymentIncomeExtra: fbt.reportableFringeBenefit,
+  };
+  const sharePct = Math.min(Math.max(inputs.employerSavingSharePct ?? 0, 0), 100);
+  let employerShare = 0;
+  if (sharePct > 0 && preTaxAnnual > 0) {
+    for (let i = 0; i < 24; i++) {
+      const next =
+        (sharePct / 100) *
+        marginalRelief(inputs.salary, preTaxAnnual + employerShare, config, reliefBefore, reliefAfter)
+          .taxSaved;
+      if (Math.abs(next - employerShare) < 0.005) {
+        employerShare = next;
+        break;
+      }
+      employerShare = next;
+    }
+  }
+
   // The relief is measured as the real difference the deduction makes, with the
   // reportable fringe benefit applied only to the packaged side: it doesn't
   // exist before the lease does, and it pushes HELP repayment income UP, so
   // applying it to both sides would invent a saving nobody gets.
   const relief = marginalRelief(
     inputs.salary,
-    preTaxAnnual,
+    preTaxAnnual + employerShare,
     config,
-    { hasHelpDebt: inputs.hasHelpDebt },
-    { hasHelpDebt: inputs.hasHelpDebt, repaymentIncomeExtra: fbt.reportableFringeBenefit },
+    reliefBefore,
+    reliefAfter,
   );
 
   const before: TakeHome = relief.before;
@@ -1181,13 +1245,17 @@ export function calculateLease(
   // paid outside the package still have to be paid, so they're added back to
   // keep the comparison honest.
   const outOfPackageRunning = inputs.includeRunningCosts ? 0 : running.total;
+  // The employer's share is money out of the same pay packet as the lease, so
+  // it belongs in the cost of having the car — leaving it out would make a
+  // packaged car look cheaper than the payslip says it is.
   const netAnnualCost =
-    preTaxAnnual - relief.taxSaved + postTaxAnnual + outOfPackageRunning;
+    preTaxAnnual + employerShare - relief.taxSaved + postTaxAnnual + outOfPackageRunning;
 
   const pkg: PackageBreakdown = {
     preTaxAnnual,
     postTaxAnnual,
     taxSaved: relief.taxSaved,
+    employerShare,
     effectiveReliefRate: relief.effectiveRate,
     netAnnualCost,
     takeHomeBefore: before.net,
@@ -1199,6 +1267,23 @@ export function calculateLease(
   const comparison = compareOwnership(inputs, finance, running, netAnnualCost, config);
 
   // --- Sanity checks the UI surfaces as plain-English warnings ---
+  /*
+   * An employer keeping part of the saving, said plainly.
+   *
+   * A warning rather than a card, because it has to reach the calculator, the
+   * report and the share link without being written three times — and because
+   * a reader who has been told a lease saves them a number needs to know that
+   * a share of it is not theirs before they read anything else.
+   *
+   * Providers quote what the employee keeps, which is honest as far as it
+   * goes, and never mention that it is a half. This is the only place the
+   * whole figure and the split appear together.
+   */
+  if (employerShare > 0) {
+    warnings.push(
+      `Your employer keeps ${sharePct}% of the tax saving this lease creates. The packaging saves ${fmt(relief.taxSaved)} of tax a year; ${fmt(employerShare)} of that goes to your employer as a second pre-tax deduction, and you keep ${fmt(relief.taxSaved - employerShare)}. Over ${inputs.termYears} years that is ${fmt(employerShare * inputs.termYears)} of the benefit you don't receive. It is a term of your employer's scheme rather than anything the financier controls, so it is worth confirming the percentage on your own payslip.`,
+    );
+  }
   if (finance.luxuryCarTax > 0) {
     warnings.push(
       `This car is over the luxury car tax threshold, so roughly ${fmt(finance.luxuryCarTax)} of the price you pay is luxury car tax. The GST credit is also capped at the car limit, so not all of the GST comes back.`,
@@ -1363,6 +1448,7 @@ export function calculateLease(
       years: inputs.termYears,
       netCost: netAnnualCost * inputs.termYears + (inputs.establishmentFee ?? config.lease.defaultEstablishmentFee),
       taxSaved: relief.taxSaved * inputs.termYears,
+      employerShare: employerShare * inputs.termYears,
       // Net, not gross. The credit on the car is real, but the part of the car
       // bought back at the end has its GST paid — so a "GST you avoid" figure
       // that counts only the credit is overstating it by that much.

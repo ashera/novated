@@ -112,7 +112,29 @@ export default function PayPacketSplit({ result }: { result: LeaseResult }) {
           <dd className="mt-0.5 text-lg font-semibold tabular-nums text-success-text">
             {fmtCurrency(pkg.taxSaved)}
           </dd>
+          {/* Where an employer keeps part of it, the headline figure above is
+              not what reaches the reader — so the difference is said here
+              rather than left to be discovered on a payslip. */}
+          {pkg.employerShare > 0 && (
+            <p className="mt-1 text-[11px] leading-snug text-muted">
+              you keep{" "}
+              <strong className="text-ink">{fmtCurrency(pkg.taxSaved - pkg.employerShare)}</strong>
+            </p>
+          )}
         </div>
+        {pkg.employerShare > 0 && (
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted">
+              Your employer&apos;s share
+            </dt>
+            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-warning-text">
+              {fmtCurrency(pkg.employerShare)}
+            </dd>
+            <p className="mt-1 text-[11px] leading-snug text-muted">
+              a second pre-tax deduction, beside the lease
+            </p>
+          </div>
+        )}
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted">Take-home reduction</dt>
           <dd className="mt-0.5 text-lg font-semibold tabular-nums text-ink">

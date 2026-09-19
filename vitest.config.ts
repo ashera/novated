@@ -11,4 +11,16 @@ export default defineConfig({
   resolve: {
     alias: { "@": root },
   },
+  test: {
+    /*
+     * e2e/ is not vitest's.
+     *
+     * Those specs drive a real browser against the deployed site and need
+     * credentials from .env.local, which vitest does not load — so left to the
+     * default glob they are collected by `npm test`, fail on a missing
+     * environment variable, and turn a green suite red for a reason that has
+     * nothing to do with the code. They have their own runner: `npm run e2e`.
+     */
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "e2e/**"],
+  },
 });

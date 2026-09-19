@@ -121,6 +121,10 @@ export interface ScenarioSpec {
   /** Whether the employer works super out on salary before packaging. Rare
    *  enough to be worth asking, valuable enough to be worth asking about. */
   employerPaysSuperOnPreSacrifice?: boolean;
+  /** The share of the tax saving the employer keeps, as a percentage. Common
+   *  in public health and universities; absent means the employee keeps it
+   *  all, which is what every lease saved before we asked was modelled as. */
+  employerSavingSharePct?: number;
   /** How often this person is paid. Display only. */
   payCycle?: PayCycle;
   /**

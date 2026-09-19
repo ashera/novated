@@ -568,6 +568,43 @@ export default function LeaseCalculator({
                       />
                     </label>
                   )}
+
+                  {/* Asked of everyone, not just capped employers: it is a term
+                      of a packaging scheme rather than a tax status, and a
+                      university or a council can run one without having a cap.
+                      Asked rather than inferred — the percentage varies, it is
+                      not published anywhere we could read it, and guessing it
+                      would be worse than a blank. */}
+                  <label className="mt-3 block">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
+                      Employer keeps a share of the saving
+                      <InfoTip text="Common in public health, ambulance services and universities: the employer runs the packaging as a scheme and keeps part of the tax benefit it creates, usually half. It shows up on a payslip as a second pre-tax line beside the lease, often called 'share of saving'. A provider's quote states what you keep, without saying it is a share." />
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted">
+                      Leave at zero unless your payslip or quote shows such a line. Check the
+                      percentage against your own payslip — it is a term of your employer&apos;s
+                      scheme, not the financier&apos;s.
+                    </span>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={inputs.employerSavingSharePct ?? 0}
+                        disabled={readOnly}
+                        onChange={(e) => {
+                          const n = parseFloat(e.target.value);
+                          set(
+                            "employerSavingSharePct",
+                            Number.isNaN(n) ? undefined : Math.min(100, Math.max(0, n)),
+                          );
+                        }}
+                        className="w-full min-w-0 rounded-lg border border-line bg-panel px-3 py-2 text-sm tabular-nums text-ink focus:border-accent focus:outline-none disabled:opacity-60"
+                      />
+                      <span className="shrink-0 text-sm text-muted">% of the tax saved</span>
+                    </div>
+                  </label>
                 </div>
               </div>
             </section>
