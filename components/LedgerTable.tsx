@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { fmtCurrency } from "@/lib/au/format";
+import { fmtCurrencyCents } from "@/lib/au/format";
 import type { RowKind, StatementRow } from "@/lib/au/statement";
 import { rowKey, type LoggedRow } from "@/lib/au/statementLog";
 
@@ -15,6 +15,12 @@ import { rowKey, type LoggedRow } from "@/lib/au/statementLog";
  * totals, the charts, the findings — follows from that classification, so a
  * line filed under the wrong heading is the one explanation for a figure that
  * looks wrong, and it has to be visible.
+ *
+ * Cents everywhere, unlike the summaries above it. These are the figures as
+ * the statement printed them, and the whole use of the table is checking a row
+ * against the document — $1,602 against a statement that says $1,602.81 is the
+ * one thing that makes a reader doubt the rest of the page. The same reason
+ * the rate working and the lock confirmation keep theirs.
  *
  * The labels live here too. They were declared separately in two components
  * and had already drifted — "GST credit" against "GST credits", "Servicing"
@@ -93,10 +99,10 @@ export default function LedgerTable({
               <td
                 className={`px-3 py-1.5 text-right tabular-nums ${r.amount < 0 ? "text-subtle" : "text-success-text"}`}
               >
-                {fmtCurrency(r.amount)}
+                {fmtCurrencyCents(r.amount)}
               </td>
               <td className="px-3 py-1.5 text-right tabular-nums text-muted">
-                {r.balance != null ? fmtCurrency(r.balance) : "—"}
+                {r.balance != null ? fmtCurrencyCents(r.balance) : "—"}
               </td>
               {/* The ledger is the user's. Something pasted by mistake has to be
                   removable, or the only remedy is clearing the lot. */}
