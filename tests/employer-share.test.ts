@@ -264,3 +264,62 @@ describe("Recognising one on a quote", () => {
     expect(`${f.title} ${f.detail}`).not.toMatch(/\b(scam|hidden fee|dishonest|deceptive)\b/i);
   });
 });
+
+/**
+ * What a shared quote can and cannot say about it.
+ *
+ * A share link strips the salary on purpose — it is the one thing on a lease
+ * nobody means to hand over — and the detection above needs it, because the
+ * gap is only meaningful as a share of the relief it would have produced.
+ *
+ * So on a shared quote the finding cannot run. What it must not do is fill the
+ * silence with a claim about the quote: "nothing explains the difference" is
+ * true of the document but false of us, and it sends a reader away from the
+ * likeliest answer.
+ */
+describe("The same gap, on a quote somebody shared", () => {
+  const shared = (over: Partial<Quote> = {}): Quote => ({
+    frequency: "fortnightly",
+    fuelType: "electric",
+    termMonths: 36,
+    vehiclePrice: 62_200,
+    amountFinanced: 60_035.45,
+    residualIncGst: 30_959.08,
+    annualKm: 7_000,
+    statedPreTax: 862.72,
+    // No salary: exactly what app/s/[token]/quote/[quoteId] passes.
+    lines: {
+      finance: 599.46,
+      managementFee: 3.0,
+      registration: 38.46,
+      tyres: 6.73,
+      maintenance: 11.54,
+      insurance: 58.77,
+    },
+    ...over,
+  });
+
+  const reconciliation = (q: Quote) =>
+    decodeQuote(q, config).findings.find((f) => f.key === "reconciliation");
+
+  it("cannot name the cause without a salary", () => {
+    const keys = decodeQuote(shared(), config).findings.map((f) => f.key);
+    expect(keys).not.toContain("employer-share-of-saving");
+    expect(keys).toContain("reconciliation");
+  });
+
+  /** The bug this pair exists to stop coming back. */
+  it("does not claim nothing explains a gap it was unable to test", () => {
+    const f = reconciliation(shared())!;
+    expect(f.detail).not.toMatch(/Nothing on the quote explains/i);
+    expect(f.detail).toMatch(/employer keeping a share/i);
+    expect(f.detail).toMatch(/takes the salary/i);
+  });
+
+  /** With a salary and a gap that is not an even split, "nothing explains it"
+   *  is the honest answer again — we looked, and it did not fit. */
+  it("says nothing explains it when it really did look", () => {
+    const f = reconciliation(shared({ salary: 140_000, statedPreTax: 1_100 }))!;
+    expect(f.detail).toMatch(/Nothing on the quote explains/i);
+  });
+});

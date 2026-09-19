@@ -1087,10 +1087,22 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
        * whatever they typed as pre-tax and post-tax, added together and put on
        * a yearly footing, and none of that was said anywhere.
        */
+      /*
+       * Three things it can say, and the last two are not the same.
+       *
+       * "Nothing explains the difference" is a claim about the quote. On a
+       * SHARED quote it was a claim about ourselves: the salary is stripped
+       * from a share link by design, and without it the employer-share test
+       * above cannot run — so the commonest explanation went unmentioned and
+       * the reader was told nothing accounted for a gap we would have named
+       * had we been looking at it ourselves.
+       */
       detail: `${deductionBasis} The lines you listed add up to ${money(annualPackageTotal)} a year. ${
         looksLikeLca
           ? `The ${money(Math.abs(reconciliationGap))} gap is close to the luxury car adjustment this vehicle would attract — about ${money(expectedLca)} a year, because the financed amount is above the ${money(config.gst.carLimit)} car limit — but the quote doesn't name it.`
-          : "Nothing on the quote explains the difference."
+          : reconciliationGap > 0 && quote.salary == null
+            ? `A deduction larger than the inclusions is most often an employer keeping a share of the tax saving — usual in public health, ambulance services and universities, where part of the benefit goes back to the employer as a second pre-tax line. Telling whether that is what this is takes the salary, and a shared quote doesn't carry one. On your own figures we would check it.`
+            : "Nothing on the quote explains the difference."
       }`,
       question: "Your itemised inclusions don't add up to the salary deduction — what is the difference?",
     });
