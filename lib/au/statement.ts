@@ -77,31 +77,50 @@ const iso = (y: number, m: number, d: number) =>
  * that cannot be ordered, and an out-of-order ledger reconciles against the
  * wrong neighbour and reports breaks that are not there.
  */
-export function parseDate(text: string): string | null {
-  const t = text.trim();
+export function matchDate(text: string): { date: string; length: number } | null {
+  const t = text.trimStart();
+  const lead = text.length - t.length;
+  const at = (m: RegExpMatchArray, date: string) => ({ date, length: lead + m[0].length });
+
   // 11 September 2026 · 11 Sep 2026 · 11 Sep 26
   const words = t.match(/^(\d{1,2})\s+([A-Za-z]{3,})\.?\s+(\d{2,4})/);
   if (words) {
     const m = MONTHS[words[2].slice(0, 3).toLowerCase()];
     if (m) {
       const y = Number(words[3]);
-      return iso(y < 100 ? 2000 + y : y, m, Number(words[1]));
+      return at(words, iso(y < 100 ? 2000 + y : y, m, Number(words[1])));
     }
   }
   // 2026-09-11
   const isoish = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoish) return iso(Number(isoish[1]), Number(isoish[2]), Number(isoish[3]));
+  if (isoish) {
+    return at(isoish, iso(Number(isoish[1]), Number(isoish[2]), Number(isoish[3])));
+  }
   // 11/09/2026 — day first, which is what an Australian statement means.
   const slashed = t.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})/);
   if (slashed) {
     const y = Number(slashed[3]);
-    return iso(y < 100 ? 2000 + y : y, Number(slashed[2]), Number(slashed[1]));
+    return at(slashed, iso(y < 100 ? 2000 + y : y, Number(slashed[2]), Number(slashed[1])));
   }
   return null;
 }
 
-/** Currency as these statements write it: $1,698.98 · -$218.25 · ($218.25) · 1698.98 DR */
-const MONEY = /\(?-?\$?\s?-?\d[\d,]*\.\d{2}\)?(?:\s?(?:DR|CR))?/gi;
+export function parseDate(text: string): string | null {
+  return matchDate(text)?.date ?? null;
+}
+
+/**
+ * Currency as these statements write it: $1,698.98 · -$218.25 · $-218.25 ·
+ * ($218.25) · $ 1,698.98 · 1698.98 DR
+ *
+ * A minus sign counts only where it touches the figure or the dollar sign. It
+ * used to be allowed a space, which meant a description ending in a separator
+ * hyphen swallowed it: "Registration - 570.00" parsed as MINUS $570, turning a
+ * payment out of the account into a payment into it. Statements are full of
+ * " - " as punctuation and empty of "- 570.00" as a negative, so the space is
+ * the thing that had to go.
+ */
+const MONEY = /\(?(?:-\$?|\$-?|\$\s)?\d[\d,]*\.\d{2}\)?(?:\s?(?:DR|CR))?/gi;
 
 function parseMoney(token: string): number {
   const negative =
@@ -126,6 +145,15 @@ export function parseStatement(text: string): ParseResult {
 
   let group: string[] = [];
   let groupDate: string | null = null;
+  /* How many characters of the first line the date took.
+   *
+   * The description used to be recovered by dropping the first three
+   * whitespace-separated tokens if they parsed as a date — which is right for
+   * "11 September 2026" and wrong for every other format, because "2026-09-11"
+   * is one token and the rule ate two words of the description with it.
+   * "Insurance - Reimbursement" came back as "Reimbursement", and the hyphen
+   * made it look like a problem with hyphens. */
+  let groupDateLength = 0;
 
   const flush = () => {
     if (groupDate == null) {
@@ -141,15 +169,17 @@ export function parseStatement(text: string): ParseResult {
       skipped.push(joined);
       group = [];
       groupDate = null;
+      groupDateLength = 0;
       return;
     }
     // Two figures means amount then balance; one means amount alone. The
     // balance is the last, because it is the rightmost column.
     const amount = amounts.length >= 2 ? amounts[amounts.length - 2] : amounts[0];
     const balance = amounts.length >= 2 ? amounts[amounts.length - 1] : null;
-    // Whatever is left once the date and the figures are removed.
+    // Whatever is left once the date and the figures are removed. Exactly the
+    // date: it is the only part of the line whose length we know.
     const description = joined
-      .replace(/^\S+\s+\S+\s+\S+/, (m) => (parseDate(m) ? "" : m))
+      .slice(groupDateLength)
       .replace(MONEY, " ")
       .replace(/\s{2,}/g, " ")
       .replace(/^[\s\-–—|,]+|[\s\-–—|,]+$/g, "")
@@ -163,14 +193,16 @@ export function parseStatement(text: string): ParseResult {
     });
     group = [];
     groupDate = null;
+    groupDateLength = 0;
   };
 
   for (const line of lines) {
     if (!line) continue;
-    const d = parseDate(line);
+    const d = matchDate(line);
     if (d) {
       flush();
-      groupDate = d;
+      groupDate = d.date;
+      groupDateLength = d.length;
     }
     group.push(line);
   }

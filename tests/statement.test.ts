@@ -116,6 +116,71 @@ describe("Parsing a pasted ledger", () => {
   });
 });
 
+/**
+ * Hyphens, which statements use as punctuation and arithmetic at once.
+ *
+ * Reported from real pastes: descriptions came back truncated, and it looked
+ * like a problem with hyphens because a hyphen was always at the seam. It was
+ * two separate faults that happened to show up in the same place.
+ */
+describe("Descriptions that contain a hyphen", () => {
+  const desc = (line: string) => parseStatement(line).rows[0]?.description;
+  const amount = (line: string) => parseStatement(line).rows[0]?.amount;
+
+  /**
+   * The date used to be removed by dropping the first three
+   * whitespace-separated tokens — right for "11 September 2026" and wrong for
+   * every other format, because "2026-09-11" is one token and the rule took
+   * two words of the description with it.
+   */
+  it("keeps the whole description whatever shape the date is", () => {
+    for (const date of ["2 September 2026", "2026-09-02", "2/09/2026", "02.09.2026"]) {
+      expect(desc(`${date}	Insurance - Reimbursement	-$643.15	$966.28`), date).toBe(
+        "Insurance - Reimbursement",
+      );
+    }
+  });
+
+  it("keeps a hyphen wherever it falls in the description", () => {
+    expect(desc("2026-09-02	Lease - Asset Finance Pty Ltd	-1,602.81	2,407.33")).toBe(
+      "Lease - Asset Finance Pty Ltd",
+    );
+    expect(desc("2026-09-02	Pre-tax deduction - September	-900.19	$100.00")).toBe(
+      "Pre-tax deduction - September",
+    );
+    expect(desc("2026-09-02	Toll - M4 - Eastbound	-12.50	$900.00")).toBe(
+      "Toll - M4 - Eastbound",
+    );
+  });
+
+  /**
+   * The costlier of the two. A minus sign was allowed a space before the
+   * figure, so a description ending in a separator hyphen was read as the
+   * sign: "Registration - 570.00" parsed as MINUS $570, turning a payment out
+   * of the account into a payment into it — and the running balance then
+   * disagreed with itself, which is how it surfaced.
+   */
+  it("does not read a separator hyphen as a minus sign", () => {
+    expect(amount("2 September 2026  Registration - 570.00  2,036.99")).toBeCloseTo(570, 2);
+    expect(amount("2 September 2026  Toll - M4 - 12.50  900.00")).toBeCloseTo(12.5, 2);
+  });
+
+  // A minus that actually belongs to the figure still counts, in every place
+  // these statements put one.
+  it("still reads a real negative", () => {
+    expect(amount("2 September 2026	X	-643.15	966.28")).toBeCloseTo(-643.15, 2);
+    expect(amount("2 September 2026	X	-$643.15	$966.28")).toBeCloseTo(-643.15, 2);
+    expect(amount("2 September 2026	X	$-643.15	$966.28")).toBeCloseTo(-643.15, 2);
+    expect(amount("2 September 2026	X	(643.15)	966.28")).toBeCloseTo(-643.15, 2);
+    expect(amount("2 September 2026	X	643.15 DR	966.28")).toBeCloseTo(-643.15, 2);
+  });
+
+  // Some statements put a space after the dollar sign, which is not a minus.
+  it("reads a spaced dollar sign as positive", () => {
+    expect(amount("2 September 2026	Refund	$ 1,698.98	$2,665.26")).toBeCloseTo(1698.98, 2);
+  });
+});
+
 describe("Naming what each line is", () => {
   it("recognises the lines this ledger actually contains", () => {
     expect(classify("Funds from Payroll", 1698.98)).toBe("payroll");
