@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:record": "node scripts/run-tests.mjs",
     "sanity": "tsx scripts/sanity.ts",
-    "e2e": "node --env-file=.env.local e2e/run.mjs"
+    "e2e": "node --env-file=.env.local e2e/run.mjs",
+    "publish:quote": "tsx --env-file=.env.local scripts/publish-quote.ts"
   },
   "dependencies": {
     "@types/pg": "^8.20.0",
