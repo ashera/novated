@@ -421,3 +421,63 @@ describe("Which way the gap runs", () => {
     }
   });
 });
+
+/**
+ * A difference has to be checkable from both sides.
+ *
+ * The finding told somebody the two figures disagreed and showed neither one's
+ * working. The deduction is whatever they entered as pre-tax and post-tax,
+ * added and put on a yearly footing — reported from a per-pay figure on the
+ * document, turned into an annual one nowhere on it. Without that, a reader
+ * shown a gap cannot tell whether the gap or our arithmetic is the problem.
+ */
+describe("Explaining the deduction we compared against", () => {
+  const withDeduction = (preTax: number, postTax = 0): Quote => ({
+    frequency: "fortnightly",
+    fuelType: "electric",
+    termMonths: 60,
+    vehiclePrice: 57_196,
+    annualKm: 22_000,
+    amountFinanced: 54_000,
+    residualIncGst: 16_709.33,
+    lines: {
+      finance: 445.74,
+      maintenance: 30.58,
+      tyres: 30.12,
+      registration: 30.61,
+      insurance: 61.54,
+      energy: 46.31,
+      managementFee: 9.65,
+    },
+    salary: 110_000,
+    statedPreTax: preTax,
+    statedPostTax: postTax,
+  });
+
+  const finding = (q: Quote) =>
+    decodeQuote(q, DEFAULT_CONFIG).findings.find((f) => f.key === "reconciliation");
+
+  it("says what was entered, per pay, and how it became a year", () => {
+    const f = finding(withDeduction(694.55))!;
+    expect(f.detail).toMatch(/\$694\.55 a fortnight/);
+    expect(f.detail).toMatch(/26 pays a year/);
+    // Cents on the figure off the document, whole dollars on the annual total.
+    expect(f.detail).toMatch(/\$18,058/);
+  });
+
+  it("splits the two deductions when there is a post-tax side", () => {
+    const f = finding(withDeduction(600, 94.55))!;
+    expect(f.detail).toMatch(/\$600\.00 pre-tax and \$94\.55 post-tax/);
+    expect(f.detail).toMatch(/\$694\.55 together/);
+  });
+
+  it("names both sides of the comparison, not just the gap", () => {
+    const f = finding(withDeduction(694.55))!;
+    expect(f.detail).toMatch(/lines you listed add up to \$17,018/);
+  });
+
+  it("stays quiet when the two agree", () => {
+    // The listed lines come to $654.55 a fortnight.
+    expect(finding(withDeduction(654.55))).toBeUndefined();
+  });
+});

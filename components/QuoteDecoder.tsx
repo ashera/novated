@@ -1125,17 +1125,41 @@ export default function QuoteDecoder({
                       ))}
                       <tr className="font-semibold text-ink">
                         <td className="py-2.5">Listed items add up to</td>
-                        <td />
+                        <td className="py-2.5 text-right tabular-nums">
+                          {LINE_ORDER.reduce(
+                            (t, l) => t + (quote.lines[l.key] ?? 0),
+                            0,
+                          ).toFixed(2)}
+                        </td>
                         <td className="py-2.5 text-right tabular-nums">
                           {fmtCurrency(decode.annualPackageTotal)}
                         </td>
                       </tr>
                       {decode.annualStatedDeduction != null && (
                         <>
+                          {/* Its own working, on the row.
+
+                              The annual figure is the two deductions they
+                              stated, added and put on a yearly footing — and
+                              none of that was on screen, so a reader shown a
+                              difference had no way to check whether the
+                              difference or our arithmetic was the problem.
+                              Every other row in this table shows the figure it
+                              was derived from; this one was the exception. */}
                           <tr className="font-semibold text-ink">
-                            <td className="py-2.5">They deduct from your pay</td>
-                            <td />
-                            <td className="py-2.5 text-right tabular-nums">
+                            <td className="py-2.5">
+                              They deduct from your pay
+                              <span className="block text-[11px] font-normal leading-snug text-muted">
+                                {quote.statedPostTax != null && quote.statedPostTax > 0
+                                  ? `${(quote.statedPreTax ?? 0).toFixed(2)} pre-tax + ${quote.statedPostTax.toFixed(2)} post-tax`
+                                  : "the pre-tax deduction you entered"}
+                                , × {CYCLES_PER_YEAR[quote.frequency]} a year
+                              </span>
+                            </td>
+                            <td className="py-2.5 text-right align-top tabular-nums">
+                              {((quote.statedPreTax ?? 0) + (quote.statedPostTax ?? 0)).toFixed(2)}
+                            </td>
+                            <td className="py-2.5 text-right align-top tabular-nums">
                               {fmtCurrency(decode.annualStatedDeduction)}
                             </td>
                           </tr>

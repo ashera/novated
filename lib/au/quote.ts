@@ -328,6 +328,15 @@ export function financeBasis(quote: Quote, config: EngineConfig): FinanceBasis {
 
 const money = (n: number) =>
   n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
+/** Cents kept, for a figure read straight off the document. */
+const cents = (n: number) =>
+  n.toLocaleString("en-AU", { style: "currency", currency: "AUD", minimumFractionDigits: 2 });
+/** The quote's own period, said as a person would. */
+const FREQ_NOUN: Record<QuoteFrequency, string> = {
+  weekly: "week",
+  fortnightly: "fortnight",
+  monthly: "month",
+};
 const pct = (n: number) => `${n.toFixed(2)}%`;
 
 /** "a", "a and b", "a, b and c" — so a generated sentence reads like English. */
@@ -866,6 +875,13 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
 
   // Do the itemised lines actually add up to the deduction they state?
   if (reconciliationGap != null && Math.abs(reconciliationGap) > 50) {
+    // Said in the quote's own period, because that is the figure they typed
+    // and the one printed on the document beside them.
+    const perCycle = (quote.statedPreTax ?? 0) + (quote.statedPostTax ?? 0);
+    const deductionBasis =
+      quote.statedPostTax != null && quote.statedPostTax > 0
+        ? `You entered ${cents(quote.statedPreTax ?? 0)} pre-tax and ${cents(quote.statedPostTax)} post-tax a ${FREQ_NOUN[f]} — ${cents(perCycle)} together, which is ${money(annualStatedDeduction!)} across ${CYCLES_PER_YEAR[f]} pays a year.`
+        : `You entered ${cents(perCycle)} a ${FREQ_NOUN[f]} coming out of your pay, which is ${money(annualStatedDeduction!)} across ${CYCLES_PER_YEAR[f]} pays a year.`;
     const expectedLca =
       amountFinanced != null ? luxuryCarAdjustment(amountFinanced, config) : 0;
     const looksLikeLca =
@@ -877,9 +893,19 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
       severity: "warn",
       category: "Adds up?",
       title: `The stated deduction is ${money(Math.abs(reconciliationGap))} a year ${reconciliationGap > 0 ? "more" : "less"} than the listed items`,
-      detail: looksLikeLca
-        ? `The listed lines total ${money(annualPackageTotal)} but the deduction is ${money(annualStatedDeduction!)}. The gap is close to the luxury car adjustment this vehicle would attract (about ${money(expectedLca)} a year, because the financed amount is above the ${money(config.gst.carLimit)} car limit) — but the quote doesn't name it.`
-        : `The listed lines total ${money(annualPackageTotal)} but the deduction is ${money(annualStatedDeduction!)}. Nothing on the quote explains the difference.`,
+      /*
+       * Where BOTH figures came from, not just what they are.
+       *
+       * A reader told the two disagree has to be able to check which one is
+       * wrong, and until now neither side showed its working: the deduction is
+       * whatever they typed as pre-tax and post-tax, added together and put on
+       * a yearly footing, and none of that was said anywhere.
+       */
+      detail: `${deductionBasis} The lines you listed add up to ${money(annualPackageTotal)} a year. ${
+        looksLikeLca
+          ? `The ${money(Math.abs(reconciliationGap))} gap is close to the luxury car adjustment this vehicle would attract — about ${money(expectedLca)} a year, because the financed amount is above the ${money(config.gst.carLimit)} car limit — but the quote doesn't name it.`
+          : "Nothing on the quote explains the difference."
+      }`,
       question: "Your itemised inclusions don't add up to the salary deduction — what is the difference?",
     });
   }
