@@ -3,7 +3,7 @@ import Script from "next/script";
 // Provider-agnostic analytics. Nothing loads unless the matching env var is set,
 // so there's zero tracking (and no cookie banner needed) until you opt in.
 //   - Plausible (cookieless, privacy-friendly): set NEXT_PUBLIC_PLAUSIBLE_DOMAIN
-//     to the domain you registered in Plausible (e.g. leasewiz.com.au).
+//     to the domain you registered in Plausible (e.g. leaseinspector.com.au).
 //     Self-hosting? Point NEXT_PUBLIC_PLAUSIBLE_HOST at your instance.
 //   - GA4: set NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX  (note: sets cookies — you'll want a consent banner)
 //   - Google Ads: set NEXT_PUBLIC_GOOGLE_ADS_ID=AW-XXXXXXXXXX (conversion tracking; shares gtag.js with GA4)

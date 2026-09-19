@@ -1,6 +1,6 @@
 // Central site constants for SEO/metadata. Set NEXT_PUBLIC_SITE_URL to the live
 // domain in the deploy environment; the fallback is the local dev origin.
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.leasewiz.com.au").replace(/\/$/, "");
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.leaseinspector.com.au").replace(/\/$/, "");
 export const SITE_NAME = "LeaseWiz";
 export const SITE_TAGLINE = "Novated Lease Explainer & Calculator";
 export const SITE_DESCRIPTION =

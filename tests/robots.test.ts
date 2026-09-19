@@ -3,8 +3,8 @@ import { isPreviewHost, shouldIndex } from "../app/robots";
 
 describe("Search indexing", () => {
   it("treats a real domain as indexable", () => {
-    expect(isPreviewHost("https://www.leasewiz.com.au")).toBe(false);
-    expect(isPreviewHost("https://leasewiz.com.au")).toBe(false);
+    expect(isPreviewHost("https://www.leaseinspector.com.au")).toBe(false);
+    expect(isPreviewHost("https://leaseinspector.com.au")).toBe(false);
     expect(isPreviewHost("https://novated.com.au")).toBe(false);
   });
 
@@ -43,10 +43,10 @@ describe("Search indexing", () => {
  * site under "Allow: /", and so would every future preview deploy.
  */
 describe("Search indexing — which host asked", () => {
-  const site = "https://www.leasewiz.com.au";
+  const site = "https://www.leaseinspector.com.au";
 
   it("indexes a request that arrived at the canonical host", () => {
-    expect(shouldIndex("www.leasewiz.com.au", site)).toBe(true);
+    expect(shouldIndex("www.leaseinspector.com.au", site)).toBe(true);
   });
 
   it("refuses a request that arrived at the platform URL", () => {
@@ -56,20 +56,20 @@ describe("Search indexing — which host asked", () => {
   });
 
   it("refuses the bare apex, which only ever redirects to www anyway", () => {
-    expect(shouldIndex("leasewiz.com.au", site)).toBe(false);
+    expect(shouldIndex("leaseinspector.com.au", site)).toBe(false);
   });
 
   it("refuses a host nobody thought to put on a list", () => {
     // The point of testing the canonical rather than a suffix list: the set of
     // addresses that ARE the site has one member, and it can't go stale.
     expect(shouldIndex("leasewiz.fly.dev", site)).toBe(false);
-    expect(shouldIndex("staging.leasewiz.com.au", site)).toBe(false);
-    expect(shouldIndex("leasewiz.com.au.evil.example", site)).toBe(false);
+    expect(shouldIndex("staging.leaseinspector.com.au", site)).toBe(false);
+    expect(shouldIndex("leaseinspector.com.au.evil.example", site)).toBe(false);
   });
 
   it("ignores case and stray whitespace in the header", () => {
-    expect(shouldIndex("WWW.LeaseWiz.Com.AU", site)).toBe(true);
-    expect(shouldIndex("  www.leasewiz.com.au  ", site)).toBe(true);
+    expect(shouldIndex("WWW.LeaseInspector.Com.AU", site)).toBe(true);
+    expect(shouldIndex("  www.leaseinspector.com.au  ", site)).toBe(true);
   });
 
   it("fails closed when there is no host header at all", () => {
@@ -85,11 +85,11 @@ describe("Search indexing — which host asked", () => {
   });
 
   it("refuses when the site URL is unusable, whatever the host says", () => {
-    expect(shouldIndex("www.leasewiz.com.au", "not a url")).toBe(false);
-    expect(shouldIndex("www.leasewiz.com.au", "")).toBe(false);
+    expect(shouldIndex("www.leaseinspector.com.au", "not a url")).toBe(false);
+    expect(shouldIndex("www.leaseinspector.com.au", "")).toBe(false);
   });
 
   it("matches on the port too, so a stray dev origin isn't the site", () => {
-    expect(shouldIndex("www.leasewiz.com.au:8080", site)).toBe(false);
+    expect(shouldIndex("www.leaseinspector.com.au:8080", site)).toBe(false);
   });
 });
