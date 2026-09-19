@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { fmtCurrency } from "@/lib/au/format";
 import type { RowKind, StatementRow } from "@/lib/au/statement";
 import { rowKey, type LoggedRow } from "@/lib/au/statementLog";
@@ -36,6 +38,8 @@ export const KIND_LABEL: Record<RowKind, string> = {
   unknown: "Not categorised",
 };
 
+const PER_PAGE = 10;
+
 export default function LedgerTable({
   rows,
   onForget,
@@ -44,9 +48,30 @@ export default function LedgerTable({
   /** Omitted where rows are not the caller's to remove. */
   onForget?: (key: string) => void;
 }) {
+  const [page, setPage] = useState(0);
   if (rows.length === 0) return null;
 
+  /*
+   * Newest first, which is the opposite of how they are stored.
+   *
+   * The log is kept oldest-first because a running balance can only be read in
+   * that direction — each row's balance is the one above it plus its own
+   * amount, and reversing the store would break the reconciliation and the gap
+   * check. Reading is the other way round: the transaction somebody wants is
+   * the one that just appeared, and a five-year ledger would bury it under
+   * three hundred rows. So the order is flipped for display only.
+   */
+  const newestFirst = [...rows].reverse();
+  const pages = Math.max(1, Math.ceil(newestFirst.length / PER_PAGE));
+  // Clamped rather than stored, because removing rows can shrink the ledger
+  // under the page being looked at — and an out-of-range page renders empty
+  // with no hint that anything is still there.
+  const current = Math.min(page, pages - 1);
+  const start = current * PER_PAGE;
+  const shown = newestFirst.slice(start, start + PER_PAGE);
+
   return (
+    <div>
     <div className="overflow-x-auto rounded-xl border border-line bg-panel">
       <table className="w-full text-xs">
         <thead>
@@ -60,7 +85,7 @@ export default function LedgerTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((r: StatementRow, i) => (
+          {shown.map((r: StatementRow, i) => (
             <tr key={`${r.date}-${i}`} className="border-b border-line-soft last:border-0">
               <td className="whitespace-nowrap px-3 py-1.5 text-muted">{r.date}</td>
               <td className="px-3 py-1.5 text-ink">{r.description}</td>
@@ -91,6 +116,37 @@ export default function LedgerTable({
           ))}
         </tbody>
       </table>
+    </div>
+
+    {pages > 1 && (
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="text-muted">
+          {start + 1}–{Math.min(start + PER_PAGE, newestFirst.length)} of {newestFirst.length},
+          newest first
+        </span>
+        <span className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage(current - 1)}
+            disabled={current === 0}
+            className="rounded border border-line px-2 py-1 font-medium text-subtle transition hover:text-ink disabled:opacity-40 disabled:hover:text-subtle"
+          >
+            Newer
+          </button>
+          <span className="tabular-nums text-muted">
+            {current + 1} / {pages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage(current + 1)}
+            disabled={current >= pages - 1}
+            className="rounded border border-line px-2 py-1 font-medium text-subtle transition hover:text-ink disabled:opacity-40 disabled:hover:text-subtle"
+          >
+            Older
+          </button>
+        </span>
+      </div>
+    )}
     </div>
   );
 }
