@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { fmtCurrency, fmtCurrencyCents } from "@/lib/au/format";
 import { stashSharedQuote, type SharedQuoteHandoff } from "@/lib/quoteHandoff";
 import type { EngineConfig } from "@/lib/au/config";
-import { CYCLES_PER_YEAR, decodeQuote, type Quote, type FindingSeverity } from "@/lib/au/quote";
+import {
+  CYCLES_PER_YEAR,
+  decodeQuote,
+  type Quote,
+  type QuoteDecode,
+  type FindingSeverity,
+} from "@/lib/au/quote";
 import RateWorking from "./RateWorking";
 import { useMemo } from "react";
 
@@ -57,6 +63,7 @@ export default function QuoteAnalysis({
   carName,
   providerLabel,
   adoptable,
+  decode: precomputed,
 }: {
   quote: Quote;
   config: EngineConfig;
@@ -71,9 +78,25 @@ export default function QuoteAnalysis({
    * no offer is made, which is what any other caller of this component gets.
    */
   adoptable?: SharedQuoteHandoff;
+  /**
+   * A decode worked out by the caller, used instead of doing it here.
+   *
+   * For the shared page, which is the only caller that knows something this
+   * component never will: the sender's salary. It is stripped from the quote
+   * before the page is serialised — that is the whole point of a narrow share
+   * — but a couple of findings cannot be reached without it, the commonest
+   * being an employer keeping part of the tax saving. Decoding on the server,
+   * where the salary is still in hand, and passing the result down is what
+   * lets those findings survive a strip that has to happen.
+   *
+   * The decode carries no salary of its own, so nothing about the sender
+   * travels with it beyond the conclusions.
+   */
+  decode?: QuoteDecode;
 }) {
   const router = useRouter();
-  const decode = useMemo(() => decodeQuote(quote, config), [quote, config]);
+  const computed = useMemo(() => decodeQuote(quote, config), [quote, config]);
+  const decode = precomputed ?? computed;
   const noun = FREQ_NOUN[quote.frequency];
   const perYear = CYCLES_PER_YEAR[quote.frequency];
 

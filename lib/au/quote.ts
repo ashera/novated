@@ -510,6 +510,13 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
    * A luxury car adjustment is excluded first for the same reason: it is a
    * known cause of exactly this gap, and it has a real figure behind it
    * rather than a fitted one.
+   *
+   * The finding's wording names no salary, deliberately. A share link strips
+   * one, but this test needs it — so the shared page decodes on the server
+   * where it still has it and hands the result over, and the salary itself
+   * must not then travel in the text. What does travel is the relief, which
+   * is roughly twice a gap already on the page and so discloses nothing the
+   * reader could not have worked out.
    */
   let employerShareGuess: { pct: number; annual: number; taxSaved: number } | null = null;
   if (
@@ -1054,7 +1061,7 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
       severity: "warn",
       category: "Adds up?",
       title: `${money(annual)} a year of your deduction isn't paying for the car`,
-      detail: `The inclusions you listed come to ${money(annualPackageTotal)} a year, but ${money(annualStatedDeduction!)} is coming out of your pay — a difference of ${money(annual)}. On a ${money(quote.salary!)} salary this packaging relieves about ${money(taxSaved)} of tax a year, and the difference is ${pct(sharePct)} of exactly that${nearHalf ? " — half, which is the usual arrangement" : ""}. That pattern is an employer keeping a share of the saving: common in public health, ambulance services and universities, where the packaging is run as a scheme and part of the benefit goes back to the employer as a second pre-tax deduction. It is a term of your employment, not something the financier sets or profits from — and over ${years} years it is ${money(annual * years)} of the benefit that does not reach you. Providers quote what you keep, which is accurate, without saying it is a share.`,
+      detail: `The inclusions you listed come to ${money(annualPackageTotal)} a year, but ${money(annualStatedDeduction!)} is coming out of your pay — a difference of ${money(annual)}. This packaging relieves about ${money(taxSaved)} of tax a year, and the difference is ${pct(sharePct)} of exactly that${nearHalf ? " — half, which is the usual arrangement" : ""}. That pattern is an employer keeping a share of the saving: common in public health, ambulance services and universities, where the packaging is run as a scheme and part of the benefit goes back to the employer as a second pre-tax deduction. It is a term of your employment, not something the financier sets or profits from — and over ${years} years it is ${money(annual * years)} of the benefit that does not reach you. Providers quote what you keep, which is accurate, without saying it is a share.`,
       costOverTerm: annual * years,
       question: `My pre-tax deduction is ${money(annualStatedDeduction!)} a year but the itemised inclusions come to ${money(annualPackageTotal)}. Is the difference my employer's share of the tax saving, and what percentage is it?`,
     });

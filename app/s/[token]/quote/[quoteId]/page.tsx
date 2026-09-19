@@ -6,6 +6,7 @@ import { query } from "@/lib/db";
 import { getActiveConfig } from "@/lib/refdata";
 import { getCatalogue } from "@/lib/catalogue";
 import { leaseToQuote, migrateLease, quoteLabel, vehicleName, type QuoteSpec } from "@/lib/au/lease";
+import { decodeQuote } from "@/lib/au/quote";
 
 /**
  * One quote's analysis, shared by link.
@@ -74,6 +75,29 @@ export default async function SharedQuotePage({
   const config = await getActiveConfig();
   const catalogue = await getCatalogue();
   const quote = leaseToQuote(lease, spec);
+
+  /*
+   * Decoded here, with the salary, and sent down without it.
+   *
+   * The salary is dropped from everything this page serialises — it is the one
+   * thing on a lease nobody means to share. But a couple of findings cannot be
+   * reached without it, and the most valuable is the one that spots an
+   * employer keeping part of the tax saving: it works by testing whether the
+   * unexplained part of a deduction is an even share of the tax that deduction
+   * relieves, and there is no relief to measure against without an income.
+   *
+   * Left to decode in the browser, a shared quote therefore could not run that
+   * test, and fell back to telling the reader that nothing explained a gap we
+   * would have explained on the owner's own figures.
+   *
+   * So the decode happens on the server, where the salary is still in hand,
+   * and only the conclusions travel. QuoteDecode has no salary field, and the
+   * findings' wording names no salary either — what does reach the page is the
+   * relief, which is about twice a gap the page already shows and so tells a
+   * reader nothing they could not have worked out with a calculator.
+   */
+  const salary = spec.salary ?? (row.scenario as { salary?: number } | null)?.salary;
+  const decode = decodeQuote(salary ? { ...quote, salary } : quote, config);
   // Empty rather than "Your car": the heading builds a sentence around it, and
   // "Provider A on a Your car" is what the default produces. Naming the car is
   // optional on a quote by design.
@@ -109,6 +133,7 @@ export default async function SharedQuotePage({
           carName={carName}
           providerLabel={quoteLabel(spec)}
           adoptable={adoptable}
+          decode={decode}
         />
       </main>
     </>

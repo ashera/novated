@@ -41,6 +41,16 @@ const QUOTE = {
   amountFinanced: 54000.36,
   residualIncGst: 16709.33,
   lines: { finance: 965.76 },
+  /*
+   * A deduction $2,207.45 a year above the one line that explains it, which is
+   * exactly half the tax the whole deduction relieves at this salary.
+   *
+   * That shape is what the decoder reads as an employer keeping a share of the
+   * saving — and the finding can only be reached with the salary, which a
+   * share link strips. So this fixture is the guard on both halves at once:
+   * the finding has to appear on the shared page, and 123456 still must not.
+   */
+  statedPreTax: 1149.71,
   salary: SENDER_SALARY,
   createdAt: "2025-01-01T00:00:00.000Z",
 };
@@ -96,6 +106,18 @@ export default async function run(browser) {
   await check("does not carry the sender's salary in the delivered page", async () => {
     const html = await page.content();
     assert(!html.includes(String(SENDER_SALARY)), "the sender's salary is in the page source");
+  });
+
+  /*
+   * And the other half of the same bargain: the salary is used, on the server,
+   * to reach a finding that cannot be reached without it. A shared quote that
+   * stayed silent here would be telling the reader nothing explained a gap we
+   * had in fact explained.
+   */
+  await check("still names what the salary was needed for", async () => {
+    await page.waitForSelector("text=/employer keeping a share of the saving/i", {
+      timeout: 20_000,
+    });
   });
 
   await check("is not indexable — it is somebody's own figures", async () => {
