@@ -70,8 +70,15 @@ export default function QuoteAnalysis({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">
           Novated lease quote, decoded
         </p>
+        {/* A make and model are optional on a quote — the price is what the
+            figures need — so the heading falls back to the price rather than
+            to a placeholder noun. */}
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-          {providerLabel} on a {carName}
+          {carName
+            ? `${providerLabel} on a ${carName}`
+            : quote.vehiclePrice != null
+              ? `${providerLabel} on a ${fmtCurrency(quote.vehiclePrice)} car`
+              : providerLabel}
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-subtle">
           Somebody shared this analysis with you. Every figure below is worked out from the numbers

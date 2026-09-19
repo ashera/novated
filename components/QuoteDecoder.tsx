@@ -28,6 +28,7 @@ import { useLease } from "./useLease";
 import LeaseBar from "./LeaseBar";
 import QuoteIdentity from "./QuoteIdentity";
 import RateWorking from "./RateWorking";
+import ShareControl from "./ShareControl";
 import { SAMPLE_QUOTE } from "@/lib/au/sampleQuote";
 import {
   applyQuoteEdit,
@@ -111,6 +112,7 @@ export default function QuoteDecoder({
   }, [requestedQuoteId]);
 
   const [copied, setCopied] = useState(false);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
   const router = useRouter();
 
   /**
@@ -1193,17 +1195,66 @@ export default function QuoteDecoder({
               <section className="rounded-xl border border-accent-border bg-accent-subtle p-5">
                 <h2 className="text-base font-semibold text-ink">So what now?</h2>
                 <p className="mt-1.5 text-sm text-subtle">{nextStepCopy}</p>
-                <button
-                  type="button"
-                  onClick={modelIt}
-                  className="mt-4 rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
-                >
-                  See what this lease saves you
-                </button>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={modelIt}
+                    className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-soft"
+                  >
+                    See what this lease saves you
+                  </button>
+
+                  {/* Sharing belongs here as much as on the lease page, and
+                      more: this is where somebody has just finished reading
+                      what the quote actually costs, and "look at this" is the
+                      next thing they think.
+
+                      It shares the ANALYSIS — the rate, the working and the
+                      findings — and not the lease behind it. */}
+                  {user && store.leaseId && activeSpec && (
+                    <ShareControl
+                      id={store.leaseId}
+                      initialToken={null}
+                      linkPath={`/quote/${encodeURIComponent(activeSpec.id)}`}
+                      onNotice={setShareNotice}
+                      shareLabel="Share this analysis"
+                      copyLabel="Copy the link"
+                      copiedNotice="Link copied. It shows this quote's analysis — the rate, the working and the findings — and nothing else about you or your lease."
+                    />
+                  )}
+                </div>
+
                 <p className="mt-2 text-xs text-muted">
                   Opens the calculator already filled in from this quote — your salary, the car,
                   the term, and the {decode.impliedRatePct.toFixed(2)}% we just solved.
                 </p>
+
+                {/* A guest's lease never reaches the server, so there is
+                    nothing for a link to point at. Said plainly rather than by
+                    hiding the button and leaving them to wonder. */}
+                {!user && (
+                  <p className="mt-2 text-xs text-muted">
+                    Want to send this analysis to someone?{" "}
+                    <Link href="/signup" className="font-semibold text-accent hover:underline">
+                      Create an account
+                    </Link>{" "}
+                    and you can share a read-only link to it. This quote is kept in your browser
+                    until then, and it comes with you when you sign up.
+                  </p>
+                )}
+
+                {shareNotice && (
+                  <p className="mt-3 rounded-lg border border-line bg-panel px-3 py-2 text-xs leading-relaxed text-ink">
+                    {shareNotice}{" "}
+                    <button
+                      type="button"
+                      onClick={() => setShareNotice(null)}
+                      className="font-semibold text-accent hover:underline"
+                    >
+                      Dismiss
+                    </button>
+                  </p>
+                )}
               </section>
             )}
 

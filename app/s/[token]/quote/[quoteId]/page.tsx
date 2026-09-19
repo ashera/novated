@@ -82,7 +82,10 @@ export default async function SharedQuotePage({
         <QuoteAnalysis
           quote={{ ...quote, salary: undefined }}
           config={config}
-          carName={vehicleName(lease.vehicle, catalogue)}
+          // Empty rather than "Your car": the heading builds a sentence around
+          // it, and "Provider A on a Your car" is what the default produces.
+          // Naming the car is optional on a quote by design.
+          carName={vehicleName(lease.vehicle, catalogue, "")}
           providerLabel={quoteLabel(spec)}
         />
       </main>
