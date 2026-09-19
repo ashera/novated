@@ -15,7 +15,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "test": "vitest run",
     "test:record": "node scripts/run-tests.mjs",
-    "sanity": "tsx scripts/sanity.ts"
+    "sanity": "tsx scripts/sanity.ts",
+    "e2e": "node --env-file=.env.local e2e/run.mjs"
   },
   "dependencies": {
     "@types/pg": "^8.20.0",
