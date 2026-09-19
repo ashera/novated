@@ -69,5 +69,51 @@ export default async function run(browser) {
     assertEqual(quotes[0].frequency, "monthly", "the frequency was not saved");
   });
 
+  /*
+   * Adding a car the catalogue does not have.
+   *
+   * VehicleCard takes an optional onCustom, and this page passed the three
+   * custom fields to DISPLAY without passing one — so the modal collected a
+   * make, a model and a body type, called a handler that was not there, closed
+   * itself, and left nothing behind. An optional prop that silently does
+   * nothing is the failure mode worth a permanent test.
+   */
+  describe("Adding a car the catalogue doesn't have");
+
+  await check("the modal saves the car onto the lease", async () => {
+    await page.locator("button", { hasText: /find your car/i }).first().click();
+    const dialog = page.locator('[role="dialog"]');
+    await dialog.waitFor({ state: "visible", timeout: 10_000 });
+    await dialog.getByPlaceholder("Skoda").fill("Skoda");
+    await dialog.getByPlaceholder("Enyaq").fill("Enyaq");
+    await dialog.locator('input[type="number"]').first().fill("17.2");
+    await dialog.locator("button", { hasText: /^Add this car$/ }).click();
+    await page.waitForTimeout(2000);
+
+    const v = await page.evaluate(() => {
+      const rows = JSON.parse(localStorage.getItem("leasewiz-leases") || "[]");
+      const l = rows.at(-1)?.lease;
+      return {
+        make: l?.vehicle?.make,
+        model: l?.vehicle?.model,
+        cons: l?.vehicle?.consumptionPer100km ?? l?.quotes?.[0]?.consumptionPer100km,
+      };
+    });
+    assertEqual(v.make, "Skoda", "the make was not saved");
+    assertEqual(v.model, "Enyaq", "the model was not saved");
+    /*
+     * The quiet half. VehicleCard's save fires onVehicle, onCustom and
+     * onFuelType one after another, and every one of them used to start from
+     * the same stale copy of the quote — so the last write won and the
+     * consumption disappeared, leaving the engine on a class average with
+     * nothing on screen to say so.
+     */
+    assertEqual(v.cons, 17.2, "the consumption figure was dropped");
+  });
+
+  await check("the car it added is named on the page", async () => {
+    assert(/Skoda/.test(await page.locator("body").innerText()), "the car is not shown");
+  });
+
   await page.context().close();
 }

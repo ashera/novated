@@ -204,7 +204,6 @@ export default function QuoteDecoder({
      * they typed is the only thing on it.
      */
     const base = isExample ? leaseToQuote(lease, newQuoteSpec("", leaseTermMonths)) : quote;
-    const next = fn(base);
     /*
      * A locked quote keeps the lease's car whatever the form says; an unlocked
      * one is allowed to define it.
@@ -220,10 +219,31 @@ export default function QuoteDecoder({
     const existingId = activeSpec?.id ?? createdQuoteId.current;
 
     if (existingId) {
-      store.update((l) => applyQuoteEdit(l, existingId, withCar(l, next)));
+      /*
+       * The edit is applied to the quote as STORED, not to the copy this
+       * render closed over.
+       *
+       * VehicleCard's save calls three handlers one after another —
+       * onVehicle, onCustom, onFuelType — and they all run before React has
+       * re-rendered. Each starting from the same stale `quote` meant each
+       * produced a whole quote object differing in one field, and the last
+       * one written won: adding a car kept its make and model and silently
+       * dropped the consumption, after which the engine fell back to a class
+       * average without saying so.
+       *
+       * Reading it back out of the lease being updated makes the three
+       * compose, because store.update applies its callbacks in order against
+       * the accumulating state.
+       */
+      store.update((l) => {
+        const stored = l.quotes.find((q) => q.id === existingId);
+        const current = stored ? leaseToQuote(l, stored) : base;
+        return applyQuoteEdit(l, existingId, withCar(l, fn(current)));
+      });
       return;
     }
 
+    const next = fn(base);
     const spec = newQuoteSpec(next.label ?? "", leaseTermMonths);
     createdQuoteId.current = spec.id;
     setActiveQuoteId(spec.id);
@@ -589,6 +609,35 @@ export default function QuoteDecoder({
             customMake={lease.vehicle.make}
             customModel={lease.vehicle.model}
             customBodyType={lease.vehicle.bodyType}
+            /*
+             * Without this, "Can't find your car?" was a dead end.
+             *
+             * The card was given the three custom fields to DISPLAY and no way
+             * to write them back, and onCustom is optional — so the modal
+             * collected a make, a model and a body type, called a handler that
+             * was not there, closed itself, and left no trace. Nothing failed
+             * loudly enough to notice.
+             *
+             * The make, model and body type go on the lease's vehicle, because
+             * a Quote has no fields for them: applyQuoteEdit rebuilds the car
+             * from `...lease.vehicle` and then overwrites only what a quote
+             * actually carries, so these survive every later edit.
+             *
+             * Consumption is the exception and has to travel on the QUOTE.
+             * applyQuoteEdit assigns `consumptionPer100km: q.consumptionPer100km`
+             * unconditionally, so a figure written to the lease alone would be
+             * wiped by the next keystroke in any other field — and the engine
+             * would fall back to a class average without saying so.
+             */
+            onCustom={(patch) => {
+              const { consumptionPer100km, ...named } = patch;
+              if (Object.keys(named).length > 0) {
+                store.update((l) => ({ ...l, vehicle: { ...l.vehicle, ...named } }));
+              }
+              if (consumptionPer100km !== undefined) {
+                set("consumptionPer100km", consumptionPer100km);
+              }
+            }}
             consumption={quote.consumptionPer100km}
             onRoadCosts={lease.vehicle.onRoadCosts}
             config={config}
