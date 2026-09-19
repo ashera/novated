@@ -225,6 +225,20 @@ export default function QuoteDecoder({
     const spec = newQuoteSpec(next.label ?? "", leaseTermMonths);
     createdQuoteId.current = spec.id;
     setActiveQuoteId(spec.id);
+    /*
+     * Name the new quote in the URL.
+     *
+     * Without this a reload lands on /decode with no id, which opens a blank
+     * form on purpose — "Decode a quote" in the nav is an invitation to bring
+     * a new one, not to reopen an old one. That rule is right for the nav and
+     * wrong for a refresh: the quote was saved, it just was not the one being
+     * asked for, so a person who typed a page of figures and pressed reload
+     * saw an empty form and every reason to think it had been lost.
+     *
+     * replace rather than push, so the back button still leaves the page
+     * instead of stepping through a quote that did not exist a keystroke ago.
+     */
+    router.replace(`/decode?quote=${encodeURIComponent(spec.id)}`, { scroll: false });
     store.update((l) =>
       applyQuoteEdit({ ...l, quotes: [...l.quotes, spec] }, spec.id, withCar(l, next)),
     );
