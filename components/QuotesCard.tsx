@@ -22,6 +22,7 @@ import type { EngineConfig } from "@/lib/au/config";
 import { fmtCurrency, fmtCurrencyCents, fmtDate } from "@/lib/au/format";
 import type { UseLease } from "./useLease";
 import { track } from "@/lib/analytics";
+import ShareControl from "./ShareControl";
 import SampleQuote from "./SampleQuote";
 import QuoteSteps from "./QuoteSteps";
 
@@ -69,11 +70,15 @@ const btnSample =
 export default function QuotesCard({
   store,
   config,
+  signedIn = false,
 }: {
   store: UseLease;
   config: EngineConfig;
+  /** Sharing needs a lease on the server, which a guest's never is. */
+  signedIn?: boolean;
 }) {
-  const { lease } = store;
+  const { lease, leaseId } = store;
+  const [notice, setNotice] = useState<string | null>(null);
   const router = useRouter();
   const activeId = lease.scenario.fromQuoteId;
   const lockedId = lease.lockedQuoteId;
@@ -170,6 +175,9 @@ export default function QuotesCard({
     // quote" is not a decision anyone can act on later. The engine refuses it
     // too, so this only saves the user a dead click.
     const named = quoteIsNamed(q);
+    // Shareable once there is something to share: an analysis of a quote whose
+    // rate cannot be solved is a page of blanks.
+    const solved = status === "complete";
 
     return (
       <li
@@ -211,6 +219,33 @@ export default function QuotesCard({
           >
             Unlock
           </button>
+        )}
+
+        {/* Share THIS quote's analysis, and nothing else.
+
+            Deliberately per quote rather than per lease. A lease carries a
+            salary, a payslip and a ledger of somebody's actual spending; a
+            quote carries a provider's document and what it implies. "Look at
+            this quote" is a thing people say to a partner, a colleague
+            shopping at the same time, or the provider — and saying it should
+            not hand over the rest of their finances.
+
+            The capability is still the lease's token, because that is where
+            the token lives and revoking it kills every link made from it at
+            once. The quote id in the path picks which one is on show.
+
+            Signed in only, and not by policy: a guest's lease never reaches
+            the server, so there is nothing for a link to point at. */}
+        {signedIn && leaseId && solved && (
+          <ShareControl
+            id={leaseId}
+            initialToken={null}
+            linkPath={`/quote/${encodeURIComponent(q.id)}`}
+            onNotice={setNotice}
+            shareLabel="Share analysis"
+            copyLabel="Copy link"
+            copiedNotice="Link copied. It shows this quote's analysis — the rate, the working and the findings — and nothing else about you or your lease."
+          />
         )}
 
         {/* While one is locked the decision stands. Reconsidering means
@@ -451,6 +486,22 @@ export default function QuotesCard({
             setConfirming(null);
           }}
         />
+      )}
+
+      {/* Under the card rather than beside the button: the message is longer
+          than the row it came from, and a link the clipboard refused has to be
+          readable somewhere. */}
+      {notice && (
+        <p className="mt-3 rounded-lg border border-accent-border bg-accent-subtle px-3 py-2 text-xs leading-relaxed text-ink">
+          {notice}{" "}
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="font-semibold text-accent hover:underline"
+          >
+            Dismiss
+          </button>
+        </p>
       )}
     </section>
   );

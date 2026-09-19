@@ -121,7 +121,7 @@ export default function LeaseCalculator({
   const result = useMemo(() => calculateLease(inputs, config), [inputs, config]);
 
   /** Rendered in the narrow column while deciding, and inline once settled. */
-  const quotesCard = readOnly ? null : <QuotesCard store={store} config={config} />;
+  const quotesCard = readOnly ? null : <QuotesCard store={store} config={config} signedIn={Boolean(user)} />;
   /**
    * Collapsed on a phone, open on a desktop.
    *
