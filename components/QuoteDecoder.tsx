@@ -1033,6 +1033,34 @@ export default function QuoteDecoder({
                   </div>
                 </div>
 
+                {/* The deferral, beside the rate it explains.
+
+                    It had a finding and no presence here, which meant typing
+                    the "2" off a quote changed nothing a reader was looking
+                    at: the headline is the all-in rate and that genuinely does
+                    not move — the payment costs what it costs — so the only
+                    sign anything had happened was a card further down the
+                    page. Reported as reasonably not working.
+
+                    Disclosed fees have had a line here all along. A deferral
+                    is the same shape of fact: something in the payment that is
+                    not margin, named on the document, worth separating. */}
+                {decode.rateAfterDeferralPct != null &&
+                  decode.impliedRatePct != null &&
+                  decode.impliedRatePct - decode.rateAfterDeferralPct > 0.05 && (
+                    <p className="mt-3 border-t border-line pt-3 text-sm text-subtle">
+                      Setting aside the {quote.deferredMonths}-month deferral this quote discloses,
+                      the money itself is at{" "}
+                      <strong className="text-ink">
+                        {decode.rateAfterDeferralPct.toFixed(2)}%
+                      </strong>
+                      . Nothing is repaid for those months, so interest accrues before a single
+                      payment lands and the solver attributes it to the rate. The{" "}
+                      {decode.impliedRatePct.toFixed(2)}% above is still what the payment costs
+                      you.
+                    </p>
+                  )}
+
                 {/* The same payment asked a different question: the disclosed
                     fees put where they belong, as money borrowed rather than
                     interest charged. Only once somebody has said what they
