@@ -28,6 +28,15 @@ export interface Article {
 
 export const ARTICLES: Article[] = [
   {
+    slug: "when-your-employer-keeps-part-of-the-saving",
+    title: "When your employer keeps part of the tax saving",
+    question: "What is the “share of saving” line on my payslip?",
+    standfirst:
+      "Public health services, ambulance services and universities commonly keep half the tax benefit salary packaging creates. It reaches you as a second pre-tax deduction beside the lease, and no provider’s headline figures mention it — because what they quote is already your half.",
+    published: "2026-09-20",
+    kind: "computed",
+  },
+  {
     slug: "when-a-lease-stops-beating-a-car-loan",
     title: "When a novated lease stops beating a car loan",
     question: "How bad does the interest rate have to be before a bank loan wins?",
