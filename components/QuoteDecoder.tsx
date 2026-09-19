@@ -543,13 +543,24 @@ export default function QuoteDecoder({
               <div className="space-y-3">
                 <LeaseBar store={store} signedIn={Boolean(user)} readOnly />
                 <div className="border-t border-line pt-3">
+                  {/* `locked`, not `readOnly`.
+                      Who sent the quote and what period its figures are in are
+                      facts about the document, not measurements taken against
+                      the car — a default car renders neither of them wrong, so
+                      neither needs holding back until one is chosen. Gating
+                      them on needsCar made the two fields at the TOP of this
+                      card dead while the card's own message said to start by
+                      typing the price into it, and they are the first things
+                      anybody reaches for. Arriving at /decode with a quote in
+                      hand and nothing editable is the dead end this page was
+                      reworked to remove. */}
                   <QuoteIdentity
                     label={quote.label ?? ""}
                     onLabel={(v) => set("label", v)}
                     frequency={quote.frequency}
                     onFrequency={(f) => set("frequency", f)}
                     providers={providers}
-                    readOnly={readOnly}
+                    readOnly={locked}
                   />
                 </div>
               </div>
