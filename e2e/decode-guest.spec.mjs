@@ -123,6 +123,39 @@ export default async function run(browser) {
     assert(/Skoda/.test(await page.locator("body").innerText()), "the car is not shown");
   });
 
+  /*
+   * Breaking the price down, which this page needs more than the calculator
+   * does. A drive-away figure typed in as the car's price puts stamp duty and
+   * rego inside the FBT base AND moves the amount financed the interest rate
+   * is solved from — a real quote read that way came out 1.4 points high.
+   */
+  describe("Splitting a drive-away price into the car and the on-roads");
+
+  await check("the breakdown is offered and the split is stored", async () => {
+    await page
+      .getByRole("button", { name: /^(Work it out|Break it down)$/ })
+      .first()
+      .click();
+    const dialog = page.locator('[role="dialog"]');
+    await dialog.waitFor({ state: "visible", timeout: 10_000 });
+
+    const nums = dialog.locator('input[type="number"]');
+    await nums.nth(0).fill("62200"); // the car itself
+    await nums.nth(3).fill("2000"); // stamp duty
+    await nums.nth(4).fill("569"); // registration
+    await dialog.locator("button", { hasText: /^Use these figures$/ }).first().click();
+    await page.waitForTimeout(2000);
+
+    const v = await page.evaluate(() => {
+      const l = JSON.parse(localStorage.getItem("leasewiz-leases") || "[]").at(-1)?.lease;
+      return { price: l?.vehicle?.price, onRoad: l?.vehicle?.onRoadCosts, purchase: l?.vehicle?.purchase };
+    });
+    // The car alone is what FBT is worked out on: the on-roads must NOT be in it.
+    assertEqual(v.price, 62_200, "the car price absorbed the on-road costs");
+    assertEqual(v.onRoad, 2_569, "the on-road costs were not kept separate");
+    assert(v.purchase, "the itemisation was not kept on the car");
+  });
+
   /** The select's own name, kept clean of the button beside it. */
   await check("the Make select is announced as just 'Make'", async () => {
     const label = await page.evaluate(() => {

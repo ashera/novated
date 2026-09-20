@@ -37,6 +37,7 @@ import {
   hasChosenCar,
   leaseToQuote,
   newQuoteSpec,
+  priceNeedsBreakdown,
   type Lease,
 } from "@/lib/au/lease";
 
@@ -591,6 +592,34 @@ export default function QuoteDecoder({
                 ? "Settled with the quote you locked in. Unlock it on your lease to change the car."
                 : undefined
             }
+            /*
+             * The price breakdown, the same one the calculator offers.
+             *
+             * Without `onPurchase` the card falls back to a single price box,
+             * and this is the page where that costs the most: a drive-away
+             * figure typed in as the car's price puts stamp duty and rego
+             * inside the FBT base, and it also moves the amount financed we
+             * solve the interest rate from. A real quote read that way came
+             * out at 11.84% instead of 10.46% — a point and a half of error,
+             * with nothing on screen suggesting anything was wrong.
+             *
+             * Which is why the "does this include stamp duty and rego?"
+             * prompt matters more here than on the calculator, and why it was
+             * missing exactly where it was most needed.
+             *
+             * The split of where each field goes is forced by the model.
+             * `vehiclePrice` and `onRoadCosts` are fields a Quote has, so they
+             * travel on the quote and applyQuoteEdit maps them onto the car.
+             * The itemisation itself is not on a Quote, so it is written to
+             * the lease's vehicle — where it survives, because that mapping
+             * spreads `...lease.vehicle` first and never overwrites it.
+             */
+            purchase={lease.vehicle.purchase}
+            priceNeedsBreakdown={!locked && priceNeedsBreakdown(lease.vehicle)}
+            onPurchase={(b) => {
+              store.update((l) => ({ ...l, vehicle: { ...l.vehicle, purchase: b.purchase } }));
+              setQuote((q) => ({ ...q, vehiclePrice: b.price, onRoadCosts: b.onRoadCosts }));
+            }}
             priceHint="The car itself, GST included. A make and model are optional — the price is what the figures need."
             catalogue={catalogue}
             vehicleId={quote.vehicleId}
