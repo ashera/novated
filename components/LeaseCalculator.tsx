@@ -978,10 +978,21 @@ export default function LeaseCalculator({
                 At the end of the {term.years} years
               </h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {/* The GST-INCLUSIVE figure, because this card answers "what
+                    do I have to find at the end" and the answer is the one
+                    with GST on it. The lease document states the residual
+                    without — that is the figure the ATO percentage is of, and
+                    the one a provider's quote shows — so it stays in the
+                    note, where it reconciles against their paperwork without
+                    being mistaken for the cheque.
+
+                    The paragraph below this grid used to break the news that
+                    GST applies. It no longer has to: the headline is the real
+                    number. */}
                 <StatCard
-                  label="Residual to pay out"
-                  value={fmtCurrency(finance.residual)}
-                  sub={`${finance.residualPct.toFixed(2)}% of the amount financed — the ATO minimum for this term`}
+                  label="Residual to pay out (inc. GST)"
+                  value={fmtCurrency(term.residualPayable)}
+                  sub={`${fmtCurrency(finance.residual)} on the lease at ${finance.residualPct.toFixed(2)}% — the ATO minimum for this term — plus GST`}
                   explainer={<StatExplainer kind="residual" result={result} config={config} />}
                 />
                 <StatCard
@@ -1000,8 +1011,7 @@ export default function LeaseCalculator({
               <p className="mt-3 text-sm text-subtle">
                 The residual isn&apos;t optional — at the end of the term you either pay it to keep
                 the car, refinance it into a new lease, or sell the car and cover any shortfall
-                yourself. With GST on the buyout that is {fmtCurrency(term.residualPayable)}. It is
-                the part of a novated lease most people are surprised by.
+                yourself. It is the part of a novated lease most people are surprised by.
               </p>
             </section>
 

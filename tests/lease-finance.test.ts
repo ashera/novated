@@ -524,3 +524,45 @@ describe("Paying the finance down", () => {
     });
   });
 });
+
+/**
+ * The residual, and the two figures people confuse.
+ *
+ * A lease states the residual without GST — that is the number on the
+ * document and the one the ATO's minimum percentage is of. What has to be
+ * found on the day is that figure plus GST, because buying the car back is a
+ * purchase like any other.
+ *
+ * The distinction is not academic: the page showed the smaller one under a
+ * heading that promised the larger, so the number people were planning around
+ * was a tenth short. `residualPayable` exists to be the one you pay, and the
+ * display now leads with it.
+ */
+describe("What the residual actually costs at the end", () => {
+  const r = calculateLease(base, config);
+
+  it("is the contractual residual plus GST", () => {
+    expect(r.term.residualPayable).toBeCloseTo(r.finance.residual * (1 + config.gst.rate), 6);
+  });
+
+  it("is always the larger of the two", () => {
+    expect(r.term.residualPayable).toBeGreaterThan(r.finance.residual);
+  });
+
+  /** The percentage belongs to the ex-GST figure, and must keep doing so —
+   *  it is what reconciles against the provider's paperwork. */
+  it("leaves the ATO percentage measured on the figure it belongs to", () => {
+    expect(r.finance.residual / r.finance.amountFinanced).toBeCloseTo(
+      r.finance.residualPct / 100,
+      6,
+    );
+  });
+
+  it("holds across terms", () => {
+    for (const termYears of [1, 3, 5]) {
+      const x = calculateLease(withInputs({ termYears }), config);
+      expect(x.term.residualPayable).toBeCloseTo(x.finance.residual * (1 + config.gst.rate), 6);
+      expect(x.term.residualPayable).toBeGreaterThan(x.finance.residual);
+    }
+  });
+});

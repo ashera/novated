@@ -115,9 +115,9 @@ export default function LeaseReport({
             note={`${(pkg.effectiveReliefRate * 100).toFixed(1)}% relief on the pre-tax deduction`}
           />
           <Figure
-            label="Residual at the end"
-            value={fmtCurrency(finance.residual)}
-            note={`${finance.residualPct.toFixed(2)}% of the amount financed`}
+            label="Residual at the end (inc. GST)"
+            value={fmtCurrency(term.residualPayable)}
+            note={`${fmtCurrency(finance.residual)} at ${finance.residualPct.toFixed(2)}% of the amount financed, plus GST`}
           />
         </div>
       </Section>
@@ -150,7 +150,8 @@ export default function LeaseReport({
             ["Interest rate", `${inputs.interestRatePct}%`],
             ["Monthly lease payment", fmtCurrency(finance.monthlyPayment)],
             ["Total interest over the term", fmtCurrency(finance.totalInterest)],
-            ["Residual payable at the end", fmtCurrency(finance.residual)],
+            ["Residual on the lease (ex GST)", fmtCurrency(finance.residual)],
+            ["Residual payable at the end (inc. GST)", fmtCurrency(term.residualPayable)],
           ]}
         />
       </Section>
