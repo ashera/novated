@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import ShareControl from "./ShareControl";
 import type { UseLease } from "./useLease";
 
 /**
@@ -17,6 +19,19 @@ import type { UseLease } from "./useLease";
  * opening a quote on a particular lease, so renaming it or switching to
  * another mid-transcription is a way to lose your place, not a feature. It
  * shows which lease you are on and nothing else.
+ *
+ * Sharing a whole lease is a wider thing than sharing a quote, and the
+ * difference is the point rather than a detail. A quote link carries a
+ * provider's document and the arithmetic on it; the salary is stripped before
+ * the page is serialised. A lease link carries the lease — which means the
+ * salary, whether there is a study loan, the employer's FBT status, and how
+ * much of an FBT cap has already gone on rent or a mortgage. Notes and the
+ * statement ledger are left out by the query that serves it, but what remains
+ * is still somebody's finances.
+ *
+ * So the control says which of the two this is, before the link is sent
+ * rather than after. Signed in only, and not by policy: a guest's lease never
+ * reaches the server, so there is nothing for a link to point at.
  */
 export default function LeaseBar({
   store,
@@ -29,6 +44,7 @@ export default function LeaseBar({
   readOnly?: boolean;
 }) {
   const { all, leaseId, lease, saving } = store;
+  const [notice, setNotice] = useState<string | null>(null);
 
   const status = (
     <span className="ml-auto text-xs text-muted">
@@ -90,7 +106,27 @@ export default function LeaseBar({
         </button>
       )}
 
+      {signedIn && leaseId && (
+        <ShareControl
+          id={leaseId}
+          initialToken={null}
+          onNotice={setNotice}
+          shareLabel="Share lease"
+          copyLabel="Copy lease link"
+          copiedNotice="Link copied. Anyone with it can read this whole lease — the car, every quote, and the figures behind them, which includes your salary. Your notes and your statement ledger are not in it. Use “unshare” to switch the link off."
+        />
+      )}
+
       {status}
+
+      {notice && (
+        <p
+          role="status"
+          className="w-full rounded-md border border-accent-border bg-accent-subtle px-2.5 py-1.5 text-xs leading-snug text-ink"
+        >
+          {notice}
+        </p>
+      )}
     </div>
   );
 }
