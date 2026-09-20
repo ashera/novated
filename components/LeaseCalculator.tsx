@@ -885,6 +885,54 @@ export default function LeaseCalculator({
                 />
               </div>
 
+              {/*
+                * The end of the term, in the same card as the week-to-week
+                * cost rather than in one of its own further down.
+                *
+                * They were split because they answer different questions —
+                * what it costs while you have it, and what it costs to get
+                * out of it — but splitting them meant the residual sat below
+                * the fold on most screens, and it is the figure people are
+                * most often surprised by. A heading keeps the two ideas
+                * apart without putting a card boundary and a scroll between
+                * them.
+                */}
+              <h3 className="mt-6 border-t border-line pt-5 text-base font-semibold text-ink">
+                At the end of the {term.years} years
+              </h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {/* The GST-INCLUSIVE figure, because this answers "what do I
+                    have to find at the end" and the answer is the one with
+                    GST on it. The lease document states the residual without
+                    — that is the figure the ATO percentage is of, and the one
+                    a provider's quote shows — so it stays in the note, where
+                    it reconciles against their paperwork without being
+                    mistaken for the cheque. */}
+                <StatCard
+                  label="Residual to pay out (inc. GST)"
+                  value={fmtCurrency(term.residualPayable)}
+                  sub={`${fmtCurrency(finance.residual)} on the lease at ${finance.residualPct.toFixed(2)}% — the ATO minimum for this term — plus GST`}
+                  explainer={<StatExplainer kind="residual" result={result} config={config} />}
+                />
+                <StatCard
+                  label="Total interest"
+                  value={fmtCurrency(finance.totalInterest)}
+                  sub={`At ${inputs.interestRatePct}% over ${term.years} years`}
+                  explainer={<StatExplainer kind="interest" result={result} config={config} />}
+                />
+                <StatCard
+                  label="GST you avoid"
+                  value={fmtCurrency(term.gstSaved)}
+                  sub="On the car and packaged running costs, less the GST on the buyout"
+                  explainer={<StatExplainer kind="gst" result={result} config={config} />}
+                />
+              </div>
+              <p className="mt-3 text-sm text-subtle">
+                The residual isn&apos;t optional — at the end of the term you either pay it to keep
+                the car, refinance it into a new lease, or sell the car and cover any shortfall
+                yourself. It is the part of a novated lease most people are surprised by.
+              </p>
+
               {fbt.exempt && (
                 <p className="mt-4 rounded-lg border border-success/40 bg-success-subtle px-3.5 py-2.5 text-sm text-success-text">
                   <strong>No FBT on this car.</strong> {fbt.exemptReason} That means the entire
@@ -1013,49 +1061,6 @@ export default function LeaseCalculator({
                   you&apos;d pay those from your take-home pay, with GST.
                 </p>
               )}
-            </section>
-
-            {/* The residual */}
-            <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-              <h3 className="text-base font-semibold text-ink">
-                At the end of the {term.years} years
-              </h3>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                {/* The GST-INCLUSIVE figure, because this card answers "what
-                    do I have to find at the end" and the answer is the one
-                    with GST on it. The lease document states the residual
-                    without — that is the figure the ATO percentage is of, and
-                    the one a provider's quote shows — so it stays in the
-                    note, where it reconciles against their paperwork without
-                    being mistaken for the cheque.
-
-                    The paragraph below this grid used to break the news that
-                    GST applies. It no longer has to: the headline is the real
-                    number. */}
-                <StatCard
-                  label="Residual to pay out (inc. GST)"
-                  value={fmtCurrency(term.residualPayable)}
-                  sub={`${fmtCurrency(finance.residual)} on the lease at ${finance.residualPct.toFixed(2)}% — the ATO minimum for this term — plus GST`}
-                  explainer={<StatExplainer kind="residual" result={result} config={config} />}
-                />
-                <StatCard
-                  label="Total interest"
-                  value={fmtCurrency(finance.totalInterest)}
-                  sub={`At ${inputs.interestRatePct}% over ${term.years} years`}
-                  explainer={<StatExplainer kind="interest" result={result} config={config} />}
-                />
-                <StatCard
-                  label="GST you avoid"
-                  value={fmtCurrency(term.gstSaved)}
-                  sub="On the car and packaged running costs, less the GST on the buyout"
-                  explainer={<StatExplainer kind="gst" result={result} config={config} />}
-                />
-              </div>
-              <p className="mt-3 text-sm text-subtle">
-                The residual isn&apos;t optional — at the end of the term you either pay it to keep
-                the car, refinance it into a new lease, or sell the car and cover any shortfall
-                yourself. It is the part of a novated lease most people are surprised by.
-              </p>
             </section>
 
             <div className="flex flex-wrap items-center gap-3 pb-4">
