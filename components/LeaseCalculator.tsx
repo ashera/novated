@@ -895,9 +895,16 @@ export default function LeaseCalculator({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-base font-semibold text-ink">What&apos;s in the deduction</h3>
+                  {/* Says that nothing here was typed, because that is the
+                      question the table raises and cannot answer: the figures
+                      are not editable on this page, so a reader who doubts one
+                      has nowhere to go. The taxonomy itself stays in the
+                      explainer — one clause here is a pointer, not a second
+                      copy of it. */}
                   <p className="mt-1 text-sm text-muted">
                     Everything the employer takes out of your pay each year, and which side of
-                    tax it comes from.
+                    tax it comes from. None of it is typed in here — each line is either worked
+                    out from the figures above or benchmarked from published data.
                   </p>
                 </div>
                 <DeductionExplainer

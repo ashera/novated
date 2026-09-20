@@ -80,7 +80,7 @@ export default function DeductionExplainer({
   const ownFigure = inputs.consumptionPer100km != null;
 
   return (
-    <Explainer title="Where these numbers come from">
+    <Explainer title="Where these numbers come from" label="Where these come from">
       <p>
         Two different kinds of number sit in this table, and the difference matters more
         than any single figure.

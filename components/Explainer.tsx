@@ -11,9 +11,22 @@ import { useEffect, useState, type ReactNode } from "react";
 export default function Explainer({
   title,
   children,
+  label,
 }: {
   title: string;
   children: ReactNode;
+  /**
+   * Show the icon with words beside it.
+   *
+   * The bare icon is a 28px target whose only description is a tooltip that
+   * appears on hover — which means on a phone it has no description at all,
+   * and beside a table of figures nobody typed it reads as decoration. Where
+   * a section's numbers cannot be edited in place, the way to find out where
+   * they came from has to announce itself. Left off, nothing changes for the
+   * callers that sit beside a single stat and would be shouted down by a
+   * sentence.
+   */
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -38,8 +51,12 @@ export default function Explainer({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="Explain this to me"
-          className="relative flex h-7 w-7 items-center justify-center rounded-full border border-line bg-panel-2 text-accent transition hover:border-accent hover:bg-accent-subtle"
+          aria-label={label ?? "Explain this to me"}
+          className={
+            label
+              ? "relative flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-panel-2 px-2.5 py-1 text-xs font-medium text-accent transition hover:border-accent hover:bg-accent-subtle"
+              : "relative flex h-7 w-7 items-center justify-center rounded-full border border-line bg-panel-2 text-accent transition hover:border-accent hover:bg-accent-subtle"
+          }
         >
           <svg
             viewBox="0 0 24 24"
@@ -54,10 +71,15 @@ export default function Explainer({
               d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.4 14.4 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"
             />
           </svg>
+          {label && <span className="whitespace-nowrap">{label}</span>}
         </button>
-        <span className="pointer-events-none absolute right-0 top-9 z-20 w-max rounded-md border border-line bg-panel px-2 py-1 text-[11px] font-medium text-ink opacity-0 shadow-lg transition group-hover:opacity-100">
-          Explain this to me
-        </span>
+        {/* The hover tooltip is the icon-only form's entire description, so it
+            is redundant — and on a phone misleading — once there are words. */}
+        {!label && (
+          <span className="pointer-events-none absolute right-0 top-9 z-20 w-max rounded-md border border-line bg-panel px-2 py-1 text-[11px] font-medium text-ink opacity-0 shadow-lg transition group-hover:opacity-100">
+            Explain this to me
+          </span>
+        )}
       </span>
 
       {open && (
