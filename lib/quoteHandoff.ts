@@ -111,9 +111,15 @@ export function takeSharedQuote(): SharedQuoteHandoff | null {
  */
 const SHARED_LEASE_KEY = "leasewiz-shared-lease";
 
-export function stashSharedLease(lease: Lease): void {
+export interface SharedLeaseHandoff {
+  lease: Lease;
+  /** What the reader said they earn, where they said. */
+  salary?: number;
+}
+
+export function stashSharedLease(payload: SharedLeaseHandoff): void {
   try {
-    sessionStorage.setItem(SHARED_LEASE_KEY, JSON.stringify(lease));
+    sessionStorage.setItem(SHARED_LEASE_KEY, JSON.stringify(payload));
   } catch {
     /* storage blocked — the reader lands on an ordinary empty lease */
   }
@@ -121,13 +127,13 @@ export function stashSharedLease(lease: Lease): void {
 
 /** Read and remove it. Null where there is nothing usable: a copy with no
  *  car is not a starting point, it is an empty form with extra steps. */
-export function takeSharedLease(): Lease | null {
+export function takeSharedLease(): SharedLeaseHandoff | null {
   try {
     const raw = sessionStorage.getItem(SHARED_LEASE_KEY);
     if (!raw) return null;
     sessionStorage.removeItem(SHARED_LEASE_KEY);
-    const parsed = JSON.parse(raw) as Lease;
-    if (!parsed?.vehicle || !Array.isArray(parsed.quotes)) return null;
+    const parsed = JSON.parse(raw) as SharedLeaseHandoff;
+    if (!parsed?.lease?.vehicle || !Array.isArray(parsed.lease.quotes)) return null;
     return parsed;
   } catch {
     return null;

@@ -109,7 +109,9 @@ export default function LeaseCalculator({
     const sharedWholeLease = takeSharedLease();
     const handed = takeHandoff();
     if (sharedWholeLease) {
-      store.createFrom(leaseFromSharedLease(sharedWholeLease, config));
+      store.createFrom(
+        leaseFromSharedLease(sharedWholeLease.lease, config, undefined, sharedWholeLease.salary),
+      );
     } else if (shared) {
       store.createFrom(leaseFromSharedQuote(shared.vehicle, shared.quote, config, shared.leaseName));
     } else if (handed) {

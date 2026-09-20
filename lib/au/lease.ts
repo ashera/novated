@@ -517,6 +517,15 @@ export function leaseFromSharedLease(
   shared: Lease,
   config: EngineConfig,
   name?: string,
+  /**
+   * The reader's own salary, where they gave one.
+   *
+   * Without it the copy opens on our default, which is a third figure —
+   * neither the sender's nor the reader's — presented as confidently as the
+   * one they just read. That is how a lease shared at $150,000 became
+   * $133 a week instead of $120 with nothing on screen to explain it.
+   */
+  salary?: number,
 ): Lease {
   const base = newLease(name?.trim() || shared.name?.trim() || "My lease");
 
@@ -558,6 +567,7 @@ export function leaseFromSharedLease(
        * see. Continuity is worth more here than the principle was.
        */
       payCycle: from.payCycle,
+      ...(salary != null && salary > 0 ? { salary } : {}),
       // Still NOT carried: salary, hasHelpDebt, employerFbtStatus,
       // capUsedSpendable, employerSavingSharePct. Each of those changes the
       // ANSWER rather than the units, and each is a claim about the reader we

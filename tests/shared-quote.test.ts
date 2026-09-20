@@ -292,3 +292,44 @@ describe("A copy is quoted in the same period as the original", () => {
     expect(copy.scenario.employerFbtStatus).toBeUndefined();
   });
 });
+
+/**
+ * The reader's own salary, asked for at the moment it is promised.
+ *
+ * A lease shared at $150,000 opened at our $110,000 default, so the cost
+ * moved from $120 a week to $133 with nothing on the page explaining it —
+ * a third figure, neither the sender's nor the reader's, shown as
+ * confidently as the one they had just read. The button says "on my salary";
+ * it now has one to use.
+ */
+describe("Taking a copy on your own salary", () => {
+  const theirs = (): Lease => ({
+    ...newLease("Theirs"),
+    vehicle,
+    scenario: { ...newLease().scenario, salary: 150_000, payCycle: "weekly" },
+    quotes: [senderSpec()],
+  });
+
+  it("uses the salary the reader gave", () => {
+    expect(leaseFromSharedLease(theirs(), config, undefined, 92_000).scenario.salary).toBe(92_000);
+  });
+
+  it("never inherits the sender's, with or without one given", () => {
+    expect(leaseFromSharedLease(theirs(), config, undefined, 92_000).scenario.salary).not.toBe(150_000);
+    expect(leaseFromSharedLease(theirs(), config).scenario.salary).not.toBe(150_000);
+  });
+
+  /** A blank box is not a salary of zero — it means "use the default", and a
+   *  lease priced on nothing would be nonsense rather than a starting point. */
+  it("falls back to the default rather than to nothing", () => {
+    for (const bad of [undefined, 0, -5, Number.NaN]) {
+      const copy = leaseFromSharedLease(theirs(), config, undefined, bad as number | undefined);
+      expect(copy.scenario.salary).toBe(newLease().scenario.salary);
+    }
+  });
+
+  it("still keeps the pay period, so only the salary moves", () => {
+    const copy = leaseFromSharedLease(theirs(), config, undefined, 92_000);
+    expect(copy.scenario.payCycle).toBe("weekly");
+  });
+});
