@@ -28,17 +28,43 @@ import type { EngineConfig } from "@/lib/au/config";
  * from the saving is how the rest of the industry makes a lease look free, and
  * this site exists to argue the opposite. It points down rather than
  * explaining itself, because the explanation is the rest of the page.
+ *
+ * The rate is named with it, and named with its source.
+ *
+ * A cost per fortnight is meaningless without the rate it was worked out at —
+ * a point of interest on a $60,000 lease is thousands — and this card is the
+ * first and often only figure somebody reads. But a bare "7.0%" would be
+ * worse than none: on a page nobody has typed a quote into, that number is
+ * OUR assumption, and printing it beside a confident dollar figure is exactly
+ * the move this site exists to object to. So it says which of the three it
+ * is: solved from a real quote, typed by the reader, or ours until they have
+ * one.
  */
 export default function CostTaster({
   result,
   config,
+  rateFromQuote,
 }: {
   result: LeaseResult;
   config: EngineConfig;
+  /** The provider whose quote the rate was solved from, where the figures are
+   *  modelled on one. Absent means nobody has brought a quote yet. */
+  rateFromQuote?: string;
 }) {
   const noun = PAY_CYCLE_NOUN[effectivePayCycle(result.inputs.payCycle, config)];
   const perCycle = result.perPayCycle.takeHomeReduction;
   const covered = result.inputs.includeRunningCosts;
+
+  const rate = result.inputs.interestRatePct;
+  /* Ours only if nobody has moved it. Somebody who typed the same number as
+     our default gets told it is theirs, which is true and the safer way round
+     — the claim we must never make is that an assumption is a fact. */
+  const isOurs = !rateFromQuote && rate === config.lease.defaultInterestRatePct;
+  const source = rateFromQuote
+    ? `the rate on ${rateFromQuote}'s quote`
+    : isOurs
+      ? "our assumption, until you put a real quote in"
+      : "the rate you entered";
 
   return (
     <a
@@ -58,6 +84,10 @@ export default function CostTaster({
       <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-accent">
         See how it&apos;s made up ↓
       </span>
+      <p className="w-full text-xs leading-snug text-subtle">
+        Finance at{" "}
+        <strong className="tabular-nums text-ink">{rate.toFixed(2)}%</strong> — {source}.
+      </p>
     </a>
   );
 }

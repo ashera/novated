@@ -235,7 +235,19 @@ export default function LeaseCalculator({
           <LeaseSkeleton />
         ) : (
         <>
-        {!locked && hasChosenCar(lease.vehicle) && <CostTaster result={result} config={config} />}
+        {!locked && hasChosenCar(lease.vehicle) && (
+          <CostTaster
+            result={result}
+            config={config}
+            /* scenario.fromQuoteId is what "these figures are modelled on that
+               quote" means, so it is also what decides whether the rate beside
+               them is a solved fact or our assumption. */
+            rateFromQuote={
+              lease.quotes.find((q) => q.id === lease.scenario.fromQuoteId)?.label?.trim() ||
+              undefined
+            }
+          />
+        )}
 
         {/* The page reads down one column now: the car, the terms it is on,
             then what those terms do to your pay. The quotes sit beside all of
