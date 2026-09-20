@@ -44,12 +44,16 @@ export default function CostTaster({
   result,
   config,
   rateFromQuote,
+  rateInherited,
 }: {
   result: LeaseResult;
   config: EngineConfig;
   /** The provider whose quote the rate was solved from, where the figures are
    *  modelled on one. Absent means nobody has brought a quote yet. */
   rateFromQuote?: string;
+  /** The rate arrived with a lease somebody shared and has not been touched
+   *  since. Neither ours nor the reader's, and it should not claim to be. */
+  rateInherited?: boolean;
 }) {
   /* The PayCycle value is already the adjective — "fortnightly" — while
      PAY_CYCLE_NOUN gives the noun for "a fortnight". Both are wanted here. */
@@ -62,16 +66,22 @@ export default function CostTaster({
   /* Ours only if nobody has moved it. Somebody who typed the same number as
      our default gets told it is theirs, which is true and the safer way round
      — the claim we must never make is that an assumption is a fact. */
-  const isOurs = !rateFromQuote && rate === config.lease.defaultInterestRatePct;
+  const isOurs = !rateFromQuote && !rateInherited && rate === config.lease.defaultInterestRatePct;
   const source = rateFromQuote
     ? `the rate on ${rateFromQuote}'s quote`
-    : isOurs
-      ? "our assumption, until you put a real quote in"
+    : rateInherited
+      ? /* Somebody else typed this. Saying "the rate you entered" to a reader
+           who entered nothing is the same sin as calling our default a fact —
+           smaller, but on the page whose whole argument is that it does not
+           dress assumptions as answers. */
+        "carried over from the lease you were sent, not from a quote of your own"
+      : isOurs
+        ? "our assumption, until you put a real quote in"
       : /* Tied back to the figure above it. A reader who set this rate
            themselves is the one most likely to move it again, and saying
            which number it drives makes the cause and effect visible without
            them having to scroll and compare. */
-        `the rate you entered, which results in this ${cycle} cost`;
+          `the rate you entered, which results in this ${cycle} cost`;
 
   return (
     <a

@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { DEFAULT_CONFIG } from "@/lib/au/config";
 import { decodeQuote } from "@/lib/au/quote";
 import {
+  applyScenarioFromQuote,
   leaseFromSharedLease,
+  leaseToInputs,
   leaseFromSharedQuote,
   leaseToQuote,
   newLease,
@@ -331,5 +333,45 @@ describe("Taking a copy on your own salary", () => {
   it("still keeps the pay period, so only the salary moves", () => {
     const copy = leaseFromSharedLease(theirs(), config, undefined, 92_000);
     expect(copy.scenario.payCycle).toBe("weekly");
+  });
+});
+
+/**
+ * Whose rate is it, on a copy?
+ *
+ * The cost card names where its interest rate came from, and had three
+ * answers: a quote, our default, or "the rate you entered". A copied lease
+ * fitted none of them — the rate arrived from somebody else's scenario, and
+ * telling the reader they entered it is the same sin as calling our default a
+ * fact, only smaller.
+ */
+describe("A rate that came in with somebody else's lease", () => {
+  const theirs = (over: Partial<Lease["scenario"]> = {}): Lease => ({
+    ...newLease("Theirs"),
+    vehicle,
+    scenario: { ...newLease().scenario, salary: 150_000, interestRatePct: 13.2, ...over },
+    quotes: [senderSpec()],
+  });
+
+  it("is marked as inherited when no quote explains it", () => {
+    expect(leaseFromSharedLease(theirs(), config).scenario.rateInherited).toBe(true);
+  });
+
+  /** A quote names itself, so the weaker claim is not needed. */
+  it("is not marked where the copy is modelling a quote", () => {
+    const withQuote = theirs({ fromQuoteId: senderSpec().id });
+    expect(leaseFromSharedLease(withQuote, config).scenario.rateInherited).toBeUndefined();
+  });
+
+  it("is dropped once the reader models a quote themselves", () => {
+    const copy = leaseFromSharedLease(theirs(), config);
+    expect(copy.scenario.rateInherited).toBe(true);
+    const after = applyScenarioFromQuote(copy, leaseToInputs(copy), copy.quotes[0].id);
+    expect(after.scenario.rateInherited).toBeUndefined();
+  });
+
+  /** An ordinary lease nobody shared must not claim to be inherited. */
+  it("says nothing about a lease built the normal way", () => {
+    expect(newLease().scenario.rateInherited).toBeUndefined();
   });
 });

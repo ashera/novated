@@ -125,6 +125,16 @@ export interface ScenarioSpec {
    *  in public health and universities; absent means the employee keeps it
    *  all, which is what every lease saved before we asked was modelled as. */
   employerSavingSharePct?: number;
+  /**
+   * The rate came in with a lease somebody shared, not from this person.
+   *
+   * Only meaningful where `fromQuoteId` is absent: a rate solved from a quote
+   * already explains itself by naming the quote. This covers the other case —
+   * a shared lease whose owner had simply typed a rate — where the copy would
+   * otherwise describe it as "the rate you entered" to somebody who entered
+   * nothing. Cleared the moment they touch the field, because then they did.
+   */
+  rateInherited?: boolean;
   /** How often this person is paid. Display only. */
   payCycle?: PayCycle;
   /**
@@ -568,6 +578,8 @@ export function leaseFromSharedLease(
        */
       payCycle: from.payCycle,
       ...(salary != null && salary > 0 ? { salary } : {}),
+      /* Only where no quote explains the rate — see the field's own note. */
+      rateInherited: from.fromQuoteId ? undefined : true,
       // Still NOT carried: salary, hasHelpDebt, employerFbtStatus,
       // capUsedSpendable, employerSavingSharePct. Each of those changes the
       // ANSWER rather than the units, and each is a claim about the reader we
@@ -702,6 +714,8 @@ export function applyScenarioFromQuote(
       termYears: inputs.termYears,
       commencementDate: inputs.commencementDate ?? lease.scenario.commencementDate,
       fromQuoteId: quoteId,
+      // A quote now explains the rate, so the weaker claim is retired.
+      rateInherited: undefined,
     },
     // Modelling a different quote means the decision is being reconsidered, so
     // a lock on the old one is stale. Enforced here rather than at each call

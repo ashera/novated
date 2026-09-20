@@ -263,6 +263,7 @@ export default function LeaseCalculator({
               lease.quotes.find((q) => q.id === lease.scenario.fromQuoteId)?.label?.trim() ||
               undefined
             }
+            rateInherited={Boolean(lease.scenario.rateInherited)}
           />
         )}
 
@@ -738,7 +739,14 @@ export default function LeaseCalculator({
                 <Field
                   label="Interest rate"
                   value={inputs.interestRatePct}
-                  onChange={(v) => set("interestRatePct", v)}
+                  /* Typing a rate makes it theirs, whatever it arrived as —
+                     so the inherited claim is dropped in the same edit. */
+                  onChange={(v) =>
+                    store.update((l) => ({
+                      ...l,
+                      scenario: { ...l.scenario, interestRatePct: v, rateInherited: undefined },
+                    }))
+                  }
                   min={2}
                   max={15}
                   step={0.1}
