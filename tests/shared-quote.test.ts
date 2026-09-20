@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { DEFAULT_CONFIG } from "@/lib/au/config";
 import { decodeQuote } from "@/lib/au/quote";
 import {
+  leaseFromSharedLease,
   leaseFromSharedQuote,
   leaseToQuote,
   newLease,
@@ -234,5 +235,60 @@ describe("Carrying a shared quote to the calculator", () => {
   it("uses a key the data reset will claim", async () => {
     const { isAppStorageKey } = await import("@/lib/localData");
     expect(isAppStorageKey("leasewiz-shared-quote")).toBe(true);
+  });
+});
+
+/**
+ * The figures keep their denomination when a copy is taken.
+ *
+ * Reported from use: a shared lease quoted weekly opened as fortnightly in
+ * the reader's own workspace, so the first thing they saw was the cost they
+ * had just been shown, changed, for no reason visible on the page. The pay
+ * period is a fact about the sender — which is why it was left out — but it
+ * is not a financial one, and continuity is worth more than the principle
+ * was.
+ */
+describe("A copy is quoted in the same period as the original", () => {
+  const sharedLease = (payCycle: "weekly" | "fortnightly" | "monthly"): Lease => ({
+    ...newLease("Theirs"),
+    vehicle,
+    scenario: { ...newLease().scenario, salary: 185_000, payCycle },
+    quotes: [senderSpec()],
+  });
+
+  it("carries the pay period across a whole-lease copy", () => {
+    for (const cycle of ["weekly", "fortnightly", "monthly"] as const) {
+      expect(leaseFromSharedLease(sharedLease(cycle), config).scenario.payCycle).toBe(cycle);
+    }
+  });
+
+  /** A single quote has no pay cycle of its own, but it has a frequency —
+   *  and that is the period the reader was just looking at. */
+  it("takes the period from the quote when only a quote is copied", () => {
+    for (const freq of ["weekly", "fortnightly", "monthly"] as const) {
+      const copy = leaseFromSharedQuote(vehicle, senderSpec({ frequency: freq }), config, "x");
+      expect(copy.scenario.payCycle).toBe(freq);
+    }
+  });
+
+  /** The things that change the answer rather than the units still stay
+   *  behind — loosening one exclusion must not loosen the rest. */
+  it("still leaves the sender's own circumstances out of it", () => {
+    const theirs: Lease = {
+      ...sharedLease("weekly"),
+      scenario: {
+        ...sharedLease("weekly").scenario,
+        hasHelpDebt: true,
+        employerSavingSharePct: 50,
+        capUsedSpendable: 9_000,
+        employerFbtStatus: "hospital",
+      },
+    };
+    const copy = leaseFromSharedLease(theirs, config);
+    expect(copy.scenario.salary).not.toBe(185_000);
+    expect(copy.scenario.hasHelpDebt).toBeFalsy();
+    expect(copy.scenario.employerSavingSharePct).toBeUndefined();
+    expect(copy.scenario.capUsedSpendable).toBeUndefined();
+    expect(copy.scenario.employerFbtStatus).toBeUndefined();
   });
 });

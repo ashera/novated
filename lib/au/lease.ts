@@ -471,6 +471,13 @@ export function leaseFromSharedQuote(
       // The term belongs to the quote, not to the reader's preferences — a
       // four-year quote modelled over five is not that quote any more.
       termYears: spec.termMonths / 12,
+      /*
+       * And the figures stay in the period the quote was written in. A
+       * fortnightly quote read on a page showing monthly costs is the same
+       * arithmetic wearing a different size, and the reader has no reason to
+       * expect the number to move when they take a copy of it.
+       */
+      payCycle: spec.frequency,
     },
     quotes: [quote],
   };
@@ -540,9 +547,21 @@ export function leaseFromSharedLease(
       comparisonLoanRatePct: from.comparisonLoanRatePct,
       opportunityRatePct: from.opportunityRatePct,
       commencementDate: from.commencementDate,
-      // Deliberately NOT carried: salary, hasHelpDebt, employerFbtStatus,
-      // capUsedSpendable, employerSavingSharePct, payCycle. Every one of them
-      // is a fact about the sender rather than about the car.
+      /*
+       * The pay period comes too, and it was a mistake to leave it out.
+       *
+       * It was excluded as a fact about the sender, which it is — but it is
+       * not a financial one, and it is the denomination every figure on the
+       * page they just read was quoted in. Dropping it silently re-expressed
+       * a weekly cost as a fortnightly one, so the reader arrived at their
+       * own copy and found the number had changed for no reason they could
+       * see. Continuity is worth more here than the principle was.
+       */
+      payCycle: from.payCycle,
+      // Still NOT carried: salary, hasHelpDebt, employerFbtStatus,
+      // capUsedSpendable, employerSavingSharePct. Each of those changes the
+      // ANSWER rather than the units, and each is a claim about the reader we
+      // have no basis for.
       fromQuoteId: from.fromQuoteId ? remap.get(from.fromQuoteId) : undefined,
     },
     quotes,
