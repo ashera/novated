@@ -262,8 +262,16 @@ export default function LeaseCalculator({
             come back as a summary, with the payslip under it. */}
         <div
           className={
-            locked
-              ? "space-y-6"
+            locked || !quotesCard
+              ? // One column, because there is no sidebar to make room for.
+                //
+                // A shared lease has no quotes card — the recipient is not
+                // choosing between quotes, they were sent a result — but the
+                // two-column rule did not know that, so it kept reserving the
+                // 22rem track and rendered a 352px-wide, 0px-high nothing down
+                // the left of every shared page, with the lease squashed into
+                // what was left.
+                "space-y-6"
               : // grid-cols-1 is not redundant. Without it the single implicit
                 // column below `lg` is `auto`, which sizes to MAX-content, so
                 // the panel grew to 586px inside a 390px phone and took the
@@ -278,7 +286,7 @@ export default function LeaseCalculator({
               page, and at lg is placed into the left column. Source order and
               what you see now agree at both widths, so the tab order and a
               screen reader follow the same path as the eye. */}
-          {!locked && (
+          {!locked && quotesCard && (
             <div className="space-y-3 lg:col-start-1 lg:row-start-1 lg:sticky lg:top-20 lg:self-start">
               <button
                 type="button"

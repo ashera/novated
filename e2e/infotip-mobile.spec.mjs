@@ -114,6 +114,50 @@ export default async function run() {
     }
   });
 
+  /*
+   * The page must not scroll sideways, open or closed.
+   *
+   * Clamping only ran when a tooltip opened, so a CLOSED one sitting past the
+   * right edge still dragged the document with it — absolutely positioned and
+   * hidden is still in the layout. On a 390px phone this was the only
+   * overflowing element on the home page, and invisible, which is why looking
+   * at the page never found it.
+   */
+  await check("no tooltip makes the page scroll sideways", async () => {
+    const r = await page.evaluate(() => {
+      const d = document.documentElement;
+      /*
+       * The DOCUMENT's scroll width, not a sweep of element rects.
+       *
+       * Plenty of elements legitimately stick out past the viewport: a wide
+       * table is supposed to be wider than the screen, inside its own
+       * overflow-x-auto wrapper. Counting those calls 25 correct things a
+       * bug. What is never correct is the page itself scrolling sideways,
+       * and that is one number.
+       */
+      const offenders =
+        d.scrollWidth > d.clientWidth
+          ? [...document.querySelectorAll("*")]
+              .filter((el) => {
+                const b = el.getBoundingClientRect();
+                if (b.width === 0 || b.right <= d.clientWidth + 1) return false;
+                // Ignore anything inside a container built to scroll.
+                for (let p = el.parentElement; p; p = p.parentElement) {
+                  const ox = getComputedStyle(p).overflowX;
+                  if (ox === "auto" || ox === "scroll" || ox === "hidden") return false;
+                }
+                return true;
+              })
+              .map((el) => `${el.tagName.toLowerCase()}.${(el.className || "").toString().slice(0, 40)}`)
+          : [];
+      return { scrollW: d.scrollWidth, clientW: d.clientWidth, offenders: offenders.slice(0, 3) };
+    });
+    assert(
+      r.scrollW <= r.clientW,
+      `the page scrolls sideways (${r.scrollW}px in a ${r.clientW}px viewport) — ${r.offenders.join(" | ") || "no single element identified"}`,
+    );
+  });
+
   /** The bug the second fix left behind: open, then unable to close. */
   await check("a second tap closes it again", async () => {
     const btn = tips.first();

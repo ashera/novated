@@ -69,20 +69,36 @@ export default function InfoTip({ text, className = "" }: { text: string; classN
   const via = useRef("");
 
   /*
-   * Measured on open, with the shift reset to zero first so the reading is of
-   * the unshifted position. It cannot loop: the effect watches `open`, and
-   * setting the shift does not change it.
+   * Kept inside the viewport whether it is showing or not.
+   *
+   * This was measured only on open, and reset to zero on close — which fixed
+   * what a reader could see and left the page still scrolling sideways. The
+   * panel is absolutely positioned and stays in the layout while hidden, so a
+   * closed tooltip 8px past the right edge drags the whole document with it.
+   * On a 390px phone the home page had exactly one overflowing element and it
+   * was this, invisible.
+   *
+   * So the measurement subtracts the shift already applied to recover the
+   * unshifted position, which makes it safe to run at any time rather than
+   * only on the transition into open. It settles in one pass: a second run
+   * computes the same shift and React drops the identical state.
    */
   useEffect(() => {
-    if (!open) return setShift(0);
     const el = tip.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
-    const margin = 8;
-    if (r.left < margin) setShift(margin - r.left);
-    else if (r.right > window.innerWidth - margin)
-      setShift(window.innerWidth - margin - r.right);
-  }, [open]);
+    const place = () => {
+      const r = el.getBoundingClientRect();
+      const margin = 8;
+      const left = r.left - shift;
+      const right = r.right - shift;
+      if (left < margin) setShift(margin - left);
+      else if (right > window.innerWidth - margin) setShift(window.innerWidth - margin - right);
+      else setShift(0);
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open, shift]);
 
   useEffect(() => {
     if (!open) return;
