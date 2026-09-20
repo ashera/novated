@@ -51,7 +51,10 @@ export default function CostTaster({
    *  modelled on one. Absent means nobody has brought a quote yet. */
   rateFromQuote?: string;
 }) {
-  const noun = PAY_CYCLE_NOUN[effectivePayCycle(result.inputs.payCycle, config)];
+  /* The PayCycle value is already the adjective — "fortnightly" — while
+     PAY_CYCLE_NOUN gives the noun for "a fortnight". Both are wanted here. */
+  const cycle = effectivePayCycle(result.inputs.payCycle, config);
+  const noun = PAY_CYCLE_NOUN[cycle];
   const perCycle = result.perPayCycle.takeHomeReduction;
   const covered = result.inputs.includeRunningCosts;
 
@@ -64,7 +67,11 @@ export default function CostTaster({
     ? `the rate on ${rateFromQuote}'s quote`
     : isOurs
       ? "our assumption, until you put a real quote in"
-      : "the rate you entered";
+      : /* Tied back to the figure above it. A reader who set this rate
+           themselves is the one most likely to move it again, and saying
+           which number it drives makes the cause and effect visible without
+           them having to scroll and compare. */
+        `the rate you entered, which results in this ${cycle} cost`;
 
   return (
     <a
