@@ -176,6 +176,25 @@ export function useLease(signedIn: boolean): UseLease {
   });
 
   // ── Load ────────────────────────────────────────────────────────────────
+  /*
+   * Typing before the load lands must not be thrown away.
+   *
+   * The form renders immediately and the store answers a moment later, so
+   * there is a window — short on a laptop, longer on a phone — in which
+   * somebody can start typing into a lease that is about to be replaced by
+   * the one being fetched. Measured on production: a keystroke in the first
+   * ~300ms after the field appeared was silently discarded, and what came
+   * back was the worked example.
+   *
+   * `dirty` already means "the user has changed something since we last
+   * saved", which is exactly the question. Where it is set, their work is the
+   * newer fact and the load must not overwrite it — the rest of the load
+   * still runs, so the lease list and the loading flag settle normally.
+   *
+   * Fixed here rather than in each page. The calculator happened to be immune
+   * because it holds its render back behind a skeleton; the decoder, the
+   * comparison and the statement reader all had the window open.
+   */
   useEffect(() => {
     let live = true;
 
@@ -201,7 +220,7 @@ export function useLease(signedIn: boolean): UseLease {
             }
           })();
         const found = records.find((r) => r.id === activeId) ?? records[0];
-        if (found) {
+        if (found && !dirty.current) {
           setLease(migrateLease(found.lease));
           setLeaseId(found.id);
         }
@@ -251,8 +270,10 @@ export function useLease(signedIn: boolean): UseLease {
 
       if (!live) return;
       if (active) {
-        setLease(active.lease);
-        setLeaseId(active.id);
+        if (!dirty.current) {
+          setLease(active.lease);
+          setLeaseId(active.id);
+        }
       }
       setAll(list.map((l: SavedLease) => ({ id: l.id, name: l.name })));
       setLoading(false);
@@ -300,9 +321,20 @@ export function useLease(signedIn: boolean): UseLease {
   const update = useCallback(
     (fn: (l: Lease) => Lease) => {
       const seq = ++editSeq.current;
+      /*
+       * Marked dirty here, synchronously, and not inside the updater below.
+       *
+       * React runs a state updater when it gets round to it, which can be
+       * after an in-flight load has already asked whether anything is dirty.
+       * Setting it there left the guard reading false for an edit that had
+       * definitely happened — WebKit lost a keystroke typed in the first
+       * moments after the field appeared, while Chromium happened to win the
+       * race. The honest signal is "an edit was requested", and that is known
+       * right now.
+       */
+      dirty.current = true;
       setLease((current) => {
         const next = fn(current);
-        dirty.current = true;
         if (timer.current) clearTimeout(timer.current);
         timer.current = setTimeout(() => {
           dirty.current = false;

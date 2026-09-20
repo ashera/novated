@@ -18,7 +18,7 @@
  * attribute alone would not have told us.
  */
 
-import { BASE, assert, assertEqual, check, describe, guestPage } from "./harness.mjs";
+import { BASE, assert, assertEqual, check, describe, guestPage, hydrated } from "./harness.mjs";
 
 export default async function run(browser) {
   const page = await guestPage(browser);
@@ -46,6 +46,14 @@ export default async function run(browser) {
    * is the worse failure of the two: disabled at least tells the truth.
    */
   await check("what a guest types into the provider name sticks", async () => {
+    /*
+     * Hydration first. The field is server-rendered and visible before React
+     * attaches to it, so a value set in that window is written to raw DOM and
+     * thrown away when React takes over — nothing to do with the store, and
+     * not what this check is about. Measured: React is not attached at the
+     * moment the field becomes visible.
+     */
+    await hydrated(provider);
     await provider.fill("Acme Leasing");
     await page.waitForTimeout(1200);
     assertEqual(await provider.inputValue(), "Acme Leasing", "the name did not survive");
@@ -78,6 +86,20 @@ export default async function run(browser) {
    * itself, and left nothing behind. An optional prop that silently does
    * nothing is the failure mode worth a permanent test.
    */
+  /*
+   * Checked HERE, before a car is added, and that ordering is the point: once
+   * a custom car is set the catalogue picker is replaced by a text field, so
+   * there is no Make select left to ask about. Asserted later, this passed
+   * for the wrong reason and then failed for the wrong reason.
+   */
+  await check("the Make select is announced as just 'Make'", async () => {
+    const label = await page.evaluate(() => {
+      const sel = document.querySelector("select");
+      return sel?.labels?.[0]?.textContent?.trim() ?? null;
+    });
+    assertEqual(label, "Make", "the select's label has absorbed something else");
+  });
+
   describe("Adding a car the catalogue doesn't have");
 
   await check("the modal saves the car onto the lease", async () => {
@@ -154,15 +176,6 @@ export default async function run(browser) {
     assertEqual(v.price, 62_200, "the car price absorbed the on-road costs");
     assertEqual(v.onRoad, 2_569, "the on-road costs were not kept separate");
     assert(v.purchase, "the itemisation was not kept on the car");
-  });
-
-  /** The select's own name, kept clean of the button beside it. */
-  await check("the Make select is announced as just 'Make'", async () => {
-    const label = await page.evaluate(() => {
-      const sel = document.querySelector("select");
-      return sel?.labels?.[0]?.textContent?.trim() ?? null;
-    });
-    assertEqual(label, "Make", "the select's label has absorbed something else");
   });
 
   await page.context().close();
