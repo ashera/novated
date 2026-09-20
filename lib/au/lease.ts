@@ -477,6 +477,89 @@ export function leaseFromSharedQuote(
   return activateQuote(seeded, quote.id, config);
 }
 
+/**
+ * A whole lease somebody shared, made the reader's own.
+ *
+ * The sibling of leaseFromSharedQuote, one level up. A shared lease page
+ * shows the sender's figures and is read-only for a reason that is easy to
+ * miss: the store behind that page belongs to the VIEWER, so every editable
+ * control on it would quietly change a different lease from the one on
+ * screen. Rather than leave the reader at a dead end, this gives them the
+ * same lease in a workspace where the controls mean what they say.
+ *
+ * What comes across is the arrangement; what stays behind is the person.
+ *
+ * The car and the quotes are the provider's documents and the thing worth
+ * copying — they are why the link was sent. The terms of the deal come too:
+ * how long, whether running costs are packaged, the fees, the residual. None
+ * of that describes the sender.
+ *
+ * The salary does, and so do the study loan, the employer's FBT status, the
+ * cap already spent on rent, and any share of the saving the employer keeps.
+ * Those are the sender's circumstances, they are the whole reason two people
+ * on the same quote get different answers, and carrying them would both leak
+ * them into a second workspace and give the reader a confidently wrong
+ * number. They are left out, and the reader enters their own — which is the
+ * point of having a copy at all.
+ *
+ * Quotes are re-identified, so nothing here can be confused with the
+ * sender's, and whichever one they were modelling is re-activated by its new
+ * id. Nothing is locked: a lock is a decision, and it is not this reader's.
+ */
+export function leaseFromSharedLease(
+  shared: Lease,
+  config: EngineConfig,
+  name?: string,
+): Lease {
+  const base = newLease(name?.trim() || shared.name?.trim() || "My lease");
+
+  /* Old id -> new id, so the quote the sender was modelling can be found
+     again after every quote has been given a fresh identity. */
+  const remap = new Map<string, string>();
+  const quotes: QuoteSpec[] = shared.quotes.map((q) => {
+    const id = newQuoteSpec().id;
+    remap.set(q.id, id);
+    return { ...q, id, createdAt: new Date().toISOString(), updatedAt: undefined, salary: undefined };
+  });
+
+  const from = shared.scenario;
+  const copy: Lease = {
+    ...base,
+    vehicle: { ...shared.vehicle },
+    scenario: {
+      ...base.scenario,
+      // Terms of the arrangement, which belong to the lease.
+      termYears: from.termYears,
+      interestRatePct: from.interestRatePct,
+      residualPct: from.residualPct,
+      includeRunningCosts: from.includeRunningCosts,
+      fbtMethod: from.fbtMethod,
+      runningCostOverrides: from.runningCostOverrides,
+      adminFeeAnnual: from.adminFeeAnnual,
+      establishmentFee: from.establishmentFee,
+      comparisonLoanRatePct: from.comparisonLoanRatePct,
+      opportunityRatePct: from.opportunityRatePct,
+      commencementDate: from.commencementDate,
+      // Deliberately NOT carried: salary, hasHelpDebt, employerFbtStatus,
+      // capUsedSpendable, employerSavingSharePct, payCycle. Every one of them
+      // is a fact about the sender rather than about the car.
+      fromQuoteId: from.fromQuoteId ? remap.get(from.fromQuoteId) : undefined,
+    },
+    quotes,
+  };
+
+  /*
+   * Re-solved rather than trusted. The rate carried above is the one the
+   * sender's page worked out, under whatever reference data was current for
+   * them; activateQuote derives it again from the quote's own figures against
+   * ours, so a copy made after a rate benchmark moved is right rather than
+   * inherited. It declines where the quote cannot be solved, and then the
+   * carried figure stands.
+   */
+  const activeId = copy.scenario.fromQuoteId;
+  return activeId ? activateQuote(copy, activeId, config) : copy;
+}
+
 // ── Composing what the engine expects ───────────────────────────────────────
 
 /** The lease as calculator inputs: the shared car, plus the scenario. */

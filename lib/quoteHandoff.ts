@@ -10,7 +10,7 @@
 // should not silently resurrect a quote the user has forgotten about.
 
 import type { LeaseInputs } from "./au/novated";
-import type { QuoteSpec, VehicleSpec } from "./au/lease";
+import type { Lease, QuoteSpec, VehicleSpec } from "./au/lease";
 
 const KEY = "leasewiz-handoff";
 
@@ -94,6 +94,40 @@ export function takeSharedQuote(): SharedQuoteHandoff | null {
     const parsed = JSON.parse(raw) as SharedQuoteHandoff;
     if (!parsed?.quote || !parsed.vehicle) return null;
     if (typeof parsed.quote.termMonths !== "number" || parsed.quote.termMonths <= 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+// ── A whole lease somebody shared, on its way to becoming the reader's ──────
+
+/**
+ * Same discipline as the two above: session storage, one shot, gone on read.
+ *
+ * Its own key rather than a wider version of the shared-quote payload,
+ * because they carry different things and the checks that make each safe are
+ * different. A quote needs a term to be worth anything; a lease needs a car.
+ */
+const SHARED_LEASE_KEY = "leasewiz-shared-lease";
+
+export function stashSharedLease(lease: Lease): void {
+  try {
+    sessionStorage.setItem(SHARED_LEASE_KEY, JSON.stringify(lease));
+  } catch {
+    /* storage blocked — the reader lands on an ordinary empty lease */
+  }
+}
+
+/** Read and remove it. Null where there is nothing usable: a copy with no
+ *  car is not a starting point, it is an empty form with extra steps. */
+export function takeSharedLease(): Lease | null {
+  try {
+    const raw = sessionStorage.getItem(SHARED_LEASE_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(SHARED_LEASE_KEY);
+    const parsed = JSON.parse(raw) as Lease;
+    if (!parsed?.vehicle || !Array.isArray(parsed.quotes)) return null;
     return parsed;
   } catch {
     return null;

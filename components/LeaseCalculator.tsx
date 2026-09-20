@@ -19,6 +19,7 @@ import EarlyExit from "./EarlyExit";
 import SuperImpact from "./SuperImpact";
 import CostTaster from "./CostTaster";
 import LeaseSkeleton from "./LeaseSkeleton";
+import SharedLeaseStart from "./SharedLeaseStart";
 import type { Vehicle } from "@/lib/au/vehicles";
 import { fmtCurrency } from "@/lib/au/format";
 import {
@@ -36,6 +37,7 @@ import {
 import type { EngineConfig } from "@/lib/au/config";
 import {
   applyScenarioFromQuote,
+  leaseFromSharedLease,
   leaseFromSharedQuote,
   hasChosenCar,
   leaseToInputs,
@@ -52,7 +54,7 @@ import Independence from "./Independence";
 import QuotesCard from "./QuotesCard";
 import LeaseDashboard from "./LeaseDashboard";
 import { track, trackLeasePricedConversion } from "@/lib/analytics";
-import { takeHandoff, takeSharedQuote } from "@/lib/quoteHandoff";
+import { takeHandoff, takeSharedLease, takeSharedQuote } from "@/lib/quoteHandoff";
 import { trackVisit } from "@/app/actions/track";
 
 export default function LeaseCalculator({
@@ -104,8 +106,11 @@ export default function LeaseCalculator({
      * which is more recent intent than a handoff they left behind.
      */
     const shared = takeSharedQuote();
+    const sharedWholeLease = takeSharedLease();
     const handed = takeHandoff();
-    if (shared) {
+    if (sharedWholeLease) {
+      store.createFrom(leaseFromSharedLease(sharedWholeLease, config));
+    } else if (shared) {
       store.createFrom(leaseFromSharedQuote(shared.vehicle, shared.quote, config, shared.leaseName));
     } else if (handed) {
       store.update((l) => applyScenarioFromQuote(l, handed.inputs, handed.quoteId));
@@ -134,7 +139,17 @@ export default function LeaseCalculator({
   const result = useMemo(() => calculateLease(inputs, config), [inputs, config]);
 
   /** Rendered in the narrow column while deciding, and inline once settled. */
+  /*
+   * The left column holds one of two things, never nothing.
+   *
+   * Your own lease gets the quotes card. A shared one cannot have it — the
+   * page renders the SENDER's lease while the store belongs to the viewer, so
+   * those controls would edit a lease that is not on screen — so it gets the
+   * invitation to take a copy instead. Both occupy the same column, which is
+   * why the grid below can simply ask whether there is a sidebar.
+   */
   const quotesCard = readOnly ? null : <QuotesCard store={store} config={config} signedIn={Boolean(user)} />;
+  const sidebar = quotesCard ?? (sharedLease ? <SharedLeaseStart lease={sharedLease} /> : null);
   /**
    * Collapsed on a phone, open on a desktop.
    *
@@ -262,7 +277,7 @@ export default function LeaseCalculator({
             come back as a summary, with the payslip under it. */}
         <div
           className={
-            locked || !quotesCard
+            locked || !sidebar
               ? // One column, because there is no sidebar to make room for.
                 //
                 // A shared lease has no quotes card — the recipient is not
@@ -286,8 +301,16 @@ export default function LeaseCalculator({
               page, and at lg is placed into the left column. Source order and
               what you see now agree at both widths, so the tab order and a
               screen reader follow the same path as the eye. */}
-          {!locked && quotesCard && (
+          {!locked && sidebar && (
             <div className="space-y-3 lg:col-start-1 lg:row-start-1 lg:sticky lg:top-20 lg:self-start">
+              {/* The accordion exists to keep a tall quotes card from burying
+                  the car on a phone. The shared-lease panel is four lines and
+                  is the reason the reader is here, so it is not hidden behind
+                  a tap. */}
+              {!quotesCard ? (
+                sidebar
+              ) : (
+                <>
               <button
                 type="button"
                 onClick={() => {
@@ -335,6 +358,8 @@ export default function LeaseCalculator({
               <div id="quotes-panel" className={`${quotesOpen ? "" : "hidden"} lg:block`}>
                 {quotesCard}
               </div>
+                </>
+              )}
             </div>
           )}
 
