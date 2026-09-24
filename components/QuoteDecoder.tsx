@@ -29,6 +29,7 @@ import LeaseBar from "./LeaseBar";
 import QuoteIdentity from "./QuoteIdentity";
 import RateWorking from "./RateWorking";
 import ShareControl from "./ShareControl";
+import DeferralExplainer from "./DeferralExplainer";
 import { SAMPLE_QUOTE } from "@/lib/au/sampleQuote";
 import {
   applyQuoteEdit,
@@ -1213,6 +1214,11 @@ export default function QuoteDecoder({
                         )}
                       </div>
                       <p className="mt-1.5 text-sm leading-relaxed text-subtle">{f.detail}</p>
+                      {f.key === "deferral-explains-part-of-the-rate" && (
+                        <div className="mt-2">
+                          <DeferralExplainer quote={quote} decode={decode} />
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

@@ -13,6 +13,7 @@ import {
   type FindingSeverity,
 } from "@/lib/au/quote";
 import RateWorking from "./RateWorking";
+import DeferralExplainer from "./DeferralExplainer";
 import { useMemo } from "react";
 
 /**
@@ -243,6 +244,15 @@ export default function QuoteAnalysis({
                   )}
                 </div>
                 <p className="mt-1.5 text-sm leading-relaxed text-subtle">{f.detail}</p>
+                {/* The one finding whose explanation is a pair of schedules
+                    rather than a sentence. Attached here rather than folded
+                    into the detail, because it is only worth opening if the
+                    reader wants it. */}
+                {f.key === "deferral-explains-part-of-the-rate" && (
+                  <div className="mt-2">
+                    <DeferralExplainer quote={quote} decode={decode} />
+                  </div>
+                )}
                 {f.question && (
                   <p className="mt-2 rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink">
                     <span className="font-semibold">Worth asking: </span>
