@@ -174,6 +174,20 @@ export interface Finding {
   costOverTerm?: number;
   /** A question to send back to the provider, when the finding implies one. */
   question?: string;
+  /**
+   * The key of a finding this one continues, where it only reads underneath it.
+   *
+   * Almost nothing needs this: findings are independent observations and the
+   * order they come out in is the order of what they cost. The exception is a
+   * finding written as a second sentence about another one — it refers back to
+   * "that rate" or "that figure" and above its subject it is nonsense.
+   *
+   * Set it and the pair sorts as one group, on the most severe member and the
+   * largest cost between them, with the follower laid out directly after its
+   * anchor. Severity is then free to say how the finding is coloured without
+   * also deciding where it lands.
+   */
+  follows?: string;
 }
 
 /**
@@ -255,6 +269,19 @@ export interface QuoteDecode {
   /** The rate on the money once a disclosed deferral is accounted for. Null
    *  where none is disclosed, or the figures it needs are missing. */
   rateAfterDeferralPct: number | null;
+  /**
+   * Interest capitalised during the deferral — what the gap actually costs.
+   *
+   * Not a payment difference. Deferring at a rate and repaying at the same rate
+   * is neutral by construction, so "the payment is bigger than a plain loan" is
+   * true but prices nothing. What is unambiguously real is the interest added
+   * to the debt across months in which nothing was repaid: it is owed, it is
+   * printed nowhere, and it is the figure the deferral explainer leads with.
+   *
+   * Computed here rather than in the component so the finding and the panel it
+   * opens cannot state different numbers for the same thing.
+   */
+  deferralInterestAccrued: number | null;
   findings: Finding[];
   questions: string[];
 }
@@ -740,6 +767,15 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     );
   }
 
+  /* At the rate the financier is charging, not the all-in one — the all-in rate
+     is inflated BY this accrual, so using it to measure the accrual would feed
+     the answer back into its own input. */
+  let deferralInterestAccrued: number | null = null;
+  if (rateAfterDeferralPct != null && amountFinanced != null) {
+    deferralInterestAccrued =
+      amountFinanced * (Math.pow(1 + rateAfterDeferralPct / 100 / 12, deferred) - 1);
+  }
+
   // ── Findings ─────────────────────────────────────────────────────────────
 
   /*
@@ -1059,13 +1095,39 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     }
   }
 
+  /*
+   * Why this is red when the thing it describes is usually honest.
+   *
+   * A deferral is a real product feature and no accusation is being made — the
+   * copy below still doesn't make one, and a test holds that. But "ok" was the
+   * wrong colour for a different reason: it is the colour of a finding you can
+   * read and forget, and this is the opposite. It is the one finding on the
+   * page that says a headline number means something other than what a reader
+   * would take it to mean, and it comes with a cost nobody printed. Green on
+   * that invites exactly the skim it exists to interrupt.
+   *
+   * So: red for the fact that it changes the reader's conclusion, `follows` for
+   * position, since it is a sentence about the rate above it and reads as
+   * nothing on its own, and the cost stated in words so the colour is earned
+   * rather than asserted.
+   */
   if (rateAfterDeferralPct != null && rate != null && rate - rateAfterDeferralPct > 0.05) {
+    /*
+     * No costOverTerm, for the reason set out above the reconciliation
+     * findings: the decoder totals that field and calls the total avoidable
+     * cost. Neither half of that fits. The rate finding has already counted
+     * this money — the accrual is precisely what inflates the all-in rate it
+     * is priced on — and a disclosed deferral is not avoidable anyway. The
+     * figure goes in the prose, where it informs without being double-counted.
+     */
+    const accrued = deferralInterestAccrued;
     findings.push({
       key: "deferral-explains-part-of-the-rate",
-      severity: "ok",
+      severity: "critical",
+      follows: "implied-rate",
       category: "Rate",
       title: `The ${deferred}-month deferral accounts for ${pct(rate - rateAfterDeferralPct)} of that rate`,
-      detail: `Nothing is repaid for the first ${deferred} month${deferred === 1 ? "" : "s"}, so interest accrues on the whole balance before a single payment lands — and solving the payment as though repayment started on day one attributes that to the rate. Taking it out, the money itself is at ${pct(rateAfterDeferralPct)} rather than ${pct(rate)}${quote.deferralExtendsTerm ? ", on a lease running the deferral's length longer" : ", on a lease still ending on its original date"}. Both are real: ${pct(rate)} is what the payment costs you, ${pct(rateAfterDeferralPct)} is what the financier is charging. Worth confirming which structure it is, because the other one moves this figure.`,
+      detail: `Nothing is repaid for the first ${deferred} month${deferred === 1 ? "" : "s"}, so interest accrues on the whole balance before a single payment lands — and solving the payment as though repayment started on day one attributes that to the rate. Taking it out, the money itself is at ${pct(rateAfterDeferralPct)} rather than ${pct(rate)}${quote.deferralExtendsTerm ? ", on a lease running the deferral's length longer" : ", on a lease still ending on its original date"}. Both are real: ${pct(rate)} is what the payment costs you, ${pct(rateAfterDeferralPct)} is what the financier is charging.${accrued != null && accrued > 0 ? ` The gap is not free: about ${money(accrued)} of interest was added to what you owe during those ${deferred} month${deferred === 1 ? "" : "s"}, and you repay it over the rest of the schedule. Nothing came out of your pay in that time, but the debt still grew.` : ""} Worth confirming which structure it is, because the other one moves this figure.`,
       question: `Your quote defers ${deferred} months. Does the lease still end on its original date, or does it run ${deferred} months longer?`,
     });
   }
@@ -1213,9 +1275,34 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
 
   // Order by what each finding costs, worst first; "ok" findings sink.
   const rank: Record<FindingSeverity, number> = { critical: 0, warn: 1, ok: 2 };
-  findings.sort(
-    (a, b) => rank[a.severity] - rank[b.severity] || (b.costOverTerm ?? 0) - (a.costOverTerm ?? 0),
-  );
+
+  /*
+   * Findings that continue another one are sorted as a unit with it — see
+   * `Finding.follows`. A group takes the rank and cost of its strongest member,
+   * so attaching a follower can lift the anchor but never buries it, and the
+   * follower always comes out directly underneath.
+   */
+  const followers = new Map<string, Finding[]>();
+  for (const f of findings) {
+    if (f.follows && f.follows !== f.key && findings.some((a) => a.key === f.follows)) {
+      followers.set(f.follows, [...(followers.get(f.follows) ?? []), f]);
+    }
+  }
+  const weigh = (f: Finding) => {
+    const group = [f, ...(followers.get(f.key) ?? [])];
+    return {
+      rank: Math.min(...group.map((g) => rank[g.severity])),
+      cost: Math.max(...group.map((g) => g.costOverTerm ?? 0)),
+    };
+  };
+
+  const attached = new Set(Array.from(followers.values()).flat());
+  const anchors = findings.filter((f) => !attached.has(f));
+  anchors.sort((a, b) => {
+    const [x, y] = [weigh(a), weigh(b)];
+    return x.rank - y.rank || y.cost - x.cost;
+  });
+  const ordered = anchors.flatMap((f) => [f, ...(followers.get(f.key) ?? [])]);
 
   return {
     impliedRatePct: rate,
@@ -1238,7 +1325,8 @@ export function decodeQuote(quote: Quote, config: EngineConfig): QuoteDecode {
     reconciliation,
     ratePaidOnBorrowingPct,
     rateAfterDeferralPct,
-    findings,
+    deferralInterestAccrued,
+    findings: ordered,
     questions: findings.map((x) => x.question).filter((q): q is string => Boolean(q)),
   };
 }

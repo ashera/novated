@@ -254,10 +254,114 @@ describe("What a disclosed deferral does to the solved rate", () => {
     const f = decodeQuote(real({ deferredMonths: 2 }), config).findings.find(
       (x) => x.key === "deferral-explains-part-of-the-rate",
     )!;
-    expect(f.severity).toBe("ok");
     expect(f.detail).toMatch(/what the payment costs you/);
     expect(f.detail).toMatch(/what the financier is charging/);
     expect(f.question).toMatch(/end on its original date/);
+  });
+
+  // Not because anyone lied — because it changes what the rate above it means,
+  // and a reader who skims past it draws the wrong conclusion from the page.
+  it("is flagged red rather than filed as fine", () => {
+    const f = decodeQuote(real({ deferredMonths: 2 }), config).findings.find(
+      (x) => x.key === "deferral-explains-part-of-the-rate",
+    )!;
+    expect(f.severity).toBe("critical");
+  });
+
+  it("sits directly under the rate finding, never above it", () => {
+    // Both structures, and a cheap rate as well as a dear one: the deferral
+    // finding is red and the rate finding may be "ok", so anything sorting on
+    // severity alone puts them the wrong way round.
+    for (const over of [
+      { deferredMonths: 2 },
+      { deferredMonths: 2, deferralExtendsTerm: true },
+      // A keen rate, so the rate finding itself is only "ok". This is the case
+      // that breaks a plain severity sort: the red follower would jump the
+      // green finding it is a sentence about.
+      { deferredMonths: 2, lines: { finance: annuityPayment(54_000.36, 16_709.33 / 1.1, 5, 60) } },
+    ]) {
+      const keys = decodeQuote(real(over), config).findings.map((f) => f.key);
+      const rate = keys.indexOf("implied-rate");
+      const deferral = keys.indexOf("deferral-explains-part-of-the-rate");
+      expect(rate).toBeGreaterThanOrEqual(0);
+      expect(deferral).toBe(rate + 1);
+    }
+  });
+
+  it("says in the copy what the gap costs", () => {
+    // The red treatment is only earned if the reader is told a number, and this
+    // is the case that matters: no stated rate anywhere on the document.
+    const d = decodeQuote(real({ deferredMonths: 2 }), config);
+    expect(d.reconciliation).toBeNull();
+    expect(d.deferralInterestAccrued!).toBeGreaterThan(0);
+    const money = d.deferralInterestAccrued!.toLocaleString("en-AU", {
+      style: "currency",
+      currency: "AUD",
+      maximumFractionDigits: 0,
+    });
+    const f = d.findings.find((x) => x.key === "deferral-explains-part-of-the-rate")!;
+    expect(f.detail).toContain(money);
+  });
+
+  it("prices the gap as interest on the money, not as a bigger payment", () => {
+    // Two months of interest on the balance at the money rate. A payment
+    // difference would be the wrong measure — deferring and repaying at one
+    // rate is neutral by construction, so it would price a real cost at zero.
+    const d = decodeQuote(real({ deferredMonths: 2 }), config);
+    const expected =
+      d.amountFinanced! * (Math.pow(1 + d.rateAfterDeferralPct! / 100 / 12, 2) - 1);
+    expect(d.deferralInterestAccrued!).toBeCloseTo(expected, 6);
+    // Sane magnitude: two months at a single-digit rate on $54k.
+    expect(d.deferralInterestAccrued!).toBeGreaterThan(500);
+    expect(d.deferralInterestAccrued!).toBeLessThan(1_200);
+  });
+
+  it("is quiet about the accrual when no deferral is disclosed", () => {
+    expect(decodeQuote(real(), config).deferralInterestAccrued).toBeNull();
+  });
+
+  /*
+   * The decoder totals costOverTerm and calls it avoidable cost. The rate
+   * finding is priced on the all-in rate, which this accrual is what inflates —
+   * so pricing it here would count the same money twice, and call a disclosed
+   * feature avoidable while doing it.
+   */
+  it("is not added to the avoidable-cost total", () => {
+    const f = decodeQuote(real({ deferredMonths: 2 }), config).findings.find(
+      (x) => x.key === "deferral-explains-part-of-the-rate",
+    )!;
+    expect(f.costOverTerm).toBeUndefined();
+  });
+
+  // The pair rises together: attaching the red follower must not drag the rate
+  // finding down the page.
+  it("does not let the anchor sink below the findings it outranks", () => {
+    const keys = decodeQuote(real({ deferredMonths: 2 }), config).findings.map((f) => f.key);
+    expect(keys.indexOf("implied-rate")).toBe(0);
+  });
+
+  it("lifts a merely-ok rate finding to the top when its follower is red", () => {
+    // The pair sorts on the stronger of the two, so the deferral cannot end up
+    // stranded below findings it outranks just because its anchor is fine.
+    const d = decodeQuote(
+      real({ deferredMonths: 2, lines: { finance: annuityPayment(54_000.36, 16_709.33 / 1.1, 5, 60) } }),
+      config,
+    );
+    expect(d.findings[0].key).toBe("implied-rate");
+    expect(d.findings[0].severity).toBe("ok");
+    expect(d.findings[1].key).toBe("deferral-explains-part-of-the-rate");
+    expect(d.findings[1].severity).toBe("critical");
+  });
+
+  // `follows` marks an explanation, not a fault. A red follower alone must not
+  // make the page announce avoidable cost on an otherwise clean quote.
+  it("keeps the follower out of the count of independent problems", () => {
+    const d = decodeQuote(real({ deferredMonths: 2 }), config);
+    const deferral = d.findings.find((f) => f.key === "deferral-explains-part-of-the-rate")!;
+    expect(deferral.follows).toBe("implied-rate");
+    expect(d.findings.filter((f) => f.severity === "critical" && !f.follows)).not.toContain(
+      deferral,
+    );
   });
 
   // A deferral that explains nothing is not worth a finding.

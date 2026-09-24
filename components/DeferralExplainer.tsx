@@ -77,9 +77,15 @@ export default function DeferralExplainer({
 
   /* The debt at the moment repayments start, at the rate the financier is
      actually charging. This is the figure the whole explanation turns on and
-     it appears on no document. */
-  const grown = financed * Math.pow(1 + onMoney / 100 / 12, deferred);
-  const accrued = grown - financed;
+     it appears on no document.
+
+     Taken from the decode rather than worked out here: the finding this panel
+     opens from states the same accrual in its own prose, and two roundings of
+     one number a click apart is exactly the kind of discrepancy that makes a
+     reader stop trusting the page. */
+  const accrued = decode.deferralInterestAccrued;
+  if (accrued == null) return null;
+  const grown = financed + accrued;
 
   /* Payments actually made. Where the end date holds they come out of the
      count; where the term shifts they do not, and the lease simply finishes

@@ -423,7 +423,16 @@ export default function QuoteDecoder({
   // deserve different sentences, and a fixed one would ring false for both.
   const nextStepCopy = (() => {
     const rate = decode.impliedRatePct;
-    const critical = decode.findings.filter((f) => f.severity === "critical").length;
+    /*
+     * Independent problems only. A finding with `follows` is a second sentence
+     * about the one above it — red where it changes what that finding means,
+     * but not a separate thing to push back on. Counting it here would put
+     * "there is avoidable cost, worth fixing before you sign" on a keenly
+     * priced quote whose only red mark is a deferral it disclosed honestly.
+     */
+    const critical = decode.findings.filter(
+      (f) => f.severity === "critical" && !f.follows,
+    ).length;
     const costly = decode.findings
       .filter((f) => f.costOverTerm != null)
       .reduce((sum, f) => sum + (f.costOverTerm ?? 0), 0);
