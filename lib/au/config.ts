@@ -29,6 +29,12 @@ export interface TaxConfig {
   };
   /** Compulsory study-loan repayment scale (marginal, from 1 July 2025). */
   helpBands: { upTo: number; rate: number }[];
+  /**
+   * Division 293 — the extra tax on concessional contributions for high
+   * earners. Optional so a stored config written before this existed still
+   * loads; absent means the test is not applied at all.
+   */
+  div293?: { threshold: number; rate: number };
 }
 
 /**
@@ -334,6 +340,23 @@ export const DEFAULT_CONFIG: EngineConfig = {
       { upTo: 125_000, rate: 0.15 },
       { upTo: Infinity, rate: 0.17 },
     ],
+    /**
+     * Division 293: an extra 15% on concessional super contributions for high
+     * earners, on top of the 15% the fund already pays.
+     *
+     * Neither threshold nor rate has moved since 2017-18 and neither is
+     * indexed, which is exactly why it matters more each year — it catches
+     * salaries the packaging industry treats as routine.
+     *
+     * It belongs in a novated lease calculator for a reason that is not
+     * obvious: packaging moves BOTH sides of the test. Salary sacrificed
+     * lowers taxable income, but the reportable fringe benefit is added back,
+     * and the grossed-up benefit is usually the larger of the two. On a car
+     * near the threshold the packaging can therefore push somebody INTO
+     * Division 293, or deeper into it, while every headline figure on the
+     * quote says they are saving money.
+     */
+    div293: { threshold: 250_000, rate: 0.15 },
   },
 
   fbt: {

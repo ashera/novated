@@ -38,6 +38,18 @@ export const SOURCE_SEEDS: SourceSeed[] = [
     description: "Medicare levy rate, low-income threshold and shade-in rate.",
   },
   {
+    key: "ato-div293",
+    name: "Division 293 tax on concessional contributions",
+    organisation: "Australian Taxation Office",
+    url: "https://www.ato.gov.au/individuals-and-families/super-for-individuals-and-families/super/growing-your-super/how-to-save-more-in-your-super/extra-15-per-cent-tax-on-super-contributions-division-293",
+    // Unindexed since 2017-18, so the review is about the law changing rather
+    // than an annual figure moving.
+    updateFrequency: "On legislative change (threshold unindexed since 2017-18)",
+    reviewIntervalDays: 365,
+    description:
+      "The $250,000 income threshold and the extra 15% levied on concessional contributions above it.",
+  },
+  {
     key: "ato-help-rates",
     name: "Study and training loan repayment thresholds",
     organisation: "Australian Taxation Office",

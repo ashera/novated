@@ -223,6 +223,8 @@ export const PARAM_DESCRIPTORS: ParamDescriptor[] = [
   { key: "medicare_rate", label: "Medicare levy rate", category: "Offsets & levies", path: "tax.medicare.rate", unit: "percent", sourceKey: "ato-medicare" },
   { key: "medicare_threshold", label: "Medicare levy — low-income threshold", category: "Offsets & levies", path: "tax.medicare.lowIncomeThreshold", unit: "aud", sourceKey: "ato-medicare" },
   { key: "medicare_shade_in", label: "Medicare levy — shade-in rate", category: "Offsets & levies", path: "tax.medicare.shadeInRate", unit: "percent", sourceKey: "ato-medicare" },
+  { key: "div293_threshold", label: "Division 293 income threshold", category: "Offsets & levies", path: "tax.div293.threshold", unit: "aud", sourceKey: "ato-div293" },
+  { key: "div293_rate", label: "Division 293 tax rate", category: "Offsets & levies", path: "tax.div293.rate", unit: "percent", sourceKey: "ato-div293" },
 
   ...helpBandDescriptors(),
 

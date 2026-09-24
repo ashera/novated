@@ -1221,10 +1221,38 @@ export function calculateLease(
    * handful of them; the loop is bounded anyway, because an engine that can
    * spin is worse than one that is a cent out.
    */
-  const reliefBefore = { hasHelpDebt: inputs.hasHelpDebt };
+  /*
+   * Moved above the relief because Division 293 is measured from it. Depends
+   * only on salary and the pre-tax deduction, so nothing here is circular.
+   */
+  const superannuation = assessSuper(inputs.salary, preTaxAnnual, inputs, config);
+
+  /*
+   * Division 293 needs both sides of the comparison to carry their own
+   * concessional contributions and their own reportable benefit, because
+   * packaging moves the test in both directions at once:
+   *
+   *   · taxable income falls, which pulls Division 293 income DOWN
+   *   · the reportable fringe benefit is added back, which pushes it UP, and
+   *     on a grossed-up benefit it is usually the larger of the two
+   *   · employer super falls with the sacrificed salary, which lowers the
+   *     contributions being taxed — unless the employment agreement pays super
+   *     on pre-sacrifice earnings, in which case it does not
+   *
+   * Three effects, two of them pulling opposite ways, and which one wins
+   * depends on the car and the salary. That is precisely the situation the
+   * "measure tax, don't assume it" rule exists for: both sides are handed to
+   * marginalRelief as whole tax positions and the difference falls out.
+   */
+  const reliefBefore = {
+    hasHelpDebt: inputs.hasHelpDebt,
+    concessionalContributions: superannuation.before,
+  };
   const reliefAfter = {
     hasHelpDebt: inputs.hasHelpDebt,
     repaymentIncomeExtra: fbt.reportableFringeBenefit,
+    div293IncomeExtra: fbt.reportableFringeBenefit,
+    concessionalContributions: superannuation.after,
   };
   const sharePct = Math.min(Math.max(inputs.employerSavingSharePct ?? 0, 0), 100);
   let employerShare = 0;
@@ -1454,13 +1482,39 @@ export function calculateLease(
       "This lease creates a reportable fringe benefit on your payment summary. It isn't taxable income, but it counts towards income tests such as the Medicare levy surcharge, child support and family assistance.",
     );
   }
+  /*
+   * Division 293, said plainly, and only where it actually reaches them.
+   *
+   * Three separate cases, because "you pay Division 293" and "packaging this
+   * car is what puts you there" are different news and the second is the one
+   * that should change a decision. The figures come from the two tax positions
+   * the relief was measured between, not from a fresh calculation — a second
+   * sum here would be a second answer.
+   */
+  if (after.div293 > 0 || before.div293 > 0) {
+    const extra = after.div293 - before.div293;
+    const threshold = fmt(config.tax.div293?.threshold ?? 0);
+    if (extra > 1) {
+      warnings.push(
+        `Packaging this car adds ${fmt(extra)} a year of Division 293 tax — the extra 15% on super contributions above ${threshold} of income. The reportable fringe benefit of ${fmt(fbt.reportableFringeBenefit)} counts towards that test and is larger than the salary you sacrifice, so on this income the packaging pushes you further over the line rather than under it. It is counted in the figures here.`,
+      );
+    } else if (extra < -1) {
+      warnings.push(
+        `Packaging this car reduces your Division 293 tax by ${fmt(-extra)} a year — the extra 15% on super contributions above ${threshold} of income — because the salary you sacrifice lowers that test by more than the reportable fringe benefit adds back. It is counted in the figures here.`,
+      );
+    } else {
+      warnings.push(
+        `You are over the ${threshold} Division 293 threshold, so concessional super contributions attract an extra 15%. This lease barely moves it: the reportable fringe benefit added to the test and the salary sacrificed off it very nearly cancel out.`,
+      );
+    }
+  }
+
   if (inputs.hasHelpDebt && fbt.reportableFringeBenefit > config.fbt.reportingThreshold) {
     warnings.push(
       "Because the reportable fringe benefit is added to your HELP repayment income, your compulsory study-loan repayment can rise even though your taxable income falls — which eats into the saving shown here.",
     );
   }
 
-  const superannuation = assessSuper(inputs.salary, preTaxAnnual, inputs, config);
   if (superannuation.forgone > 0) {
     warnings.push(
       `Your employer's super contributions fall by ${fmt(superannuation.forgone)} a year, because a car sacrifice reduces the earnings the guarantee is worked out on. That is lawful and it does not show on a payslip. Some employment agreements say super is paid on your salary before packaging — worth checking, because over ${inputs.termYears} years it is ${fmt(superannuation.forgone * inputs.termYears)} of contributions never made.`,
