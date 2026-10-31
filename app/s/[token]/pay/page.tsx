@@ -100,19 +100,22 @@ export default async function SharedPayBreakdownPage({
     ? {
         decode: decodeQuote(leaseToQuote(lease, spec), config),
         provider: quoteLabel(spec, "the provider"),
+        spec,
       }
     : null;
 
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-5 py-10">
+      <main className="mx-auto max-w-5xl px-5 py-10">
         <PayBreakdown
           result={result}
           config={config}
           carName={vehicleName(lease.vehicle, catalogue, "")}
           leaseName={row.name}
           quote={quote}
+          vehicle={lease.vehicle}
+          commencementDate={lease.scenario.commencementDate}
         />
       </main>
     </>

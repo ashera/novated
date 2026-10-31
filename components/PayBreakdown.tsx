@@ -2,8 +2,10 @@
 
 import DeductionTable from "./DeductionTable";
 import DeductionExplainer from "./DeductionExplainer";
+import VehicleArt from "./VehicleArt";
 import { modelledDeduction, quotedDeduction } from "@/lib/au/deduction";
 import type { QuoteDecode } from "@/lib/au/quote";
+import type { QuoteSpec, VehicleSpec } from "@/lib/au/lease";
 import { fmtCurrency, fmtCurrencyCents } from "@/lib/au/format";
 import {
   PAY_CYCLES_PER_YEAR,
@@ -51,6 +53,8 @@ export default function PayBreakdown({
   carName,
   leaseName,
   quote,
+  vehicle,
+  commencementDate,
 }: {
   result: LeaseResult;
   config: EngineConfig;
@@ -65,7 +69,11 @@ export default function PayBreakdown({
    * a payslip the second opinion is the wrong answer. This page showed $1,945
    * a month to somebody whose payslip says $1,780 before it took the quote.
    */
-  quote?: { decode: QuoteDecode; provider: string } | null;
+  quote?: { decode: QuoteDecode; provider: string; spec: QuoteSpec } | null;
+  /** The car, for the schedule's identification block and its picture. */
+  vehicle: VehicleSpec;
+  /** ISO date the lease commences, where the lease records one. */
+  commencementDate?: string;
 }) {
   const { inputs, finance, running, fbt, package: pkg } = result;
   const cycle = effectivePayCycle(inputs.payCycle, config);
@@ -74,6 +82,38 @@ export default function PayBreakdown({
   const adminFee = inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual;
 
   const n = (v: number | null) => (v == null ? "—" : fmtCurrency(v));
+
+  /*
+   * The schedule's own dates and counts.
+   *
+   * An accountant asked for "the lease schedule", which is a document with a
+   * settled shape: what is being leased, over what period, for what payment,
+   * against what residual. Most of it was already on the page, scattered
+   * across two cards and ordered for somebody deciding whether to lease
+   * rather than somebody filing it.
+   */
+  const termMonths = quote?.spec.termMonths ?? inputs.termYears * 12;
+  const PAYMENTS_PER_YEAR = { weekly: 52, fortnightly: 26, monthly: 12 } as const;
+  const payFreq = quote?.spec.frequency ?? "monthly";
+  const perYear = PAYMENTS_PER_YEAR[payFreq];
+  const freqNoun = { weekly: "week", fortnightly: "fortnight", monthly: "month" }[payFreq];
+  const financePerPayment = quote?.spec.lines?.finance ?? null;
+  const deferred = quote?.spec.deferredMonths ?? 0;
+
+  const asDate = (iso?: string) => {
+    if (!iso) return null;
+    const d = new Date(`${iso}T00:00:00Z`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  const fmtDate = (d: Date | null) =>
+    d == null
+      ? "—"
+      : d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  const start = asDate(commencementDate);
+  /* The end date follows the term, and the deferral does not move it unless
+     the lease says so — which is the question the deferral finding sends back
+     to the provider, so it is not assumed here. */
+  const end = start ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + termMonths, start.getUTCDate())) : null;
 
   const breakdown = quote
     ? quotedDeduction(quote.decode)
@@ -99,6 +139,10 @@ export default function PayBreakdown({
         totalInterest: finance.totalInterest,
       };
 
+  /* Stated on the quote where it is stated; otherwise GST added to ours. */
+  const residualIncGst =
+    quote?.spec.residualIncGst ?? (fin.residual == null ? null : fin.residual * (1 + config.gst.rate));
+
   return (
     <div className="space-y-6">
       <header>
@@ -116,6 +160,98 @@ export default function PayBreakdown({
           No salary or tax position is included.
         </p>
       </header>
+
+      {/*
+        * The lease schedule, first.
+        *
+        * Asked for by name: an accountant wants the schedule before the
+        * payslip arithmetic, because it is the document that establishes what
+        * the arithmetic is about — what is leased, over what period, for what
+        * payment, against what residual. These facts were already on the page
+        * but sat below the deduction and were split across two cards, ordered
+        * for somebody deciding whether to lease rather than somebody filing it.
+        *
+        * The picture earns its place here rather than decorating the header:
+        * on a schedule the vehicle is an identifying fact, and a reader
+        * checking a document against a car park wants to see the car.
+        */}
+      <section className="rounded-xl border border-line bg-panel p-6 shadow-[var(--shadow-card)]">
+        <h2 className="text-base font-semibold text-ink">Lease schedule</h2>
+        <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-start">
+          <div className="w-full shrink-0 lg:w-72">
+            <div className="flex aspect-[16/10] items-center justify-center overflow-hidden rounded-lg border border-line bg-panel-2 p-2">
+              <VehicleArt
+                src={
+                  vehicle.vehicleId
+                    ? `/api/vehicle-image/${encodeURIComponent(vehicle.vehicleId)}`
+                    : null
+                }
+                alt={carName || "The leased vehicle"}
+                bodyType={vehicle.bodyType}
+              />
+            </div>
+            <p className="mt-2 text-center text-xs text-muted">
+              {carName || leaseName || "The leased vehicle"}
+            </p>
+          </div>
+
+          <dl className="grid min-w-0 flex-1 gap-x-8 gap-y-0 sm:grid-cols-2">
+            {(
+              [
+                ["Vehicle", carName || leaseName || "\u2014"],
+                ["Financier / provider", quote ? quote.provider : "\u2014"],
+                ["Commencement", fmtDate(start)],
+                [
+                  "Term",
+                  `${termMonths} months (${(termMonths / 12).toFixed(termMonths % 12 === 0 ? 0 : 1)} years)`,
+                ],
+                ["Expiry", fmtDate(end)],
+                [
+                  "Payment",
+                  financePerPayment != null
+                    ? `${fmtCurrencyCents(financePerPayment)} a ${freqNoun}`
+                    : fin.monthly == null
+                      ? "\u2014"
+                      : `${fmtCurrency(fin.monthly)} a month`,
+                ],
+                [
+                  "Number of payments",
+                  deferred > 0
+                    ? `${Math.round((termMonths / 12) * perYear) - Math.round((deferred / 12) * perYear)} (${deferred} ${deferred === 1 ? "month" : "months"} deferred at the start)`
+                    : String(Math.round((termMonths / 12) * perYear)),
+                ],
+                ["Amount financed", n(fin.amountFinanced)],
+                ["Interest rate", fin.ratePct == null ? "\u2014" : `${fin.ratePct.toFixed(2)}%`],
+                [
+                  "Residual (ex GST)",
+                  fin.residual == null || fin.amountFinanced == null
+                    ? n(fin.residual)
+                    : `${fmtCurrency(fin.residual)} (${((fin.residual / fin.amountFinanced) * 100).toFixed(2)}%)`,
+                ],
+                ["Residual (inc GST)", n(residualIncGst)],
+                ["Total interest over the term", n(fin.totalInterest)],
+              ] as [string, string][]
+            ).map(([k, v]) => (
+              <div
+                key={k}
+                className="flex items-baseline justify-between gap-4 border-b border-line py-2"
+              >
+                <dt className="text-sm text-subtle">{k}</dt>
+                <dd className="text-right text-sm font-medium tabular-nums text-ink">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+        <p className="mt-4 text-xs leading-relaxed text-muted">
+          {quote
+            ? "These are the quote\u2019s own figures. The interest rate is solved from its payment, amount financed and residual rather than taken on trust."
+            : `The lease is written over ${fmtCurrency(finance.amountFinanced)} rather than the ${fmtCurrency(finance.priceInclGst)} purchase price, because the financier buys the car and claims the GST back \u2014 ${fmtCurrency(finance.gstCredit)} here.`}{" "}
+          The residual falls due at the end of the term and is not part of any deduction
+          below.
+          {deferred > 0 &&
+            ` The first ${deferred} ${deferred === 1 ? "month" : "months"} are deferred, so interest accrues before any payment is made; whether the end date holds or moves out by ${deferred} ${deferred === 1 ? "month" : "months"} is worth confirming with the provider.`}
+        </p>
+      </section>
 
       {/* The payslip figure first, because it is the one being reconciled and
           everything below exists to account for it. In cents: a payroll system
@@ -186,40 +322,6 @@ export default function PayBreakdown({
         </div>
       </section>
 
-      {/* The terms the finance line is solved from. An accountant checking the
-          lease payment needs the four inputs that determine it, and they are
-          on the lease document rather than the payslip. */}
-      <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-        <h2 className="text-base font-semibold text-ink">The finance behind the lease payment</h2>
-        <dl className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-          {[
-            ["Amount financed", n(fin.amountFinanced)],
-            ["Interest rate", fin.ratePct == null ? "—" : `${fin.ratePct.toFixed(2)}%`],
-            ["Term", `${inputs.termYears} year${inputs.termYears === 1 ? "" : "s"}`],
-            [
-              "Residual",
-              fin.residual == null || fin.amountFinanced == null
-                ? "—"
-                : `${fmtCurrency(fin.residual)} (${((fin.residual / fin.amountFinanced) * 100).toFixed(2)}% of the amount financed)`,
-            ],
-            ["Payment", fin.monthly == null ? "—" : `${fmtCurrency(fin.monthly)} a month`],
-            ["Total interest over the term", n(fin.totalInterest)],
-          ].map(([k, v]) => (
-            <div key={k} className="flex items-baseline justify-between gap-4 border-b border-line pb-2">
-              <dt className="text-sm text-subtle">{k}</dt>
-              <dd className="text-sm font-medium tabular-nums text-ink">{v}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="mt-3 text-xs leading-relaxed text-muted">
-          {quote
-            ? "These are the quote’s own figures. The rate is solved from its payment, amount financed and residual rather than taken on trust."
-            : `The lease is written over ${fmtCurrency(finance.amountFinanced)} rather than the ${fmtCurrency(finance.priceInclGst)} purchase price, because the financier buys the car and claims the GST back — ${fmtCurrency(finance.gstCredit)} here.`}{" "}
-          The residual falls due at the end of the term and is not part of any deduction
-          above.
-        </p>
-      </section>
-
       {/* FBT, and the reportable amount. The second is the reason an accountant
           opens this page in a year when nothing about the lease has changed. */}
       <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
@@ -266,21 +368,78 @@ export default function PayBreakdown({
 
       <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
         <h2 className="text-base font-semibold text-ink">Where each figure comes from</h2>
-        <p className="mt-1 text-sm text-muted">
-          The arithmetic behind every line, with the numbers actually used.
-        </p>
-        <div className="mt-4">
-          <DeductionExplainer
-            inputs={inputs}
-            config={config}
-            finance={finance}
-            running={running}
-            fbt={fbt}
-            adminFee={adminFee}
-            inline
-            audience="adviser"
-          />
-        </div>
+        {/*
+          * Only our own working belongs here, and with a quote attached almost
+          * none of it is ours.
+          *
+          * This section used to render the modelled derivations unconditionally,
+          * which put "a level payment that pays $84,429 down to a $23,750
+          * residual — $1,580 a month" at the foot of a page whose schedule and
+          * deduction table said $78,095 and $1,457.10. Two values for the lease
+          * payment in one document, which is worse than either on its own and
+          * exactly the complaint that produced this page's rewrite.
+          *
+          * Where the figures are the provider's, the honest answer to "where
+          * does this come from" is "their quote" — plus the one thing we do
+          * derive, which is the interest rate their own numbers imply.
+          */}
+        {quote ? (
+          <>
+            <p className="mt-1 text-sm text-muted">
+              What is read off the document, and what is worked out from it.
+            </p>
+            <div className="mt-4 space-y-3 text-sm leading-relaxed text-subtle">
+              <p className="rounded-lg border border-line bg-panel-2 p-3 text-xs leading-relaxed">
+                <strong className="text-ink">Read off the quote</strong> — every line in the
+                table above is {quote.provider}&apos;s own stated amount at the quote&apos;s
+                own frequency, annualised by multiplying by {perYear}. Nothing in the
+                deduction is modelled, estimated or benchmarked.
+                <br />
+                <br />
+                <strong className="text-ink">Worked out here</strong> — the interest rate.
+                A quote states a payment, an amount financed, a residual and a term, and
+                those four fix the rate exactly; most quotes do not print it. Solving it is
+                the one number on this page that is ours rather than theirs.
+              </p>
+              {fin.ratePct != null && fin.amountFinanced != null && fin.residual != null && (
+                <p className="text-xs leading-relaxed text-muted">
+                  {fmtCurrencyCents(financePerPayment ?? 0)} a {freqNoun} pays{" "}
+                  {fmtCurrency(fin.amountFinanced)} down to a {fmtCurrency(fin.residual)}{" "}
+                  residual over {termMonths} months. The rate that produces that payment is{" "}
+                  {fin.ratePct.toFixed(2)}%
+                  {deferred > 0
+                    ? `, with the first ${deferred} ${deferred === 1 ? "month" : "months"} deferred — interest accrues through the deferral and is repaid by the payments that remain, which is part of why the rate is what it is.`
+                    : "."}
+                </p>
+              )}
+              <p className="text-xs leading-relaxed text-muted">
+                Running costs in a packaged lease are budgeted{" "}
+                <strong className="text-ink">without GST</strong>, because the employer
+                claims it back. That is why these lines look lower than the same bills paid
+                personally. They are budgets: a surplus or shortfall is reconciled by the
+                provider, usually at the end of the lease.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 text-sm text-muted">
+              The arithmetic behind every line, with the numbers actually used.
+            </p>
+            <div className="mt-4">
+              <DeductionExplainer
+                inputs={inputs}
+                config={config}
+                finance={finance}
+                running={running}
+                fbt={fbt}
+                adminFee={adminFee}
+                inline
+                audience="adviser"
+              />
+            </div>
+          </>
+        )}
       </section>
     </div>
   );
