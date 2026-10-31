@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_CONFIG } from "@/lib/au/config";
 import { modelledDeduction, quotedDeduction } from "@/lib/au/deduction";
-import { calculateLease, defaultInputs, type LeaseInputs } from "@/lib/au/novated";
+import {
+  calculateLease,
+  defaultInputs,
+  luxuryCarAdjustment,
+  type LeaseInputs,
+} from "@/lib/au/novated";
 import { decodeQuote, type Quote } from "@/lib/au/quote";
 
 const config = DEFAULT_CONFIG;
@@ -93,6 +98,62 @@ describe("Where the deduction figures come from", () => {
     it("says nothing about a stated deduction when the quote does not state one", () => {
       const d = quotedDeduction(decodeQuote(realQuote({ statedPreTax: undefined }), config));
       expect(d.statedDeduction).toBeNull();
+    });
+
+    /*
+     * The luxury car charge, which now has a card explaining it.
+     *
+     * The card reads its figure off the printed row rather than recomputing
+     * the charge, so that it cannot explain a different number from the one
+     * in the table. With a quote attached that row is the provider's amount,
+     * and ours is only a benchmark against it — $505.80 charged here against
+     * $517.89 our percentage would suggest. If the row ever started carrying
+     * the modelled figure instead, the card would silently become an
+     * explanation of a number nobody is paying.
+     */
+    it("carries the provider's luxury car charge, not our benchmark for it", () => {
+      const d = quotedDeduction(decodeQuote(realQuote(), config));
+      const row = d.rows.find((r) => r.key === "luxuryCarAdjustment")!;
+      expect(row.annual).toBeCloseTo(42.15 * 12, 6);
+
+      const ours = luxuryCarAdjustment(78_095, config);
+      expect(ours).toBeGreaterThan(0);
+      expect(row.annual).not.toBeCloseTo(ours, 2);
+    });
+
+    it("drops the charge entirely when the quote does not levy one", () => {
+      const lines = { ...realQuote().lines, luxuryCarAdjustment: undefined };
+      const d = quotedDeduction(decodeQuote(realQuote({ lines }), config));
+      expect(d.rows.some((r) => r.key === "luxuryCarAdjustment")).toBe(false);
+    });
+  });
+
+  /*
+   * What the charge is actually a function of, since the card states it as a
+   * reason: the amount financed above the ATO's car limit, not the car's
+   * price and not the term.
+   */
+  describe("the luxury car charge itself", () => {
+    const limit = config.gst.carLimit;
+
+    it("is nil at or below the car limit", () => {
+      expect(luxuryCarAdjustment(limit, config)).toBe(0);
+      expect(luxuryCarAdjustment(limit - 10_000, config)).toBe(0);
+    });
+
+    it("is charged on the excess only, not the whole amount financed", () => {
+      const excess = 20_000;
+      const charge = luxuryCarAdjustment(limit + excess, config);
+      expect(charge).toBeCloseTo(excess * (config.lease.luxuryCarAdjustmentPct / 100), 6);
+      // The distinction the card turns on: a tenth of the excess, not of the car.
+      expect(charge).toBeLessThan((limit + excess) * 0.05);
+    });
+
+    it("rises with the amount financed and nothing else", () => {
+      const a = luxuryCarAdjustment(limit + 5_000, config);
+      const b = luxuryCarAdjustment(limit + 15_000, config);
+      expect(b).toBeGreaterThan(a);
+      expect(b / a).toBeCloseTo(3, 6);
     });
   });
 

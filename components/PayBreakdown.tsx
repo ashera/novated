@@ -172,6 +172,22 @@ export default function PayBreakdown({
         totalInterest: finance.totalInterest,
       };
 
+  /*
+   * The luxury car charge, where there is one.
+   *
+   * Taken from the row the table actually prints rather than recomputed, so
+   * the card cannot explain a different number from the one above it — which
+   * matters more here than elsewhere, because with a quote attached the
+   * charge is the provider's figure and our benchmark is only a check on it.
+   */
+  const lcaRow = breakdown.rows.find((r) => r.key === "luxuryCarAdjustment");
+  const lca = lcaRow?.annual ?? 0;
+  const carLimit = config.gst.carLimit;
+  const lcaExcess =
+    fin.amountFinanced == null ? null : Math.max(0, fin.amountFinanced - carLimit);
+  const lcaPct = config.lease.luxuryCarAdjustmentPct;
+  const lcaBenchmark = lcaExcess == null ? null : lcaExcess * (lcaPct / 100);
+
   /* The period the ledger covers, for the sentence above it. Dates are ISO in
      the store, so a string compare orders them. */
   const ledgerDates = ledger.map((r) => r.date).filter(Boolean).sort();
@@ -362,6 +378,97 @@ export default function PayBreakdown({
           />
         </div>
       </section>
+
+      {/*
+        * The luxury car charge, explained where it is charged.
+        *
+        * It needs a card of its own for two reasons. The name is the problem:
+        * readers take it for the Luxury Car Tax, which is a different thing
+        * with a different threshold and in most cases is not payable at all
+        * on the cars this charge lands on. And unlike every other line, it is
+        * not a cost of running the car — it is the financier recovering tax
+        * relief they cannot claim, which is why an accountant asks what it is
+        * before anything else on the page.
+        *
+        * Only when there is one. A card explaining a $0 line would be a card
+        * about nothing.
+        */}
+      {lca > 0 && (
+        <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
+          <h2 className="text-base font-semibold text-ink">
+            Why there is a luxury car charge
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-subtle">
+            {lcaExcess != null && lcaExcess > 0 ? (
+              <>
+                The amount financed is {fmtCurrency(fin.amountFinanced!)}, which is{" "}
+                {fmtCurrency(lcaExcess)} above the ATO&apos;s car limit of{" "}
+                {fmtCurrency(carLimit)}. On that excess the financier cannot claim the GST
+                credit or the depreciation they could claim on a cheaper car, so the cost
+                they cannot recover from the ATO is passed on in the lease — here{" "}
+                {fmtCurrency(lca)} a year.
+              </>
+            ) : (
+              <>
+                This quote charges {fmtCurrency(lca)} a year as a luxury car charge, but the
+                amount financed is at or below the ATO&apos;s car limit of{" "}
+                {fmtCurrency(carLimit)} — the threshold the charge normally arises from.
+                Worth asking the provider what it is for.
+              </>
+            )}
+          </p>
+
+          {lcaExcess != null && lcaExcess > 0 && (
+            <dl className="mt-4 grid gap-x-8 gap-y-0 sm:grid-cols-2">
+              {(
+                [
+                  ["Amount financed", fmtCurrency(fin.amountFinanced!)],
+                  ["ATO car limit", fmtCurrency(carLimit)],
+                  ["Excess over the limit", fmtCurrency(lcaExcess)],
+                  ["Charged on this lease", `${fmtCurrency(lca)} a year`],
+                ] as [string, string][]
+              ).map(([k, v]) => (
+                <div
+                  key={k}
+                  className="flex items-baseline justify-between gap-4 border-b border-line py-2"
+                >
+                  <dt className="text-sm text-subtle">{k}</dt>
+                  <dd className="text-sm font-medium tabular-nums text-ink">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          {/* The benchmark is a market sample, not a rate anybody legislated,
+              so it is offered as a comparison rather than as the right answer
+              — see sources: the car limit is the ATO's, the percentage is
+              ours, collected from real quotes. */}
+          {lcaBenchmark != null && lcaBenchmark > 0 && (
+            <p className="mt-3 text-xs leading-relaxed text-muted">
+              Across the quotes we have collected, providers charge about {lcaPct}% of the
+              excess a year, which on {fmtCurrency(lcaExcess!)} would be around{" "}
+              {fmtCurrency(lcaBenchmark)}.{" "}
+              {Math.abs(lca - lcaBenchmark) <= Math.max(50, lcaBenchmark * 0.1)
+                ? "This one is in line with that."
+                : lca > lcaBenchmark
+                  ? `This one is ${fmtCurrency(lca - lcaBenchmark)} a year above that, which is worth asking about.`
+                  : `This one is ${fmtCurrency(lcaBenchmark - lca)} a year below that.`}{" "}
+              The car limit is the ATO&apos;s; the percentage is a market benchmark rather
+              than a legislated rate, and it varies between financiers.
+            </p>
+          )}
+
+          <p className="mt-3 text-xs leading-relaxed text-muted">
+            <strong className="text-ink">Not the Luxury Car Tax.</strong> That is a separate
+            tax paid once on the vehicle itself, with a higher threshold
+            {finance.luxuryCarTax > 0
+              ? `, and ${fmtCurrency(finance.luxuryCarTax)} of it applies to this car.`
+              : " — none is payable on this car."}{" "}
+            This charge is not a tax at all: it is the financier recovering relief the car
+            limit denies them. It is deducted before tax with the rest of the package.
+          </p>
+        </section>
+      )}
 
       {/* FBT, and the reportable amount. The second is the reason an accountant
           opens this page in a year when nothing about the lease has changed. */}
