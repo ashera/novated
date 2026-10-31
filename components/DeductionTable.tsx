@@ -140,6 +140,25 @@ export default function DeductionTable({
           </>
         )}
         <Row label="Lease management fee" value={adminFee} side={split ? null : "Pre-tax"} cycles={cycles} />
+        {/*
+          * The luxury car charge, which the engine has always added to the
+          * package and this table has never shown.
+          *
+          * Above the GST car limit the financier cannot claim full GST credits
+          * or depreciation on the excess and passes the cost on; providers
+          * print it as a "luxury car charge" or "luxury car adjustment". It is
+          * inside packagedTotal, so leaving it out did not change anybody's
+          * total — it just meant the itemised column did not come to the total
+          * printed under it, by $907 a year on the lease that surfaced this.
+          */}
+        {finance.luxuryCarAdjustment > 0 && (
+          <Row
+            label="Luxury car charge"
+            value={finance.luxuryCarAdjustment}
+            side={split ? null : "Pre-tax"}
+            cycles={cycles}
+          />
+        )}
         {fbt.fbtPayable > 0 && (
           <Row
             label="Fringe benefits tax (grossed up)"

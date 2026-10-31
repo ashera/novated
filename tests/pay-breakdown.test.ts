@@ -121,8 +121,12 @@ describe("Shared pay breakdown", () => {
     for (const fbtMethod of ["ecm", "employer-pays"] as const) {
       for (const fuelType of ["electric", "petrol"] as const) {
         for (const includeRunningCosts of [true, false]) {
+          // Priced above the GST car limit as well as under it: the luxury car
+          // charge is in the package and was missing from the column, which is
+          // the defect this loop now covers.
+          for (const vehiclePrice of [54_000, 120_000]) {
           const r = calculateLease(
-            lease({ fbtMethod, fuelType, includeRunningCosts, salary: 0 }),
+            lease({ fbtMethod, fuelType, includeRunningCosts, vehiclePrice, salary: 0 }),
             config,
           );
           const adminFee = r.inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual;
@@ -136,14 +140,25 @@ describe("Shared pay breakdown", () => {
             r.finance.annualPayment +
             (includeRunningCosts ? r.running.total : 0) +
             adminFee +
+            r.finance.luxuryCarAdjustment +
             r.fbt.fbtPayable;
           expect(
             rows,
-            `${fbtMethod} / ${fuelType} / packaged=${includeRunningCosts}`,
+            `${fbtMethod} / ${fuelType} / packaged=${includeRunningCosts} / $${vehiclePrice}`,
           ).toBeCloseTo(r.package.preTaxAnnual + r.package.postTaxAnnual, 6);
+          }
         }
       }
     }
+  });
+
+  /* The charge has to actually arise in the fixture above, or that loop is
+     only ever testing the cheap car twice. */
+  it("puts a luxury car charge on a car above the GST limit", () => {
+    const dear = calculateLease(lease({ vehiclePrice: 120_000, salary: 0 }), config);
+    const cheap = calculateLease(lease({ vehiclePrice: 54_000, salary: 0 }), config);
+    expect(dear.finance.luxuryCarAdjustment).toBeGreaterThan(0);
+    expect(cheap.finance.luxuryCarAdjustment).toBe(0);
   });
 
 
