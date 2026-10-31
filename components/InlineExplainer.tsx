@@ -12,13 +12,23 @@ export default function InlineExplainer({
   value,
   valueClassName = "text-ink",
   children,
+  defaultOpen = false,
 }: {
   label: string;
   value: string;
   valueClassName?: string; // colour the value (e.g. green/amber for net rent)
   children: ReactNode;
+  /**
+   * Start expanded.
+   *
+   * For a surface where the explanation is the point rather than a reassurance
+   * on request — a breakdown shared with somebody's accountant, say, who came
+   * for the arithmetic and should not have to find nine separate buttons to
+   * reach it. The toggle still works; only its starting state changes.
+   */
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <div className="border-b border-line py-1.5 last:border-0">

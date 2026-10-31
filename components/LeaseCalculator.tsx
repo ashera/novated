@@ -12,6 +12,8 @@ import InfoBlastBanner from "./InfoBlastBanner";
 import VehicleCard from "./VehicleCard";
 import CardHeading from "./CardHeading";
 import DeductionExplainer from "./DeductionExplainer";
+import DeductionTable from "./DeductionTable";
+import ShareControl from "./ShareControl";
 import StatExplainer from "./StatExplainer";
 import PayslipImpact from "./PayslipImpact";
 import LockedSummary from "./LockedSummary";
@@ -79,6 +81,9 @@ export default function LeaseCalculator({
   const lease = sharedLease ?? store.lease;
   const readOnly = Boolean(sharedLease);
   const [hydrated, setHydrated] = useState(false);
+  /* Local to the deduction card: ShareControl reports success and failure
+     through a callback rather than rendering its own message. */
+  const [payNotice, setPayNotice] = useState<string | null>(null);
   const applied = useRef(false);
 
   // A quote handed over from the decoder carries the rate we solved and that
@@ -1008,57 +1013,58 @@ export default function LeaseCalculator({
                 />
               </div>
 
-              <table className="mt-4 w-full text-sm">
-                <thead>
-                  <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
-                    <th className="pb-2 font-medium">Item</th>
-                    <th className="pb-2 text-right font-medium">Per year</th>
-                    <th className="pb-2 text-right font-medium">Deducted</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  <Row label="Lease payments" value={finance.annualPayment} side="Pre-tax" />
-                  {inputs.includeRunningCosts && (
-                    <>
-                      <Row label="Fuel or charging" value={running.fuel} side="Pre-tax" indent />
-                      <Row label="Servicing" value={running.servicing} side="Pre-tax" indent />
-                      <Row label="Tyres" value={running.tyres} side="Pre-tax" indent />
-                      <Row label="Registration and CTP" value={running.registration} side="Pre-tax" indent />
-                      <Row label="Insurance" value={running.insurance} side="Pre-tax" indent />
-                      <Row label="Roadside assistance" value={running.roadside} side="Pre-tax" indent />
-                    </>
-                  )}
-                  <Row
-                    label="Lease management fee"
-                    value={inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual}
-                    side="Pre-tax"
-                  />
-                  {fbt.fbtPayable > 0 && (
-                    <Row label="Fringe benefits tax (grossed up)" value={fbt.fbtPayable} side="Pre-tax" />
-                  )}
-                  {fbt.employeeContribution > 0 && (
-                    <Row
-                      label="Employee contribution (cancels FBT)"
-                      value={fbt.employeeContribution}
-                      side="Post-tax"
-                    />
-                  )}
-                  <tr className="font-semibold text-ink">
-                    <td className="py-2.5">Total deducted</td>
-                    <td className="py-2.5 text-right tabular-nums">
-                      {fmtCurrency(pkg.preTaxAnnual + pkg.postTaxAnnual)}
-                    </td>
-                    <td className="py-2.5 text-right text-xs font-normal text-muted">
-                      {fmtCurrency(pkg.preTaxAnnual)} pre / {fmtCurrency(pkg.postTaxAnnual)} post
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <div className="mt-4 overflow-x-auto">
+                <DeductionTable
+                  inputs={inputs}
+                  config={config}
+                  finance={finance}
+                  running={running}
+                  fbt={fbt}
+                  pkg={pkg}
+                  adminFee={inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual}
+                />
+              </div>
 
               {!inputs.includeRunningCosts && (
                 <p className="mt-3 text-xs text-muted">
                   Running costs of about {fmtCurrency(running.total)} a year aren&apos;t packaged —
                   you&apos;d pay those from your take-home pay, with GST.
+                </p>
+              )}
+
+              {/* For the person who has to reconcile this against a payslip.
+                  The accountant's question — what is this deduction made of,
+                  and does it add up — is answerable without a salary, so the
+                  shared view is built without one: no tax relief, no take-home,
+                  no net cost. That makes it a far narrower thing to hand over
+                  than the lease link, which carries all three.
+
+                  Signed in only, and not by policy: a guest's lease never
+                  reaches the server, so there is nothing for a link to point
+                  at. Same reasoning as the quote share. */}
+              {!readOnly && user && store.leaseId && (
+                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+                  <ShareControl
+                    id={store.leaseId}
+                    initialToken={null}
+                    linkPath="/pay"
+                    onNotice={setPayNotice}
+                    shareLabel="🔗 Share pay breakdown"
+                    copyLabel="🔗 Copy pay breakdown link"
+                    copiedNotice="Link copied. It shows what this deduction is made of and where each figure comes from — no salary, no tax position and no take-home pay. Use “unshare” to switch it off."
+                  />
+                  <span className="text-xs text-muted">
+                    A full-page breakdown for your accountant or payroll — without your salary.
+                  </span>
+                </div>
+              )}
+
+              {payNotice && (
+                <p
+                  role="status"
+                  className="mt-2.5 rounded-md border border-accent-border bg-accent-subtle px-2.5 py-1.5 text-xs leading-snug text-ink"
+                >
+                  {payNotice}
                 </p>
               )}
             </section>
@@ -1102,32 +1108,3 @@ export default function LeaseCalculator({
   );
 }
 
-function Row({
-  label,
-  value,
-  side,
-  indent = false,
-}: {
-  label: string;
-  value: number;
-  side: "Pre-tax" | "Post-tax";
-  indent?: boolean;
-}) {
-  return (
-    <tr>
-      <td className={`py-2 text-subtle ${indent ? "pl-4" : ""}`}>{label}</td>
-      <td className="py-2 text-right tabular-nums text-ink">{fmtCurrency(value)}</td>
-      <td className="py-2 text-right">
-        <span
-          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
-            side === "Pre-tax"
-              ? "bg-accent-subtle text-accent"
-              : "bg-discovery-subtle text-discovery-text"
-          }`}
-        >
-          {side}
-        </span>
-      </td>
-    </tr>
-  );
-}

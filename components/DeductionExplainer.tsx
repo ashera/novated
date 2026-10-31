@@ -60,6 +60,8 @@ export default function DeductionExplainer({
   running,
   fbt,
   adminFee,
+  inline = false,
+  audience = "owner",
 }: {
   inputs: LeaseInputs;
   config: EngineConfig;
@@ -67,7 +69,32 @@ export default function DeductionExplainer({
   running: RunningCostBreakdown;
   fbt: FbtOutcome;
   adminFee: number;
+  /**
+   * Render the working directly on the page instead of behind a lightbulb.
+   *
+   * The calculator hides it because the reader is deciding and the arithmetic
+   * is there if they want it. The shared pay breakdown shows it, because
+   * there the arithmetic IS the document: an accountant opening a link to
+   * check a payslip deduction should not have to discover that eight separate
+   * disclosure buttons exist before anything explains itself.
+   *
+   * Same component either way, deliberately. Two copies of these derivations
+   * would be two chances to say different things about one number.
+   */
+  inline?: boolean;
+  /**
+   * Who is reading.
+   *
+   * The working is written in second person to the person who entered the
+   * figures, and most of it survives being read by somebody else — "your
+   * kilometres" is plainly the client's. What does not survive is the handful
+   * of sentences pointing at controls: "pick the car above" and "decode it"
+   * name UI that is not on a shared page, so for an adviser they are not just
+   * oddly addressed, they are false.
+   */
+  audience?: "owner" | "adviser";
 }) {
+  const adviser = audience === "adviser";
   const r = config.running;
   const km = Math.max(0, inputs.annualKm);
   const electric = inputs.fuelType === "electric";
@@ -79,30 +106,37 @@ export default function DeductionExplainer({
   const usedLitres = inputs.consumptionPer100km ?? r.fuel.litresPer100km;
   const ownFigure = inputs.consumptionPer100km != null;
 
-  return (
-    <Explainer title="Where these numbers come from" label="Where these come from">
+  const body = (
+    <>
       <p>
         Two different kinds of number sit in this table, and the difference matters more
         than any single figure.
       </p>
       <p className="rounded-lg border border-line bg-panel-2 p-3 text-xs leading-relaxed">
         <strong className="text-ink">Calculated</strong> — the lease payment and the FBT
-        follow from what you have already entered. Change the rate, the term or the price
-        and they move. Nothing in them is estimated.
+        follow from {adviser ? "the lease's own terms" : "what you have already entered"}.
+        Change the rate, the term or the price and they move. Nothing in them is estimated.
         <br />
         <br />
         <strong className="text-ink">Benchmarked</strong> — the running costs are modelled
-        from published survey data against your kilometres and your car. They are the
-        honest starting point for a car nobody has quoted yet, and they will not match a
-        real quote to the dollar. When you have one,{" "}
-        <Link href="/decode" className="text-accent hover:underline">
-          decode it
-        </Link>{" "}
-        and its own figures replace these.
+        from published survey data against {adviser ? "the" : "your"} kilometres and{" "}
+        {adviser ? "the" : "your"} car. They are the honest starting point for a car nobody
+        has quoted yet, and they will not match a real quote to the dollar.{" "}
+        {adviser ? (
+          "Where a provider's own budgets have been entered, those replace these."
+        ) : (
+          <>
+            When you have one,{" "}
+            <Link href="/decode" className="text-accent hover:underline">
+              decode it
+            </Link>{" "}
+            and its own figures replace these.
+          </>
+        )}
       </p>
 
       <div className="mt-1">
-        <InlineExplainer label="Lease payments" value={fmtCurrency(finance.annualPayment)}>
+        <InlineExplainer defaultOpen={inline} label="Lease payments" value={fmtCurrency(finance.annualPayment)}>
           <strong>Calculated.</strong> A level payment that pays{" "}
           {fmtCurrency(finance.amountFinanced)} down to a {fmtCurrency(finance.residual)}{" "}
           residual over {inputs.termYears} year{inputs.termYears === 1 ? "" : "s"} at{" "}
@@ -120,6 +154,7 @@ export default function DeductionExplainer({
         {inputs.includeRunningCosts && (
           <>
             <InlineExplainer
+              defaultOpen={inline}
               label={electric ? "Charging" : "Fuel"}
               value={fmtCurrency(running.fuel)}
             >
@@ -142,14 +177,16 @@ export default function DeductionExplainer({
               <br />
               {ownFigure
                 ? "The consumption is this model's own combined-cycle figure, not a class average."
-                : "No specific model is chosen, so this is the class average. Pick the car above and its own figure is used instead."}
+                : adviser
+                  ? "No specific model is recorded against this lease, so this is the class average for its type."
+                  : "No specific model is chosen, so this is the class average. Pick the car above and its own figure is used instead."}
               <Cite
                 org="Green Vehicle Guide, and the AER for electricity or the AIP for fuel"
                 what="Consumption and price"
               />
             </InlineExplainer>
 
-            <InlineExplainer label="Servicing" value={fmtCurrency(running.servicing)}>
+            <InlineExplainer defaultOpen={inline} label="Servicing" value={fmtCurrency(running.servicing)}>
               <strong>Benchmarked.</strong> ${n0(r.servicing.annualBase)} a year plus{" "}
               {n0(km)} km × ${n2(r.servicing.perKm)} per km
               {electric && (
@@ -165,7 +202,7 @@ export default function DeductionExplainer({
               />
             </InlineExplainer>
 
-            <InlineExplainer label="Tyres" value={fmtCurrency(running.tyres)}>
+            <InlineExplainer defaultOpen={inline} label="Tyres" value={fmtCurrency(running.tyres)}>
               <strong>Benchmarked.</strong> A set costs about ${n0(r.tyres.setCost)} and
               lasts around {n0(r.tyres.kmPerSet)} km, so {n0(km)} km a year works out at{" "}
               {(km / r.tyres.kmPerSet).toFixed(2)} of a set — GST removed.
@@ -176,6 +213,7 @@ export default function DeductionExplainer({
             </InlineExplainer>
 
             <InlineExplainer
+              defaultOpen={inline}
               label="Registration and CTP"
               value={fmtCurrency(running.registration)}
             >
@@ -190,7 +228,7 @@ export default function DeductionExplainer({
               <Cite org="state road authorities" what="Registration and CTP" />
             </InlineExplainer>
 
-            <InlineExplainer label="Insurance" value={fmtCurrency(running.insurance)}>
+            <InlineExplainer defaultOpen={inline} label="Insurance" value={fmtCurrency(running.insurance)}>
               <strong>Benchmarked.</strong> {n1(r.insurance.pctOfValue)}% of the{" "}
               {fmtCurrency(inputs.vehiclePrice)} price, with a floor of $
               {n0(r.insurance.minAnnual)} — GST removed.
@@ -204,14 +242,14 @@ export default function DeductionExplainer({
               />
             </InlineExplainer>
 
-            <InlineExplainer label="Roadside assistance" value={fmtCurrency(running.roadside)}>
+            <InlineExplainer defaultOpen={inline} label="Roadside assistance" value={fmtCurrency(running.roadside)}>
               <strong>Benchmarked.</strong> A flat ${n0(r.roadsideAnnual)} a year, GST
               removed. Some providers bundle it and some do not.
             </InlineExplainer>
           </>
         )}
 
-        <InlineExplainer label="Lease management fee" value={fmtCurrency(adminFee)}>
+        <InlineExplainer defaultOpen={inline} label="Lease management fee" value={fmtCurrency(adminFee)}>
           {inputs.adminFeeAnnual != null ? (
             <>
               <strong>Yours.</strong> This came from your quote rather than our benchmark.
@@ -232,6 +270,7 @@ export default function DeductionExplainer({
 
         {fbt.fbtPayable > 0 && (
           <InlineExplainer
+              defaultOpen={inline}
             label="Fringe benefits tax"
             value={fmtCurrency(fbt.fbtPayable)}
           >
@@ -243,12 +282,13 @@ export default function DeductionExplainer({
             {fmtCurrency(fbt.fbtPayable)} comes from.
             <br />
             <br />
-            Your employer owes it, and passes it on in the deduction.
+            {adviser ? "The" : "Your"} employer owes it, and passes it on in the deduction.
           </InlineExplainer>
         )}
 
         {fbt.employeeContribution > 0 && (
           <InlineExplainer
+              defaultOpen={inline}
             label="Employee contribution"
             value={fmtCurrency(fbt.employeeContribution)}
           >
@@ -266,11 +306,23 @@ export default function DeductionExplainer({
       </div>
 
       <p className="text-xs text-muted">
-        Running costs are budgeted <strong className="text-ink">without GST</strong>. Your
-        employer claims the {gstPct}% back, so the lease only has to cover the rest — one
+        Running costs are budgeted <strong className="text-ink">without GST</strong>.{" "}
+        {adviser ? "The" : "Your"} employer claims the {gstPct}% back, so the lease only has to cover the rest — one
         of the real savings in packaging, and a common reason these figures look lower than
         what you pay at the pump today.
       </p>
+    </>
+  );
+
+  if (inline) {
+    // The modal supplies its own spacing; standing on its own the body has to
+    // bring it, or every paragraph runs into the next.
+    return <div className="space-y-3 text-sm leading-relaxed text-subtle">{body}</div>;
+  }
+
+  return (
+    <Explainer title="Where these numbers come from" label="Where these come from">
+      {body}
     </Explainer>
   );
 }
