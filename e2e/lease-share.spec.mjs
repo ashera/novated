@@ -13,6 +13,11 @@
  * spending; neither belongs in something sent to a colleague to look over.
  * Both are excluded by the shape of one SELECT, which is exactly the kind of
  * thing a later edit widens without noticing.
+ *
+ * The pay breakdown off the same token makes the opposite trade, on purpose,
+ * and is checked here too: it carries the ledger and not the salary, because
+ * it is the document prepared for an accountant rather than a colleague.
+ * Notes stay out of both.
  */
 
 import {
@@ -129,6 +134,59 @@ export default async function run(browser) {
   });
 
   /*
+   * The pay breakdown, off the same token — and the opposite trade.
+   *
+   * These two links are deliberately asymmetric and it is worth stating why,
+   * because "narrower" is the obvious reading and it is wrong. The lease link
+   * carries the salary, since every figure on that page is what the lease
+   * costs THIS person, and it carries no ledger. The pay breakdown is the
+   * document prepared for an accountant: it carries the ledger, because
+   * reconciling a deduction means seeing what actually left the account, and
+   * it carries no salary, because none of the deduction depends on one.
+   *
+   * Each holds what its reader needs and nothing else. Both exclusions and
+   * both inclusions are checked here, in one place, so a later edit that
+   * widens either query has to walk past this.
+   */
+  {
+    const payRes = await page.goto(`${BASE}/s/${token}/pay`, {
+      waitUntil: "domcontentloaded",
+    });
+    await page.waitForTimeout(2500);
+    const pay = await page.content();
+
+    describe("The pay breakdown shared off the same token");
+
+    await check("is served", () => assertEqual(payRes.status(), 200, "unexpected status"));
+
+    await check("does carry the ledger, which is what this link is for", () => {
+      assert(
+        pay.includes(LEDGER_LINE),
+        "the transaction ledger is missing from the breakdown prepared for an accountant",
+      );
+    });
+
+    await check("does not carry the salary", () => {
+      assert(
+        !pay.includes(String(SALARY)) && !pay.includes(SALARY.toLocaleString("en-AU")),
+        "the salary reached the pay breakdown, which is built without one",
+      );
+    });
+
+    await check("does not carry the owner's private notes either", () => {
+      assert(!pay.includes(PRIVATE_NOTE), "a private note reached the pay breakdown");
+    });
+
+    await check("is not indexable", () => {
+      assert(/noindex/i.test(pay), "a shared pay breakdown should not be indexed");
+    });
+
+    // Back where the rest of the spec expects to be.
+    await page.goto(`${BASE}/s/${token}`, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(2000);
+  }
+
+  /*
    * The column that used to be empty.
    *
    * A shared lease cannot host the quotes card — the page renders the
@@ -168,20 +226,45 @@ export default async function run(browser) {
     assert(copy.firstQuoteId && copy.firstQuoteId !== "qA", "the quote kept the sender's id");
     assertEqual(copy.modelling, copy.firstQuoteId, "the active quote was not remapped");
 
-    /* The whole reason a copy is worth making: the reader supplies these. */
-    assert(copy.salary !== SALARY, "the sender's salary came with the copy");
+    /*
+     * What travels and what does not, and the line is not where it first
+     * looks.
+     *
+     * This used to assert that the sender's salary could not come with the
+     * copy, and it was right when it was written: a copy opened on our
+     * default. Then a reader followed the link and watched the cost move from
+     * $120 a week to $133 for no visible reason, because the default was a
+     * third figure belonging to nobody. So the panel now opens with the
+     * sender's salary in the box, labelled as theirs and selected on focus,
+     * and a reader who clicks straight through keeps it deliberately.
+     *
+     * The salary is on the shared page already — every figure there was
+     * worked out from it — so carrying it forward discloses nothing new, and
+     * it is the only figure that makes the copy's numbers match the ones they
+     * just read. What must NOT travel is a conclusion about the sender that
+     * the reader cannot see and would not think to change, which is what the
+     * study-loan flag is.
+     */
+    assertEqual(copy.salary, SALARY, "the salary box did not start from the sender's figure");
     assert(copy.quoteSalary !== SALARY, "the sender's salary rode in on the quote");
     assert(!copy.help, "the sender's study loan came with the copy");
   });
 
   /* Reloaded, because a client-side navigation leaves the previous page's
-     payload in the document — including the salary that shared page was
-     entitled to show. The question is what a fresh workspace holds. */
-  await check("a freshly loaded workspace holds no trace of them", async () => {
+     payload in the document. The question is what a fresh workspace holds. */
+  await check("a freshly loaded workspace keeps nothing it should not", async () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForTimeout(3000);
     const html = await page.content();
-    assert(!html.includes(String(SALARY)), "the sender's salary is in the reader's own page");
+    /*
+     * The salary is expected here now — it is the reader's own starting
+     * figure, in their own workspace, and the box invites them to change it.
+     * What is checked instead is that the handoff does not linger: a copy
+     * taken once must not be takeable again from a stale sessionStorage
+     * payload, which is how a second lease appears that nobody asked for.
+     */
+    assert(!html.includes(PRIVATE_NOTE), "the sender's notes are in the reader's own page");
+    assert(!html.includes(LEDGER_LINE), "the sender's ledger is in the reader's own page");
     const left = await page.evaluate(() => sessionStorage.getItem("leasewiz-shared-lease"));
     assertEqual(left, null, "the handoff was not consumed");
   });

@@ -15,6 +15,7 @@ import {
 } from "@/lib/au/lease";
 import { calculateLease } from "@/lib/au/novated";
 import { decodeQuote } from "@/lib/au/quote";
+import type { StatementRow } from "@/lib/au/statement";
 
 /**
  * The pay deduction, broken down, shared by link.
@@ -54,8 +55,31 @@ export default async function SharedPayBreakdownPage({
 }) {
   const { token } = await params;
 
-  const r = await query<{ id: string; name: string; vehicle: unknown; scenario: unknown }>(
-    "select id, name, vehicle, scenario from leases where share_token = $1",
+  /*
+   * `statement` is selected here and nowhere else in a share.
+   *
+   * The lease link deliberately does not carry it — a record of somebody's
+   * actual spending is not part of "look at my lease", and an e2e check holds
+   * that boundary. This page is the exception the owner asks for by name: it
+   * is the document prepared for their accountant, and an accountant
+   * reconciling a deduction wants the transactions behind it.
+   *
+   * So the two links now differ in both directions, which is the point rather
+   * than an inconsistency: the lease link carries the salary and not the
+   * ledger, this one carries the ledger and not the salary. Each holds what
+   * its reader needs and nothing else, and the control that mints each says
+   * which is which.
+   *
+   * Notes stay out of both.
+   */
+  const r = await query<{
+    id: string;
+    name: string;
+    vehicle: unknown;
+    scenario: unknown;
+    statement: unknown;
+  }>(
+    "select id, name, vehicle, scenario, statement from leases where share_token = $1",
     [token],
   );
   const row = r.rows[0];
@@ -100,7 +124,15 @@ export default async function SharedPayBreakdownPage({
     ? {
         decode: decodeQuote(leaseToQuote(lease, spec), config),
         provider: quoteLabel(spec, "the provider"),
-        spec,
+        /* Field by field, deliberately: a QuoteSpec carries the salary the
+           quote was written against, and this page is built without one. */
+        schedule: {
+          termMonths: spec.termMonths,
+          frequency: spec.frequency,
+          financePerPayment: spec.lines?.finance ?? null,
+          residualIncGst: spec.residualIncGst ?? null,
+          deferredMonths: spec.deferredMonths ?? 0,
+        },
       }
     : null;
 
@@ -116,6 +148,7 @@ export default async function SharedPayBreakdownPage({
           quote={quote}
           vehicle={lease.vehicle}
           commencementDate={lease.scenario.commencementDate}
+          ledger={Array.isArray(row.statement) ? (row.statement as StatementRow[]) : []}
         />
       </main>
     </>

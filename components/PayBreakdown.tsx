@@ -3,9 +3,12 @@
 import DeductionTable from "./DeductionTable";
 import DeductionExplainer from "./DeductionExplainer";
 import VehicleArt from "./VehicleArt";
+import LedgerTable from "./LedgerTable";
+import { orderLog } from "@/lib/au/statementLog";
+import type { StatementRow } from "@/lib/au/statement";
 import { modelledDeduction, quotedDeduction } from "@/lib/au/deduction";
 import type { QuoteDecode } from "@/lib/au/quote";
-import type { QuoteSpec, VehicleSpec } from "@/lib/au/lease";
+import type { VehicleSpec } from "@/lib/au/lease";
 import { fmtCurrency, fmtCurrencyCents } from "@/lib/au/format";
 import {
   PAY_CYCLES_PER_YEAR,
@@ -55,6 +58,7 @@ export default function PayBreakdown({
   quote,
   vehicle,
   commencementDate,
+  ledger = [],
 }: {
   result: LeaseResult;
   config: EngineConfig;
@@ -69,11 +73,40 @@ export default function PayBreakdown({
    * a payslip the second opinion is the wrong answer. This page showed $1,945
    * a month to somebody whose payslip says $1,780 before it took the quote.
    */
-  quote?: { decode: QuoteDecode; provider: string; spec: QuoteSpec } | null;
+  quote?: {
+    decode: QuoteDecode;
+    provider: string;
+    /**
+     * The schedule facts, listed one by one rather than handed over as a
+     * QuoteSpec.
+     *
+     * A QuoteSpec can carry the salary the quote was written against, and
+     * passing the whole object serialised it into the page — caught by the
+     * e2e check that this link carries no salary, which is the only reason it
+     * did not ship. Naming the four fields the schedule needs means a field
+     * added to QuoteSpec later cannot arrive here unnoticed.
+     */
+    schedule: {
+      termMonths: number;
+      frequency: "weekly" | "fortnightly" | "monthly";
+      financePerPayment: number | null;
+      residualIncGst: number | null;
+      deferredMonths: number;
+    };
+  } | null;
   /** The car, for the schedule's identification block and its picture. */
   vehicle: VehicleSpec;
   /** ISO date the lease commences, where the lease records one. */
   commencementDate?: string;
+  /**
+   * The owner's transaction ledger, where they keep one.
+   *
+   * Carried on this page and no other share, at the owner's request: it is
+   * the record of what actually left the account, which is what an accountant
+   * reconciles the deduction against. Read-only here — no row can be removed
+   * from somebody else's ledger, so LedgerTable is given no `onForget`.
+   */
+  ledger?: StatementRow[];
 }) {
   const { inputs, finance, running, fbt, package: pkg } = result;
   const cycle = effectivePayCycle(inputs.payCycle, config);
@@ -92,13 +125,13 @@ export default function PayBreakdown({
    * across two cards and ordered for somebody deciding whether to lease
    * rather than somebody filing it.
    */
-  const termMonths = quote?.spec.termMonths ?? inputs.termYears * 12;
+  const termMonths = quote?.schedule.termMonths ?? inputs.termYears * 12;
   const PAYMENTS_PER_YEAR = { weekly: 52, fortnightly: 26, monthly: 12 } as const;
-  const payFreq = quote?.spec.frequency ?? "monthly";
+  const payFreq = quote?.schedule.frequency ?? "monthly";
   const perYear = PAYMENTS_PER_YEAR[payFreq];
   const freqNoun = { weekly: "week", fortnightly: "fortnight", monthly: "month" }[payFreq];
-  const financePerPayment = quote?.spec.lines?.finance ?? null;
-  const deferred = quote?.spec.deferredMonths ?? 0;
+  const financePerPayment = quote?.schedule.financePerPayment ?? null;
+  const deferred = quote?.schedule.deferredMonths ?? 0;
 
   const asDate = (iso?: string) => {
     if (!iso) return null;
@@ -139,9 +172,17 @@ export default function PayBreakdown({
         totalInterest: finance.totalInterest,
       };
 
+  /* The period the ledger covers, for the sentence above it. Dates are ISO in
+     the store, so a string compare orders them. */
+  const ledgerDates = ledger.map((r) => r.date).filter(Boolean).sort();
+  const ledgerSpan =
+    ledgerDates.length > 0
+      ? `${fmtDate(asDate(ledgerDates[0]))} to ${fmtDate(asDate(ledgerDates[ledgerDates.length - 1]))}`
+      : "";
+
   /* Stated on the quote where it is stated; otherwise GST added to ours. */
   const residualIncGst =
-    quote?.spec.residualIncGst ?? (fin.residual == null ? null : fin.residual * (1 + config.gst.rate));
+    quote?.schedule.residualIncGst ?? (fin.residual == null ? null : fin.residual * (1 + config.gst.rate));
 
   return (
     <div className="space-y-6">
@@ -365,6 +406,40 @@ export default function PayBreakdown({
           </p>
         )}
       </section>
+
+      {/*
+        * What actually left the account.
+        *
+        * Everything above this is what the lease SAYS comes out; this is what
+        * did. They are different questions and an accountant wants both — the
+        * deduction to check the payslip against, and the ledger to check the
+        * deduction against. A budgeted running cost that is never spent is
+        * only visible here.
+        *
+        * Ordered, not raw: orderLog is what the owner's own ledger view uses,
+        * so the two show the same sequence rather than one sorted by insertion
+        * and the other by date.
+        */}
+      {ledger.length > 0 && (
+        <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
+          <h2 className="text-base font-semibold text-ink">Transaction ledger</h2>
+          <p className="mt-1 text-sm text-muted">
+            What has actually gone through the lease account, as recorded from the
+            provider&apos;s statements. {ledger.length} transaction
+            {ledger.length === 1 ? "" : "s"}
+            {ledgerSpan ? `, ${ledgerSpan}` : ""}. The &ldquo;read as&rdquo; column is this
+            site&apos;s classification of each line, not the provider&apos;s.
+          </p>
+          <div className="mt-4">
+            <LedgerTable rows={orderLog(ledger)} />
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-muted">
+            Amounts are shown to the cent, as the statement printed them. A line classified
+            under the wrong heading is the usual explanation for a total that looks wrong,
+            which is why the classification is on show rather than applied silently.
+          </p>
+        </section>
+      )}
 
       <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
         <h2 className="text-base font-semibold text-ink">Where each figure comes from</h2>

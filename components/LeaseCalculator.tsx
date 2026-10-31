@@ -85,6 +85,9 @@ export default function LeaseCalculator({
   /* Local to the deduction card: ShareControl reports success and failure
      through a callback rather than rendering its own message. */
   const [payNotice, setPayNotice] = useState<string | null>(null);
+  /* Whether there is a ledger for the shared breakdown to carry, so the
+     control can describe the link it is about to mint accurately. */
+  const hasLedger = (lease.statement?.length ?? 0) > 0;
   const applied = useRef(false);
 
   // A quote handed over from the decoder carries the rate we solved and that
@@ -1056,10 +1059,21 @@ export default function LeaseCalculator({
                     onNotice={setPayNotice}
                     shareLabel="🔗 Share pay breakdown"
                     copyLabel="🔗 Copy pay breakdown link"
-                    copiedNotice="Link copied. It shows what this deduction is made of and where each figure comes from — no salary, no tax position and no take-home pay. Use “unshare” to switch it off."
+                    copiedNotice={
+                      hasLedger
+                        ? "Link copied. It shows the lease schedule, what this deduction is made of, and your transaction ledger — the actual payments in and out. No salary, no tax position and no take-home pay. Use “unshare” to switch it off."
+                        : "Link copied. It shows the lease schedule and what this deduction is made of — no salary, no tax position and no take-home pay. Use “unshare” to switch it off."
+                    }
                   />
+                  {/* Says what the link carries, because this one carries
+                      something the lease link deliberately does not. A reader
+                      who has been told "without your salary" and nothing else
+                      would reasonably assume it is the narrower of the two
+                      links in every respect, and on the ledger it is not. */}
                   <span className="text-xs text-muted">
-                    A full-page breakdown for your accountant or payroll — without your salary.
+                    A full-page breakdown for your accountant or payroll — without your
+                    salary
+                    {hasLedger ? ", with your transaction ledger" : ""}.
                   </span>
                 </div>
               )}
