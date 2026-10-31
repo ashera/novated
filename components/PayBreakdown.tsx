@@ -2,6 +2,8 @@
 
 import DeductionTable from "./DeductionTable";
 import DeductionExplainer from "./DeductionExplainer";
+import { modelledDeduction, quotedDeduction } from "@/lib/au/deduction";
+import type { QuoteDecode } from "@/lib/au/quote";
 import { fmtCurrency, fmtCurrencyCents } from "@/lib/au/format";
 import {
   PAY_CYCLES_PER_YEAR,
@@ -48,17 +50,54 @@ export default function PayBreakdown({
   config,
   carName,
   leaseName,
+  quote,
 }: {
   result: LeaseResult;
   config: EngineConfig;
   carName: string;
   leaseName: string;
+  /**
+   * The quote the lease is modelled on, decoded, where there is one.
+   *
+   * When present it — not the engine — is the deduction. The provider's lines
+   * are what the employer actually withholds; the model is a second opinion
+   * about what the lease ought to cost, and on a page whose job is to explain
+   * a payslip the second opinion is the wrong answer. This page showed $1,945
+   * a month to somebody whose payslip says $1,780 before it took the quote.
+   */
+  quote?: { decode: QuoteDecode; provider: string } | null;
 }) {
   const { inputs, finance, running, fbt, package: pkg } = result;
-  const adminFee = inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual;
   const cycle = effectivePayCycle(inputs.payCycle, config);
   const cycles = PAY_CYCLES_PER_YEAR[cycle];
   const noun = PAY_CYCLE_NOUN[cycle];
+  const adminFee = inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual;
+
+  const n = (v: number | null) => (v == null ? "—" : fmtCurrency(v));
+
+  const breakdown = quote
+    ? quotedDeduction(quote.decode)
+    : modelledDeduction(inputs, config, finance, running, fbt, pkg.preTaxAnnual, pkg.postTaxAnnual);
+
+  /* The quote's own finance facts where there is one — the amount financed it
+     was actually written over, not the amount our model would have financed.
+     On the lease that surfaced this those differed by $6,334, because the car
+     is recorded as a private purchase and the provider claimed a GST credit. */
+  const fin = quote
+    ? {
+        amountFinanced: quote.decode.amountFinanced,
+        ratePct: quote.decode.impliedRatePct,
+        residual: quote.decode.residualExGst,
+        monthly: quote.decode.monthlyFinancePayment,
+        totalInterest: quote.decode.totalInterest,
+      }
+    : {
+        amountFinanced: finance.amountFinanced,
+        ratePct: inputs.interestRatePct,
+        residual: finance.residual,
+        monthly: finance.monthlyPayment,
+        totalInterest: finance.totalInterest,
+      };
 
   return (
     <div className="space-y-6">
@@ -71,8 +110,10 @@ export default function PayBreakdown({
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-subtle">
           What the employer deducts from each pay for this lease, and what each line is.
-          Prepared from the lease holder&apos;s own figures. No salary or tax position is
-          included.
+          {quote
+            ? ` Taken from ${quote.provider}’s quote — the provider’s own figures, not an estimate.`
+            : " Modelled from the car and the lease terms; no provider quote is attached, so the running costs are benchmarks rather than quoted amounts."}{" "}
+          No salary or tax position is included.
         </p>
       </header>
 
@@ -85,47 +126,61 @@ export default function PayBreakdown({
         <div className="mt-3 flex flex-wrap items-baseline gap-x-8 gap-y-3">
           <div>
             <p className="text-2xl font-semibold tabular-nums text-ink">
-              {fmtCurrencyCents(pkg.preTaxAnnual / cycles)}
+              {fmtCurrencyCents(breakdown.preTaxAnnual / cycles)}
             </p>
             <p className="text-xs text-subtle">before tax, each {noun}</p>
           </div>
-          {pkg.postTaxAnnual > 0 && (
+          {breakdown.postTaxAnnual > 0 && (
             <div>
               <p className="text-2xl font-semibold tabular-nums text-ink">
-                {fmtCurrencyCents(pkg.postTaxAnnual / cycles)}
+                {fmtCurrencyCents(breakdown.postTaxAnnual / cycles)}
               </p>
               <p className="text-xs text-subtle">after tax, each {noun}</p>
             </div>
           )}
           <div>
             <p className="text-lg font-semibold tabular-nums text-ink">
-              {fmtCurrency(pkg.preTaxAnnual)}
+              {fmtCurrency(breakdown.preTaxAnnual)}
             </p>
             <p className="text-xs text-subtle">before tax, a year</p>
           </div>
         </div>
         <p className="mt-3 text-xs leading-relaxed text-subtle">
           Paid {cycles} times a year. The annual figures below divide by {cycles} to reach
-          the per-{noun} column, which is why that column carries cents — summing six
+          the per-{noun} column, which is why that column carries cents — summing
           dollar-rounded lines will not reproduce what payroll withheld.
         </p>
+        {/*
+          * Where the quote states a deduction and its own lines do not come to
+          * it, that difference is a finding rather than a rounding error — most
+          * often an employer keeping a share of the tax saving. Said here, not
+          * averaged away, because this is the page somebody checks a payslip on.
+          */}
+        {breakdown.statedDeduction != null &&
+          Math.abs(breakdown.statedDeduction - breakdown.total) > 1 && (
+            <p className="mt-2 rounded-lg border border-warning bg-warning-subtle px-3 py-2 text-xs leading-relaxed text-warning-text">
+              The quote states {fmtCurrencyCents(breakdown.statedDeduction / cycles)} a {noun}{" "}
+              coming out of pay, but the lines it itemises come to{" "}
+              {fmtCurrencyCents(breakdown.total / cycles)} — a difference of{" "}
+              {fmtCurrencyCents(Math.abs(breakdown.statedDeduction - breakdown.total) / cycles)}.
+              Worth asking the provider what the remainder is; a common answer is that the
+              employer keeps a share of the tax saving.
+            </p>
+          )}
       </section>
 
       <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
         <h2 className="text-base font-semibold text-ink">What the deduction is made of</h2>
         <p className="mt-1 text-sm text-muted">
-          Each line is either calculated from the lease&apos;s own terms or benchmarked from
-          published data. None of it is typed in.
+          {quote
+            ? `Each line as ${quote.provider} itemised it on the quote.`
+            : "Each line is either calculated from the lease’s own terms or benchmarked from published data. None of it is typed in."}
         </p>
         <div className="mt-4 overflow-x-auto">
           <DeductionTable
-            inputs={inputs}
-            config={config}
-            finance={finance}
-            running={running}
-            fbt={fbt}
-            pkg={pkg}
-            adminFee={adminFee}
+            breakdown={breakdown}
+            cyclesPerYear={cycles}
+            cycleNoun={noun}
             showCycle
           />
         </div>
@@ -138,15 +193,17 @@ export default function PayBreakdown({
         <h2 className="text-base font-semibold text-ink">The finance behind the lease payment</h2>
         <dl className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
           {[
-            ["Amount financed", fmtCurrency(finance.amountFinanced)],
-            ["Interest rate", `${inputs.interestRatePct.toFixed(2)}%`],
+            ["Amount financed", n(fin.amountFinanced)],
+            ["Interest rate", fin.ratePct == null ? "—" : `${fin.ratePct.toFixed(2)}%`],
             ["Term", `${inputs.termYears} year${inputs.termYears === 1 ? "" : "s"}`],
             [
               "Residual",
-              `${fmtCurrency(finance.residual)} (${finance.residualPct.toFixed(2)}% of the amount financed)`,
+              fin.residual == null || fin.amountFinanced == null
+                ? "—"
+                : `${fmtCurrency(fin.residual)} (${((fin.residual / fin.amountFinanced) * 100).toFixed(2)}% of the amount financed)`,
             ],
-            ["Payment", `${fmtCurrency(finance.monthlyPayment)} a month`],
-            ["Total interest over the term", fmtCurrency(finance.totalInterest)],
+            ["Payment", fin.monthly == null ? "—" : `${fmtCurrency(fin.monthly)} a month`],
+            ["Total interest over the term", n(fin.totalInterest)],
           ].map(([k, v]) => (
             <div key={k} className="flex items-baseline justify-between gap-4 border-b border-line pb-2">
               <dt className="text-sm text-subtle">{k}</dt>
@@ -155,10 +212,11 @@ export default function PayBreakdown({
           ))}
         </dl>
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          The lease is written over {fmtCurrency(finance.amountFinanced)} rather than the{" "}
-          {fmtCurrency(finance.priceInclGst)} purchase price, because the financier buys the
-          car and claims the GST back — {fmtCurrency(finance.gstCredit)} here. The residual
-          falls due at the end of the term and is not part of any deduction above.
+          {quote
+            ? "These are the quote’s own figures. The rate is solved from its payment, amount financed and residual rather than taken on trust."
+            : `The lease is written over ${fmtCurrency(finance.amountFinanced)} rather than the ${fmtCurrency(finance.priceInclGst)} purchase price, because the financier buys the car and claims the GST back — ${fmtCurrency(finance.gstCredit)} here.`}{" "}
+          The residual falls due at the end of the term and is not part of any deduction
+          above.
         </p>
       </section>
 

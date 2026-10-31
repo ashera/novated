@@ -5,8 +5,16 @@ import PayBreakdown from "@/components/PayBreakdown";
 import { query } from "@/lib/db";
 import { getActiveConfig } from "@/lib/refdata";
 import { getCatalogue } from "@/lib/catalogue";
-import { leaseToInputs, migrateLease, vehicleName } from "@/lib/au/lease";
+import {
+  leaseToInputs,
+  leaseToQuote,
+  migrateLease,
+  quoteLabel,
+  vehicleName,
+  type QuoteSpec,
+} from "@/lib/au/lease";
 import { calculateLease } from "@/lib/au/novated";
+import { decodeQuote } from "@/lib/au/quote";
 
 /**
  * The pay deduction, broken down, shared by link.
@@ -71,6 +79,30 @@ export default async function SharedPayBreakdownPage({
   const catalogue = await getCatalogue();
   const result = calculateLease(leaseToInputs(lease), config);
 
+  /*
+   * The quote the lease is actually modelled on, where there is one.
+   *
+   * This is the correction that made the page worth having. The engine
+   * re-derives the amount financed from the car's price and the GST credit it
+   * believes is available, which on a real lease came to $84,429 against a
+   * quote written over $78,095 — and a deduction of $1,945 a month against a
+   * payslip of $1,780. Neither figure is a bug in the engine; they answer
+   * different questions. But a page explaining a payslip has to answer the
+   * provider's, so where a quote is attached its own lines are used.
+   *
+   * Decoded without the salary, like everything else here. None of the lines,
+   * the amount financed or the solved rate depend on one.
+   */
+  const spec = lease.scenario.fromQuoteId
+    ? lease.quotes.find((q: QuoteSpec) => q.id === lease.scenario.fromQuoteId)
+    : undefined;
+  const quote = spec
+    ? {
+        decode: decodeQuote(leaseToQuote(lease, spec), config),
+        provider: quoteLabel(spec, "the provider"),
+      }
+    : null;
+
   return (
     <>
       <SiteHeader />
@@ -80,6 +112,7 @@ export default async function SharedPayBreakdownPage({
           config={config}
           carName={vehicleName(lease.vehicle, catalogue, "")}
           leaseName={row.name}
+          quote={quote}
         />
       </main>
     </>

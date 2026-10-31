@@ -15,6 +15,7 @@ import {
   type QuoteFrequency,
   type FindingSeverity,
   derivedAmountFinanced,
+  QUOTE_LINE_ORDER,
 } from "@/lib/au/quote";
 import { annuityPayment, buildRunningCosts, type LeaseInputs } from "@/lib/au/novated";
 import { quoteFieldChecks } from "@/lib/au/quoteChecks";
@@ -1463,14 +1464,5 @@ export default function QuoteDecoder({
   );
 }
 
-const LINE_ORDER: { key: keyof Quote["lines"]; label: string }[] = [
-  { key: "finance", label: "Finance payment" },
-  { key: "energy", label: "Fuel or charging" },
-  { key: "maintenance", label: "Servicing" },
-  { key: "tyres", label: "Tyres" },
-  { key: "registration", label: "Registration" },
-  { key: "insurance", label: "Insurance" },
-  { key: "roadside", label: "Roadside assistance" },
-  { key: "managementFee", label: "Management fee" },
-  { key: "luxuryCarAdjustment", label: "Luxury car charge" },
-];
+// Shared with the pay breakdown — see QUOTE_LINE_ORDER in lib/au/quote.ts.
+const LINE_ORDER = QUOTE_LINE_ORDER;

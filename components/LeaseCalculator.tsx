@@ -13,6 +13,7 @@ import VehicleCard from "./VehicleCard";
 import CardHeading from "./CardHeading";
 import DeductionExplainer from "./DeductionExplainer";
 import DeductionTable from "./DeductionTable";
+import { modelledDeduction } from "@/lib/au/deduction";
 import ShareControl from "./ShareControl";
 import StatExplainer from "./StatExplainer";
 import PayslipImpact from "./PayslipImpact";
@@ -1015,13 +1016,17 @@ export default function LeaseCalculator({
 
               <div className="mt-4 overflow-x-auto">
                 <DeductionTable
-                  inputs={inputs}
-                  config={config}
-                  finance={finance}
-                  running={running}
-                  fbt={fbt}
-                  pkg={pkg}
-                  adminFee={inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual}
+                  breakdown={modelledDeduction(
+                    inputs,
+                    config,
+                    finance,
+                    running,
+                    fbt,
+                    pkg.preTaxAnnual,
+                    pkg.postTaxAnnual,
+                  )}
+                  cyclesPerYear={PAY_CYCLES_PER_YEAR[effectivePayCycle(inputs.payCycle, config)]}
+                  cycleNoun={PAY_CYCLE_NOUN[effectivePayCycle(inputs.payCycle, config)]}
                 />
               </div>
 

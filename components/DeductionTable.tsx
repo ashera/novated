@@ -1,25 +1,14 @@
 import { fmtCurrency, fmtCurrencyCents } from "@/lib/au/format";
-import {
-  PAY_CYCLES_PER_YEAR,
-  PAY_CYCLE_NOUN,
-  effectivePayCycle,
-  type FbtOutcome,
-  type LeaseFinance,
-  type LeaseInputs,
-  type PackageBreakdown,
-  type RunningCostBreakdown,
-} from "@/lib/au/novated";
-import type { EngineConfig } from "@/lib/au/config";
+import type { DeductionBreakdown } from "@/lib/au/deduction";
 
 /**
  * What the employer takes out of the pay, itemised.
  *
- * Lifted out of the calculator because a second reader turned up for it: the
- * owner, who wants to know what the figure is made of, and their accountant,
- * who is reconciling it against a payslip. Two surfaces rendering the same
- * table from two copies of the markup is how they start disagreeing, and a
- * breakdown that disagrees with the page it was shared from is worse than no
- * breakdown at all.
+ * Renders a {@link DeductionBreakdown} and knows nothing about where it came
+ * from — modelled from the car and the rate, or read off a provider's quote.
+ * That split lives in lib/au/deduction.ts, where it can be tested without a
+ * browser, and it matters: the two can differ by hundreds a month, and this
+ * table used to be wired to the modelled one whatever the lease was built on.
  *
  * The only difference between the two readings is the per-cycle column. The
  * owner is deciding and thinks in years; the accountant is reconciling and
@@ -67,41 +56,31 @@ function Row({
 }
 
 export default function DeductionTable({
-  inputs,
-  config,
-  finance,
-  running,
-  fbt,
-  pkg,
-  adminFee,
+  breakdown,
+  cyclesPerYear,
+  cycleNoun,
   showCycle = false,
 }: {
-  inputs: LeaseInputs;
-  config: EngineConfig;
-  finance: LeaseFinance;
-  running: RunningCostBreakdown;
-  fbt: FbtOutcome;
-  pkg: PackageBreakdown;
-  adminFee: number;
+  breakdown: DeductionBreakdown;
+  cyclesPerYear: number;
+  cycleNoun: string;
   /**
    * Add a per-pay-cycle column, in cents.
    *
    * Off in the calculator, where the argument is annual and a third column of
    * figures would crowd it. On for somebody checking a payslip, where the
    * annual figure is the one that cannot be checked — and in cents, because
-   * rounding six lines to the dollar and summing them will not reproduce the
+   * rounding each line to the dollar and summing them will not reproduce the
    * deduction a payroll system actually withheld.
    */
   showCycle?: boolean;
 }) {
-  const cycle = effectivePayCycle(inputs.payCycle, config);
-  const cycles = showCycle ? PAY_CYCLES_PER_YEAR[cycle] : null;
-  const total = pkg.preTaxAnnual + pkg.postTaxAnnual;
-  /* Each cost row is the gross cost of that item. Which side of tax it is
-     taken from is a property of the package as a whole under the contribution
-     method, not of any one line, so the chips come off and the split below
-     carries it instead. */
-  const split = pkg.postTaxAnnual > 0;
+  const cycles = showCycle ? cyclesPerYear : null;
+  const { rows, total, preTaxAnnual, postTaxAnnual } = breakdown;
+  /* Which side of tax a line falls on is a property of the package as a whole
+     under the contribution method, not of any one item, so where there is a
+     split the per-row chips come off and the split below carries it. */
+  const split = postTaxAnnual > 0;
 
   return (
     <table className="w-full text-sm">
@@ -109,64 +88,21 @@ export default function DeductionTable({
         <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
           <th className="pb-2 font-medium">Item</th>
           <th className="pb-2 text-right font-medium">Per year</th>
-          {cycles != null && (
-            <th className="pb-2 text-right font-medium">Per {PAY_CYCLE_NOUN[cycle]}</th>
-          )}
+          {cycles != null && <th className="pb-2 text-right font-medium">Per {cycleNoun}</th>}
           <th className="pb-2 text-right font-medium">Deducted</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-line">
-        <Row label="Lease payments" value={finance.annualPayment} side={split ? null : "Pre-tax"} cycles={cycles} />
-        {inputs.includeRunningCosts && (
-          <>
-            <Row label="Fuel or charging" value={running.fuel} side={split ? null : "Pre-tax"} indent cycles={cycles} />
-            <Row label="Servicing" value={running.servicing} side={split ? null : "Pre-tax"} indent cycles={cycles} />
-            <Row label="Tyres" value={running.tyres} side={split ? null : "Pre-tax"} indent cycles={cycles} />
-            <Row
-              label="Registration and CTP"
-              value={running.registration}
-              side={split ? null : "Pre-tax"}
-              indent
-              cycles={cycles}
-            />
-            <Row label="Insurance" value={running.insurance} side={split ? null : "Pre-tax"} indent cycles={cycles} />
-            <Row
-              label="Roadside assistance"
-              value={running.roadside}
-              side={split ? null : "Pre-tax"}
-              indent
-              cycles={cycles}
-            />
-          </>
-        )}
-        <Row label="Lease management fee" value={adminFee} side={split ? null : "Pre-tax"} cycles={cycles} />
-        {/*
-          * The luxury car charge, which the engine has always added to the
-          * package and this table has never shown.
-          *
-          * Above the GST car limit the financier cannot claim full GST credits
-          * or depreciation on the excess and passes the cost on; providers
-          * print it as a "luxury car charge" or "luxury car adjustment". It is
-          * inside packagedTotal, so leaving it out did not change anybody's
-          * total — it just meant the itemised column did not come to the total
-          * printed under it, by $907 a year on the lease that surfaced this.
-          */}
-        {finance.luxuryCarAdjustment > 0 && (
+        {rows.map((r) => (
           <Row
-            label="Luxury car charge"
-            value={finance.luxuryCarAdjustment}
+            key={r.key}
+            label={r.label}
+            value={r.annual}
+            indent={r.indent}
             side={split ? null : "Pre-tax"}
             cycles={cycles}
           />
-        )}
-        {fbt.fbtPayable > 0 && (
-          <Row
-            label="Fringe benefits tax (grossed up)"
-            value={fbt.fbtPayable}
-            side={split ? null : "Pre-tax"}
-            cycles={cycles}
-          />
-        )}
+        ))}
         <tr className="font-semibold text-ink">
           <td className="py-2.5">Total deducted</td>
           <td className="py-2.5 text-right tabular-nums">{fmtCurrency(total)}</td>
@@ -181,24 +117,16 @@ export default function DeductionTable({
           * The employee contribution used to sit above as its own row with a
           * "Post-tax" chip, which made the column stop adding up: under the
           * contribution method it is a slice OF the package — the same money,
-          * taken from the other side of tax — not a further deduction on top
-          * of it. On a non-exempt car the visible rows came to $25,912 against
-          * a stated total of $15,112, and the reader most likely to notice is
-          * the one this table is now shared with.
-          *
-          * So the split is shown as a split: indented, under the total, and
-          * only where there is anything to split.
+          * taken from the other side of tax — not a further deduction on top.
           */}
-        {pkg.postTaxAnnual > 0 && (
+        {split && (
           <>
             <tr className="text-subtle">
               <td className="py-2 pl-4 text-xs">of which, taken before tax</td>
-              <td className="py-2 text-right text-xs tabular-nums">
-                {fmtCurrency(pkg.preTaxAnnual)}
-              </td>
+              <td className="py-2 text-right text-xs tabular-nums">{fmtCurrency(preTaxAnnual)}</td>
               {cycles != null && (
                 <td className="py-2 text-right text-xs tabular-nums">
-                  {fmtCurrencyCents(pkg.preTaxAnnual / cycles)}
+                  {fmtCurrencyCents(preTaxAnnual / cycles)}
                 </td>
               )}
               <td className="py-2 text-right">
@@ -211,12 +139,10 @@ export default function DeductionTable({
               <td className="py-2 pl-4 text-xs">
                 of which, taken after tax (employee contribution, cancels the FBT)
               </td>
-              <td className="py-2 text-right text-xs tabular-nums">
-                {fmtCurrency(pkg.postTaxAnnual)}
-              </td>
+              <td className="py-2 text-right text-xs tabular-nums">{fmtCurrency(postTaxAnnual)}</td>
               {cycles != null && (
                 <td className="py-2 text-right text-xs tabular-nums">
-                  {fmtCurrencyCents(pkg.postTaxAnnual / cycles)}
+                  {fmtCurrencyCents(postTaxAnnual / cycles)}
                 </td>
               )}
               <td className="py-2 text-right">

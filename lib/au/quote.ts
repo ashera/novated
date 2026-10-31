@@ -159,6 +159,27 @@ export interface Quote {
   purchasedFrom?: PurchaseChannel;
 }
 
+/**
+ * The quote's lines, in the order a document lists them, with the names this
+ * site uses for them.
+ *
+ * Here rather than in the decoder's UI because two surfaces now render a
+ * quote's lines — the decoder, and the pay breakdown shared with an
+ * accountant — and a line named one thing in one place and another in the
+ * other is how a reader concludes they are different lines.
+ */
+export const QUOTE_LINE_ORDER: { key: keyof QuoteLines; label: string }[] = [
+  { key: "finance", label: "Finance payment" },
+  { key: "energy", label: "Fuel or charging" },
+  { key: "maintenance", label: "Servicing" },
+  { key: "tyres", label: "Tyres" },
+  { key: "registration", label: "Registration" },
+  { key: "insurance", label: "Insurance" },
+  { key: "roadside", label: "Roadside assistance" },
+  { key: "managementFee", label: "Management fee" },
+  { key: "luxuryCarAdjustment", label: "Luxury car charge" },
+];
+
 export type FindingSeverity = "critical" | "warn" | "ok";
 
 export interface Finding {
