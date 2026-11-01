@@ -354,7 +354,30 @@ export default function PayBreakdown({
                     : String(Math.round((termMonths / 12) * perYear)),
                 ],
                 ["Amount financed", n(fin.amountFinanced)],
-                ["Interest rate", fin.ratePct == null ? "\u2014" : `${fin.ratePct.toFixed(2)}%`],
+                /*
+                 * Named for what it is, which is not the financier's rate.
+                 *
+                 * Solved from the payment, the amount financed, the residual
+                 * and the term, it carries everything the payment carries:
+                 * any fee folded into the rental, and the deferral, which
+                 * inflates it because the solve assumes repayment began on
+                 * day one. Calling it "interest rate" invited a reader to
+                 * quote it back at the financier as theirs, when the money
+                 * itself is at a lower rate than the figure shown.
+                 *
+                 * Only where it was solved. The modelled side shows a rate
+                 * somebody typed in, which is the plain one and carries none
+                 * of that.
+                 */
+                quote
+                  ? [
+                      "Effective interest rate",
+                      fin.ratePct == null ? "\u2014" : `${fin.ratePct.toFixed(2)}%`,
+                      deferred > 0
+                        ? "Interest rate + fees + deferral impact"
+                        : "Interest rate + fees",
+                    ]
+                  : ["Interest rate", fin.ratePct == null ? "\u2014" : `${fin.ratePct.toFixed(2)}%`],
                 [
                   "Residual (ex GST)",
                   fin.residual == null || fin.amountFinanced == null
@@ -363,13 +386,16 @@ export default function PayBreakdown({
                 ],
                 ["Residual (inc GST)", n(residualIncGst)],
                 ["Total interest over the term", n(fin.totalInterest)],
-              ] as [string, string][]
-            ).map(([k, v]) => (
+              ] as [string, string, string?][]
+            ).map(([k, v, sub]) => (
               <div
                 key={k}
                 className="flex items-baseline justify-between gap-4 border-b border-line py-2"
               >
-                <dt className="text-sm text-subtle">{k}</dt>
+                <dt className="text-sm text-subtle">
+                  {k}
+                  {sub && <span className="mt-0.5 block text-[11px] text-muted">{sub}</span>}
+                </dt>
                 <dd className="text-right text-sm font-medium tabular-nums text-ink">{v}</dd>
               </div>
             ))}
@@ -377,7 +403,7 @@ export default function PayBreakdown({
         </div>
         <p className="mt-4 text-xs leading-relaxed text-muted">
           {quote
-            ? "These are the quote\u2019s own figures. The interest rate is solved from its payment, amount financed and residual rather than taken on trust."
+            ? "These are the quote\u2019s own figures. The effective interest rate is solved from its payment, amount financed and residual rather than taken on trust, so it carries whatever the payment carries."
             : `The lease is written over ${fmtCurrency(finance.amountFinanced)} rather than the ${fmtCurrency(finance.priceInclGst)} purchase price, because the financier buys the car and claims the GST back \u2014 ${fmtCurrency(finance.gstCredit)} here.`}{" "}
           The residual falls due at the end of the term and is not part of any deduction
           below.
