@@ -20,18 +20,19 @@ function Row({
   label,
   value,
   side,
-  indent = false,
   cycles,
 }: {
   label: string;
   value: number;
   side: "Pre-tax" | "Post-tax" | null;
-  indent?: boolean;
   cycles: number | null;
 }) {
   return (
     <tr>
-      <td className={`py-2 text-subtle ${indent ? "pl-4" : ""}`}>{label}</td>
+      {/* Flush, not indented. Every item here is a component of the total at
+          the foot; indenting some of them read as "these belong to the line
+          above", which is the one thing the table must not say. */}
+      <td className="py-2 text-subtle">{label}</td>
       <td className="py-2 text-right tabular-nums text-ink">{fmtCurrency(value)}</td>
       {cycles != null && (
         <td className="py-2 text-right tabular-nums text-subtle">
@@ -98,7 +99,6 @@ export default function DeductionTable({
             key={r.key}
             label={r.label}
             value={r.annual}
-            indent={r.indent}
             side={split ? null : "Pre-tax"}
             cycles={cycles}
           />

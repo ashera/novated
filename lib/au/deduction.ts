@@ -35,8 +35,6 @@ export interface DeductionRow {
   label: string;
   /** Dollars a year. */
   annual: number;
-  /** A running cost sitting under the lease payment, rather than a peer of it. */
-  indent?: boolean;
 }
 
 export interface DeductionBreakdown {
@@ -71,13 +69,28 @@ export function modelledDeduction(
     { key: "finance", label: "Lease payments", annual: finance.annualPayment },
   ];
   if (inputs.includeRunningCosts) {
+    /*
+     * Peers of the lease payment, not parts of it.
+     *
+     * These used to be indented under it, which reads as a hierarchy: a
+     * reader takes an indented block to be the breakdown of the line above,
+     * and so takes that line to be their total. It is not — the lease payment
+     * is one component and these are others, and all of them add into the
+     * total at the foot. On a document somebody reconciles a payslip against,
+     * implying that $17,485 contained the $2,903 beneath it is a misreading
+     * worth designing out rather than explaining away.
+     *
+     * The order still groups them: finance, then what it costs to run the
+     * car, then the fees. Position carries that without asserting a
+     * containment that is not there.
+     */
     rows.push(
-      { key: "fuel", label: "Fuel or charging", annual: running.fuel, indent: true },
-      { key: "servicing", label: "Servicing", annual: running.servicing, indent: true },
-      { key: "tyres", label: "Tyres", annual: running.tyres, indent: true },
-      { key: "registration", label: "Registration and CTP", annual: running.registration, indent: true },
-      { key: "insurance", label: "Insurance", annual: running.insurance, indent: true },
-      { key: "roadside", label: "Roadside assistance", annual: running.roadside, indent: true },
+      { key: "fuel", label: "Fuel or charging", annual: running.fuel },
+      { key: "servicing", label: "Servicing", annual: running.servicing },
+      { key: "tyres", label: "Tyres", annual: running.tyres },
+      { key: "registration", label: "Registration and CTP", annual: running.registration },
+      { key: "insurance", label: "Insurance", annual: running.insurance },
+      { key: "roadside", label: "Roadside assistance", annual: running.roadside },
     );
   }
   rows.push({ key: "adminFee", label: "Lease management fee", annual: adminFee });
@@ -123,7 +136,6 @@ export function quotedDeduction(decode: QuoteDecode): DeductionBreakdown {
       key,
       label: key === "finance" ? "Lease payments" : label,
       annual,
-      indent: key !== "finance" && key !== "managementFee" && key !== "luxuryCarAdjustment",
     });
   }
   const total = rows.reduce((t, r) => t + r.annual, 0);
