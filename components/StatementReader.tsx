@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { type RowKind, type StatementRow } from "@/lib/au/statement";
 import { analyseLog, byMonth, removeRows, type MergeResult } from "@/lib/au/statementLog";
 import StatementPaste, { ClearLedger } from "./StatementPaste";
+import RemittanceUpload from "./RemittanceUpload";
+import GstReconciliation from "./GstReconciliation";
 import LedgerTable, { KIND_LABEL } from "./LedgerTable";
 import type { EngineConfig } from "@/lib/au/config";
 import type { Finding, FindingSeverity } from "@/lib/au/quote";
@@ -78,6 +80,7 @@ export default function StatementReader({
 }) {
   const store = useLease(signedIn);
   const log = useMemo(() => store.lease.statement ?? [], [store.lease.statement]);
+  const remittances = useMemo(() => store.lease.remittances ?? [], [store.lease.remittances]);
 
   const [lastMerge, setLastMerge] = useState<MergeResult | null>(null);
 
@@ -249,6 +252,70 @@ export default function StatementReader({
               />
             </div>
           </details>
+
+          {/*
+            * The employer's side of the GST, here as well as on the dashboard.
+            *
+            * It was on the dashboard alone to begin with, and the dashboard
+            * only exists once a quote is locked in — a post-signature view. So
+            * somebody who had pasted a year of statements here and never
+            * locked a quote had a ledger, had the exact question this answers,
+            * and no way to reach it.
+            *
+            * The real prerequisite was never the lock. It is having a ledger
+            * to reconcile against, which is the condition both places now use.
+            */}
+          <section className="mt-8 rounded-xl border border-line bg-panel p-4">
+            <h2 className="text-base font-semibold text-ink">Employer GST payments</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-subtle">
+              Your employer claims the GST on the rental and the fees and pays it to the
+              provider, who credits it to this account. Only that last step shows on the
+              statement above. Load the payments from your employer&apos;s accounting export
+              and both sides can be read against each other — what was sent, what arrived,
+              and how long it took.
+            </p>
+            <div className="mt-3">
+              <RemittanceUpload
+                rows={remittances}
+                onMerge={(next) => store.update((l) => ({ ...l, remittances: next }))}
+              />
+            </div>
+            {remittances.length > 0 && (
+              <div className="mt-5 border-t border-line pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-ink">How they reconcile</h3>
+                  <button
+                    type="button"
+                    onClick={() => store.update((l) => ({ ...l, remittances: [] }))}
+                    className="rounded px-2 py-1 text-xs text-muted transition hover:bg-danger-subtle hover:text-danger-text"
+                  >
+                    Clear payments
+                  </button>
+                </div>
+                <div className="mt-3">
+                  <GstReconciliation
+                    ledger={log}
+                    remittances={remittances}
+                    onPin={(row, matchKey) =>
+                      store.update((l) => ({
+                        ...l,
+                        remittances: (l.remittances ?? []).map((r) =>
+                          r === row
+                            ? matchKey === undefined
+                              ? (() => {
+                                  const { matchKey: _drop, ...rest } = r;
+                                  return rest;
+                                })()
+                              : { ...r, matchKey }
+                            : r,
+                        ),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </section>
         </>
       )}
     </div>
