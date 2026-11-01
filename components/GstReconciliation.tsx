@@ -63,13 +63,29 @@ export default function GstReconciliation({
   /* Payments are the subject, so the year a pair belongs to is the year it was
      PAID in — not the year the credit landed, which may be a later one and is
      the thing being measured. */
-  const pairs = rec.pairs.filter((p) => within(p.remittance.date));
-  const unmatchedCredits = rec.unmatchedCredits.filter((c) => within(c.date));
-  const shownRemitted = pairs.reduce((t, p) => t + p.remittance.amount, 0);
+  const inWindow = rec.pairs.filter((p) => within(p.remittance.date));
+
+  /*
+   * Newest first, which is the opposite of how the reconciliation computes
+   * them, for the same reason LedgerTable flips its own rows.
+   *
+   * The pairing is worked out oldest-first because it is a queue: each payment
+   * takes the earliest credit not already taken, and that only reads in one
+   * direction. Reading is the other way round — the transaction somebody wants
+   * is the one that just happened — and the ledger directly below this table
+   * is already in that order, so the two disagreeing made one page look like
+   * two. Flipped for display only; nothing above this line moves.
+   */
+  const pairs = [...inWindow].reverse();
+  const unmatchedCredits = rec.unmatchedCredits
+    .filter((c) => within(c.date))
+    .slice()
+    .reverse();
+  const shownRemitted = inWindow.reduce((t, p) => t + p.remittance.amount, 0);
   const shownCredited =
-    pairs.reduce((t, p) => t + (p.credit?.amount ?? 0), 0) +
+    inWindow.reduce((t, p) => t + (p.credit?.amount ?? 0), 0) +
     unmatchedCredits.reduce((t, c) => t + c.amount, 0);
-  const crossesYear = pairs.some(
+  const crossesYear = inWindow.some(
     (p) => p.credit != null && financialYearOfIso(p.credit.date) !== financialYearOfIso(p.remittance.date),
   );
 
