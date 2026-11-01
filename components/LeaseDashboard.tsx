@@ -26,6 +26,9 @@ import { resaleValue } from "@/lib/au/resale";
 import type { RowKind } from "@/lib/au/statement";
 import type { Finding, FindingSeverity } from "@/lib/au/quote";
 import StatementPaste, { ClearLedger } from "./StatementPaste";
+import RemittanceUpload from "./RemittanceUpload";
+import GstReconciliation from "./GstReconciliation";
+import type { RemittanceRow } from "@/lib/au/remittance";
 import LedgerTable, { KIND_LABEL } from "./LedgerTable";
 
 /**
@@ -110,12 +113,18 @@ export default function LeaseDashboard({
   quoteLabel,
   onUnlock,
   onAddRows,
+  remittances = [],
+  onRemittances,
 }: {
   lease: Lease;
   config: EngineConfig;
   quoteLabel: string;
   onUnlock: () => void;
   onAddRows: (rows: LoggedRow[]) => void;
+  /** The employer's GST payments, where any have been loaded. */
+  remittances?: RemittanceRow[];
+  /** Omitted on a read-only view, which hides the whole section. */
+  onRemittances?: (rows: RemittanceRow[]) => void;
 }) {
   const [undoing, setUndoing] = useState(false);
   /* One panel at a time under the ledger heading: add rows, or look at the
@@ -386,6 +395,73 @@ export default function LeaseDashboard({
                   onForget={(key) => onAddRows(removeRows(log, [key]))}
                 />
               </div>
+            )}
+
+            {/*
+              * The employer's side of the GST, which the portal cannot show.
+              *
+              * Deliberately its own section rather than more rows in the
+              * ledger above: that ledger is one account with a running
+              * balance, and the balance is what makes each line checkable
+              * against the one before it. These payments are from another
+              * account entirely.
+              *
+              * Only offered once there is a ledger to reconcile against —
+              * on its own an export of GST payments has nothing to say.
+              */}
+            {onRemittances && log.length > 0 && (
+              <section className="mt-6 rounded-xl border border-line bg-panel p-4">
+                <h3 className="text-sm font-semibold text-ink">
+                  Employer GST payments
+                </h3>
+                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-subtle">
+                  Your employer claims the GST on the rental and the fees and pays it to the
+                  provider, who credits it to this account. Only the last step shows on the
+                  statement. Load the payments from your employer&apos;s accounting export and
+                  both sides can be read against each other — what was sent, what arrived, and
+                  how long it took.
+                </p>
+                <div className="mt-3">
+                  <RemittanceUpload
+                    rows={remittances}
+                    onMerge={(next) => onRemittances(next)}
+                  />
+                </div>
+                {remittances.length > 0 && (
+                  <div className="mt-5 border-t border-line pt-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-sm font-semibold text-ink">How they reconcile</h4>
+                      <button
+                        type="button"
+                        onClick={() => onRemittances([])}
+                        className="rounded px-2 py-1 text-xs text-muted transition hover:bg-danger-subtle hover:text-danger-text"
+                      >
+                        Clear payments
+                      </button>
+                    </div>
+                    <div className="mt-3">
+                      <GstReconciliation
+                        ledger={log}
+                        remittances={remittances}
+                        onPin={(row, matchKey) =>
+                          onRemittances(
+                            remittances.map((r) =>
+                              r === row
+                                ? matchKey === undefined
+                                  ? (() => {
+                                      const { matchKey: _drop, ...rest } = r;
+                                      return rest;
+                                    })()
+                                  : { ...r, matchKey }
+                                : r,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+              </section>
             )}
           </>
         )}

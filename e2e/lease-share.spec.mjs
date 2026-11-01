@@ -15,9 +15,9 @@
  * thing a later edit widens without noticing.
  *
  * The pay breakdown off the same token makes the opposite trade, on purpose,
- * and is checked here too: it carries the ledger and not the salary, because
- * it is the document prepared for an accountant rather than a colleague.
- * Notes stay out of both.
+ * and is checked here too: it carries the ledger and the employer's GST
+ * remittances, and not the salary, because it is the document prepared for an
+ * accountant rather than a colleague. Notes stay out of both.
  */
 
 import {
@@ -36,6 +36,7 @@ import {
 /** Strings that exist nowhere else, so finding one is proof, not inference. */
 const PRIVATE_NOTE = "PRIVATENOTE7788";
 const LEDGER_LINE = "SECRETTXN9911";
+const REMITTANCE_LINE = "EMPLOYERGST4422";
 const SALARY = 155_555;
 
 export default async function run(browser) {
@@ -44,8 +45,8 @@ export default async function run(browser) {
 
   const token = `ls-${Date.now().toString(36)}`;
   const lease = await db(
-    `insert into leases (user_id, name, vehicle, scenario, notes, statement, share_token)
-     values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+    `insert into leases (user_id, name, vehicle, scenario, notes, statement, share_token, remittances)
+     values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
     [
       userId,
       `${MARKER} shared lease`,
@@ -70,6 +71,9 @@ export default async function run(browser) {
         { date: "2026-01-01", description: LEDGER_LINE, amount: -100, balance: 500, kind: "finance" },
       ]),
       token,
+      JSON.stringify([
+        { date: "2026-01-01", description: REMITTANCE_LINE, amount: 149.61 },
+      ]),
     ],
   );
   const leaseId = lease.rows[0].id;
@@ -114,6 +118,13 @@ export default async function run(browser) {
 
   await check("does not carry the statement ledger", () => {
     assert(!html.includes(LEDGER_LINE), "the owner's transactions reached the shared page");
+  });
+
+  await check("does not carry the employer's GST remittances", () => {
+    assert(
+      !html.includes(REMITTANCE_LINE),
+      "the employer's payment records reached the lease link",
+    );
   });
 
   /*
@@ -175,6 +186,16 @@ export default async function run(browser) {
 
     await check("does not carry the owner's private notes either", () => {
       assert(!pay.includes(PRIVATE_NOTE), "a private note reached the pay breakdown");
+    });
+
+    /* The employer's GST payments travel with the ledger, for the same
+       reason and to the same reader: reconciling a deduction means seeing
+       both sides of the GST, and only this link is built for that. */
+    await check("does carry the employer's GST remittances", () => {
+      assert(
+        pay.includes(REMITTANCE_LINE),
+        "the employer's GST payments are missing from the accountant's breakdown",
+      );
     });
 
     await check("is not indexable", () => {

@@ -4,6 +4,8 @@ import DeductionTable from "./DeductionTable";
 import DeductionExplainer from "./DeductionExplainer";
 import VehicleArt from "./VehicleArt";
 import LedgerTable from "./LedgerTable";
+import GstReconciliation from "./GstReconciliation";
+import type { RemittanceRow } from "@/lib/au/remittance";
 import { orderLog } from "@/lib/au/statementLog";
 import type { StatementRow } from "@/lib/au/statement";
 import { modelledDeduction, quotedDeduction } from "@/lib/au/deduction";
@@ -59,6 +61,7 @@ export default function PayBreakdown({
   vehicle,
   commencementDate,
   ledger = [],
+  remittances = [],
 }: {
   result: LeaseResult;
   config: EngineConfig;
@@ -107,6 +110,16 @@ export default function PayBreakdown({
    * from somebody else's ledger, so LedgerTable is given no `onForget`.
    */
   ledger?: StatementRow[];
+  /**
+   * The employer's GST payments, where the owner has loaded them.
+   *
+   * The reason this page exists in its current form: an accountant holding
+   * both documents is the person who can tell whether what the employer
+   * claimed actually reached the lease account, and the portal shows only one
+   * side of it. Read-only here — the pairing is shown with its working, not
+   * offered for editing, since these are not the reader's rows to change.
+   */
+  remittances?: RemittanceRow[];
 }) {
   const { inputs, finance, running, fbt, package: pkg } = result;
   const cycle = effectivePayCycle(inputs.payCycle, config);
@@ -513,6 +526,32 @@ export default function PayBreakdown({
           </p>
         )}
       </section>
+
+      {/*
+        * The two sides of the GST, which is the reconciliation an accountant
+        * opens this page to do.
+        *
+        * Above the ledger rather than below it: the ledger answers "what
+        * happened in the account", and this answers "and did everything the
+        * employer paid get there" — which is the question the ledger raises
+        * and cannot settle on its own.
+        */}
+      {remittances.length > 0 && ledger.length > 0 && (
+        <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
+          <h2 className="text-base font-semibold text-ink">
+            GST: what the employer paid, and what reached the lease
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted">
+            The employer claims the GST on the rental and the fees and remits it to the
+            provider, who credits it to the lease account. Only the credit side appears on the
+            provider&apos;s statement; the payments below come from the employer&apos;s own
+            accounting export, matched to the credits that answer them.
+          </p>
+          <div className="mt-4">
+            <GstReconciliation ledger={ledger} remittances={remittances} />
+          </div>
+        </section>
+      )}
 
       {/*
         * What actually left the account.

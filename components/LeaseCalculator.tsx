@@ -476,6 +476,12 @@ export default function LeaseCalculator({
                 quoteLabel={quoteLabel(locked)}
                 onUnlock={() => store.update(unlockQuote)}
                 onAddRows={(rows) => store.update((l) => ({ ...l, statement: rows }))}
+                remittances={lease.remittances ?? []}
+                onRemittances={
+                  readOnly
+                    ? undefined
+                    : (rows) => store.update((l) => ({ ...l, remittances: rows }))
+                }
               />
 
               <details className="rounded-xl border border-line bg-panel-2 p-4">

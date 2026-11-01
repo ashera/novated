@@ -646,6 +646,7 @@ describe("Everything on a lease actually gets saved", () => {
       notes: "x",
       lockedQuoteId: "q-1",
       statement: [],
+      remittances: [],
     };
 
     // Each of these must be read in hydrate() and written in saveLease().
@@ -659,6 +660,7 @@ describe("Everything on a lease actually gets saved", () => {
       "notes",
       "lockedQuoteId",
       "statement",
+      "remittances",
     ];
     expect(Object.keys(everything).sort()).toEqual([...persisted].sort());
   });

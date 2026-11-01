@@ -107,6 +107,13 @@ alter table leases add column if not exists locked_quote_id text;
 -- and the scenario, they are only ever read as a whole, and a five-year lease
 -- is a few hundred rows. If that stops being true it wants its own table.
 alter table leases add column if not exists statement jsonb not null default '[]'::jsonb;
+
+-- The employer's side of the GST: what they remitted to the provider, read
+-- from an accounting export. Beside the statement rather than in it, because
+-- the statement is one account with a running balance and these transactions
+-- belong to another; mixing them would break the chain that makes each of its
+-- lines checkable against the one above it.
+alter table leases add column if not exists remittances jsonb not null default '[]'::jsonb;
 create index if not exists leases_user_idx on leases (user_id, updated_at desc);
 create unique index if not exists leases_share_uidx on leases (share_token) where share_token is not null;
 

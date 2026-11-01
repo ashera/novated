@@ -38,6 +38,7 @@ import {
 } from "./quote";
 import type { EngineConfig } from "./config";
 import type { StatementRow } from "./statement";
+import type { RemittanceRow } from "./remittance";
 import { DEFAULT_CONFIG } from "./config";
 
 /** The car. Defined once per lease, shared by every tool. */
@@ -227,6 +228,20 @@ export interface Lease {
    * "does this window add up" and becomes "is anything missing".
    */
   statement?: StatementRow[];
+  /**
+   * GST the employer remitted to the provider, from their accounting export.
+   *
+   * The other half of a reconciliation the portal cannot show. The statement
+   * says what reached the lease account; this says what was sent, and the gap
+   * between them is both a timing question and an amount one — a provider
+   * crediting five months in a single day is only visible with both sides in
+   * hand.
+   *
+   * Inputs like the statement: the pairing and every total are recomputed on
+   * read, except where the user has pinned a pairing, which is a decision
+   * rather than a derivation and so is stored on the row.
+   */
+  remittances?: RemittanceRow[];
   notes?: string;
   /**
    * The quote the user has settled on.
@@ -873,6 +888,12 @@ export function migrateLease(raw: unknown): Lease {
     // malformed would poison the reconciliation rather than fail visibly.
     statement: Array.isArray(l.statement)
       ? l.statement.filter((r) => r && typeof r.date === "string" && typeof r.amount === "number")
+      : [],
+    // Same rule, same reason: a remittance without a date or an amount cannot
+    // be paired with anything and would sit in the reconciliation as a row
+    // that silently never matches.
+    remittances: Array.isArray(l.remittances)
+      ? l.remittances.filter((r) => r && typeof r.date === "string" && typeof r.amount === "number")
       : [],
   };
 }

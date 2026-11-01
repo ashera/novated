@@ -16,6 +16,7 @@ import {
 import { calculateLease } from "@/lib/au/novated";
 import { decodeQuote } from "@/lib/au/quote";
 import type { StatementRow } from "@/lib/au/statement";
+import type { RemittanceRow } from "@/lib/au/remittance";
 
 /**
  * The pay deduction, broken down, shared by link.
@@ -78,8 +79,9 @@ export default async function SharedPayBreakdownPage({
     vehicle: unknown;
     scenario: unknown;
     statement: unknown;
+    remittances: unknown;
   }>(
-    "select id, name, vehicle, scenario, statement from leases where share_token = $1",
+    "select id, name, vehicle, scenario, statement, remittances from leases where share_token = $1",
     [token],
   );
   const row = r.rows[0];
@@ -149,6 +151,7 @@ export default async function SharedPayBreakdownPage({
           vehicle={lease.vehicle}
           commencementDate={lease.scenario.commencementDate}
           ledger={Array.isArray(row.statement) ? (row.statement as StatementRow[]) : []}
+          remittances={Array.isArray(row.remittances) ? (row.remittances as RemittanceRow[]) : []}
         />
       </main>
     </>
