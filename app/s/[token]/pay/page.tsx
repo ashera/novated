@@ -17,6 +17,7 @@ import { calculateLease } from "@/lib/au/novated";
 import { decodeQuote } from "@/lib/au/quote";
 import type { StatementRow } from "@/lib/au/statement";
 import type { RemittanceRow } from "@/lib/au/remittance";
+import { lastCompletedFinancialYear } from "@/lib/au/financialYear";
 
 /**
  * The pay deduction, broken down, shared by link.
@@ -138,6 +139,10 @@ export default async function SharedPayBreakdownPage({
       }
     : null;
 
+  /* Worked out on the server so the markup it renders and the markup the
+     browser renders cannot disagree about which year is "last completed". */
+  const defaultFinancialYear = lastCompletedFinancialYear(new Date());
+
   return (
     <>
       <SiteHeader />
@@ -152,6 +157,7 @@ export default async function SharedPayBreakdownPage({
           commencementDate={lease.scenario.commencementDate}
           ledger={Array.isArray(row.statement) ? (row.statement as StatementRow[]) : []}
           remittances={Array.isArray(row.remittances) ? (row.remittances as RemittanceRow[]) : []}
+          defaultFinancialYear={defaultFinancialYear}
         />
       </main>
     </>

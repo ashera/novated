@@ -1,11 +1,18 @@
 "use client";
 
+import { useState } from "react";
+
 import DeductionTable from "./DeductionTable";
 import DeductionExplainer from "./DeductionExplainer";
 import VehicleArt from "./VehicleArt";
 import LedgerTable from "./LedgerTable";
 import GstReconciliation from "./GstReconciliation";
 import type { RemittanceRow } from "@/lib/au/remittance";
+import {
+  financialYearLabel,
+  financialYearsIn,
+  inFinancialYear,
+} from "@/lib/au/financialYear";
 import { orderLog } from "@/lib/au/statementLog";
 import type { StatementRow } from "@/lib/au/statement";
 import { modelledDeduction, quotedDeduction } from "@/lib/au/deduction";
@@ -62,6 +69,7 @@ export default function PayBreakdown({
   commencementDate,
   ledger = [],
   remittances = [],
+  defaultFinancialYear,
 }: {
   result: LeaseResult;
   config: EngineConfig;
@@ -120,6 +128,15 @@ export default function PayBreakdown({
    * offered for editing, since these are not the reader's rows to change.
    */
   remittances?: RemittanceRow[];
+  /**
+   * The year the ledger and the GST tables open on.
+   *
+   * Worked out on the server and passed in rather than read from the clock
+   * here, so the markup this component renders on the server and the markup
+   * it renders in the browser cannot disagree about what "last completed
+   * year" means across a midnight or a 1 July.
+   */
+  defaultFinancialYear?: string;
 }) {
   const { inputs, finance, running, fbt, package: pkg } = result;
   const cycle = effectivePayCycle(inputs.payCycle, config);
@@ -128,6 +145,52 @@ export default function PayBreakdown({
   const adminFee = inputs.adminFeeAnnual ?? config.lease.defaultAdminFeeAnnual;
 
   const n = (v: number | null) => (v == null ? "—" : fmtCurrency(v));
+
+  /*
+   * The period both tables are read through.
+   *
+   * One piece of state behind two controls rather than two independent
+   * filters. An accountant reconciling a year wants the ledger and the GST
+   * for the same year, and a page that could show one year's transactions
+   * beside another year's GST would be a page that invites a mistake nothing
+   * on it would reveal. The control appears in both card headers because the
+   * cards are long and whichever one you are reading should say which period
+   * it is showing.
+   */
+  const years = financialYearsIn([
+    ...ledger.map((r) => r.date),
+    ...remittances.map((r) => r.date),
+  ]);
+  const [financialYear, setFinancialYear] = useState<string | null>(
+    defaultFinancialYear ?? null,
+  );
+  const ledgerInYear = inFinancialYear(ledger, financialYear);
+
+  const YearPicker = ({ id }: { id: string }) => (
+    <label className="flex items-center gap-2 text-xs text-muted" htmlFor={id}>
+      Financial year
+      <select
+        id={id}
+        value={financialYear ?? "all"}
+        onChange={(e) => setFinancialYear(e.target.value === "all" ? null : e.target.value)}
+        className="rounded border border-line bg-panel px-2 py-1 text-xs text-ink"
+      >
+        <option value="all">All years</option>
+        {years.map((y) => (
+          <option key={y} value={y}>
+            {financialYearLabel(y)}
+          </option>
+        ))}
+        {/* The default can name a year the data does not reach — a lease whose
+            statements all sit in the current year, say. Offered anyway, so the
+            picker shows what is actually selected rather than silently
+            displaying somebody else's year. */}
+        {financialYear && !years.includes(financialYear) && (
+          <option value={financialYear}>{financialYearLabel(financialYear)}</option>
+        )}
+      </select>
+    </label>
+  );
 
   /*
    * The schedule's own dates and counts.
@@ -538,9 +601,12 @@ export default function PayBreakdown({
         */}
       {remittances.length > 0 && ledger.length > 0 && (
         <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-          <h2 className="text-base font-semibold text-ink">
-            GST: what the employer paid, and what reached the lease
-          </h2>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h2 className="text-base font-semibold text-ink">
+              GST: what the employer paid, and what reached the lease
+            </h2>
+            <YearPicker id="fy-gst" />
+          </div>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted">
             The employer claims the GST on the rental and the fees and remits it to the
             provider, who credits it to the lease account. Only the credit side appears on the
@@ -548,7 +614,11 @@ export default function PayBreakdown({
             accounting export, matched to the credits that answer them.
           </p>
           <div className="mt-4">
-            <GstReconciliation ledger={ledger} remittances={remittances} />
+            <GstReconciliation
+              ledger={ledger}
+              remittances={remittances}
+              financialYear={financialYear}
+            />
           </div>
         </section>
       )}
@@ -568,21 +638,34 @@ export default function PayBreakdown({
         */}
       {ledger.length > 0 && (
         <section className="rounded-xl border border-line bg-panel p-5 shadow-[var(--shadow-card)]">
-          <h2 className="text-base font-semibold text-ink">Transaction ledger</h2>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h2 className="text-base font-semibold text-ink">Transaction ledger</h2>
+            <YearPicker id="fy-ledger" />
+          </div>
           <p className="mt-1 text-sm text-muted">
             What has actually gone through the lease account, as recorded from the
-            provider&apos;s statements. {ledger.length} transaction
-            {ledger.length === 1 ? "" : "s"}
-            {ledgerSpan ? `, ${ledgerSpan}` : ""}. The &ldquo;read as&rdquo; column is this
-            site&apos;s classification of each line, not the provider&apos;s.
+            provider&apos;s statements. {ledgerInYear.length} transaction
+            {ledgerInYear.length === 1 ? "" : "s"}
+            {financialYear ? ` in ${financialYear}` : ledgerSpan ? `, ${ledgerSpan}` : ""}. The
+            &ldquo;read as&rdquo; column is this site&apos;s classification of each line, not
+            the provider&apos;s.
           </p>
           <div className="mt-4">
-            <LedgerTable rows={orderLog(ledger)} />
+            {ledgerInYear.length > 0 ? (
+              <LedgerTable rows={orderLog(ledgerInYear)} />
+            ) : (
+              <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs leading-relaxed text-subtle">
+                No transactions in {financialYear}. Choose another year, or &ldquo;All
+                years&rdquo;, to see the {ledger.length} on record.
+              </p>
+            )}
           </div>
           <p className="mt-3 text-xs leading-relaxed text-muted">
             Amounts are shown to the cent, as the statement printed them. A line classified
             under the wrong heading is the usual explanation for a total that looks wrong,
             which is why the classification is on show rather than applied silently.
+            {financialYear &&
+              " Each balance is the one the statement printed on that line; filtered to a single year, the column no longer runs continuously from the row above."}
           </p>
         </section>
       )}

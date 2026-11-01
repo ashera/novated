@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { fmtCurrencyCents } from "@/lib/au/format";
 import { reconcileGst, type RemittanceRow } from "@/lib/au/remittance";
+import { financialYearOfIso, financialYearRange } from "@/lib/au/financialYear";
 import { rowKey } from "@/lib/au/statementLog";
 import type { StatementRow } from "@/lib/au/statement";
 
@@ -26,6 +27,7 @@ export default function GstReconciliation({
   ledger,
   remittances,
   onPin,
+  financialYear,
 }: {
   ledger: StatementRow[];
   remittances: RemittanceRow[];
@@ -34,12 +36,42 @@ export default function GstReconciliation({
    * change — the accountant's copy shows the working, it does not edit it.
    */
   onPin?: (remittance: RemittanceRow, matchKey: string | null | undefined) => void;
+  /**
+   * Show only the payments made in this financial year. Null shows all of them.
+   *
+   * A filter on the VIEW, never on the reconciliation. The pairing runs across
+   * everything either way, because the two sides routinely fall in different
+   * years — a payment made in June 2026 was credited in August, which is the
+   * next one — and reconciling only what is inside the window would report
+   * that payment as never credited. It is the lag this page exists to show
+   * that makes the distinction matter.
+   */
+  financialYear?: string | null;
 }) {
+  /* Across everything. See the note on `financialYear`. */
   const rec = useMemo(
     () => reconcileGst(ledger, remittances, rowKey),
     [ledger, remittances],
   );
   if (remittances.length === 0) return null;
+
+  const fy = financialYear ?? null;
+  const window = fy ? financialYearRange(fy) : null;
+  const within = (iso: string) =>
+    window == null || (iso >= window.from && iso <= window.to);
+
+  /* Payments are the subject, so the year a pair belongs to is the year it was
+     PAID in — not the year the credit landed, which may be a later one and is
+     the thing being measured. */
+  const pairs = rec.pairs.filter((p) => within(p.remittance.date));
+  const unmatchedCredits = rec.unmatchedCredits.filter((c) => within(c.date));
+  const shownRemitted = pairs.reduce((t, p) => t + p.remittance.amount, 0);
+  const shownCredited =
+    pairs.reduce((t, p) => t + (p.credit?.amount ?? 0), 0) +
+    unmatchedCredits.reduce((t, c) => t + c.amount, 0);
+  const crossesYear = pairs.some(
+    (p) => p.credit != null && financialYearOfIso(p.credit.date) !== financialYearOfIso(p.remittance.date),
+  );
 
   const credits = ledger.filter((r) => r.kind === "gst-credit" && r.amount > 0);
   const fmtDate = (iso: string) =>
@@ -77,6 +109,13 @@ export default function GstReconciliation({
         </p>
       )}
 
+      {pairs.length === 0 && (
+        <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs leading-relaxed text-subtle">
+          No employer GST payments were made in {fy}. Choose another year, or &ldquo;All
+          years&rdquo;, to see the ones on record.
+        </p>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -91,7 +130,7 @@ export default function GstReconciliation({
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {rec.pairs.map((p, i) => (
+            {pairs.map((p, i) => (
               <tr key={`${p.remittance.date}-${p.remittance.amount}-${i}`}>
                 <td className="py-2 text-subtle">{fmtDate(p.remittance.date)}</td>
                 <td className="py-2 pr-6 text-right tabular-nums text-ink">
@@ -148,7 +187,7 @@ export default function GstReconciliation({
         </table>
       </div>
 
-      {rec.unmatchedCredits.length > 0 && (
+      {unmatchedCredits.length > 0 && (
         <div className="rounded-lg border border-line bg-panel-2 p-3">
           <p className="text-xs font-semibold text-ink">
             Credits with no payment to account for them
@@ -159,7 +198,7 @@ export default function GstReconciliation({
             way.
           </p>
           <ul className="mt-2 space-y-1">
-            {rec.unmatchedCredits.map((c, i) => (
+            {unmatchedCredits.map((c, i) => (
               <li
                 key={`${c.date}-${c.amount}-${i}`}
                 className="flex justify-between gap-4 text-xs tabular-nums text-subtle"
@@ -175,8 +214,14 @@ export default function GstReconciliation({
       <dl className="grid gap-x-8 gap-y-0 sm:grid-cols-2">
         {(
           [
-            ["Employer remitted", fmtCurrencyCents(rec.totalRemitted)],
-            ["Credited to the lease", fmtCurrencyCents(rec.totalCredited)],
+            [
+              fy ? `Employer remitted in ${fy}` : "Employer remitted",
+              fmtCurrencyCents(fy ? shownRemitted : rec.totalRemitted),
+            ],
+            [
+              fy ? `Credited against those payments` : "Credited to the lease",
+              fmtCurrencyCents(fy ? shownCredited : rec.totalCredited),
+            ],
           ] as [string, string][]
         ).map(([k, v]) => (
           <div
@@ -197,7 +242,16 @@ export default function GstReconciliation({
         * from it — so where the windows differ, the figure is withheld and
         * the reason given instead.
         */}
-      {rec.windowsComparable ? (
+      {fy ? (
+        <p className="text-xs leading-relaxed text-muted">
+          Showing the {pairs.length} payment{pairs.length === 1 ? "" : "s"} made in {fy}
+          {crossesYear
+            ? ", with the credit that answers each one — some of which landed in the following year, which is what the lag column is showing."
+            : "."}{" "}
+          Pairing is worked out across the whole record, so a credit is never reported missing
+          merely because it fell outside the year.
+        </p>
+      ) : rec.windowsComparable ? (
         <p className="text-xs leading-relaxed text-muted">
           Across the same period, the employer remitted{" "}
           {fmtCurrencyCents(rec.totalRemitted)} and{" "}
